@@ -52,6 +52,7 @@ type State struct {
 	Command   string                        `json:"command"`
 	Lang      string                        `json:"lang"`
 	PlayMode  string                        `json:"playMode"`
+	DryRun    bool                          `json:"dryRun"`
 	Raw       []tikfinity.RawEvent          `json:"raw,omitempty"`
 	FirstRaw  map[string]tikfinity.RawEvent `json:"firstRaw,omitempty"`
 	Extra     map[string]any                `json:"extra,omitempty"`
@@ -64,7 +65,7 @@ func (s *Server) state() State {
 		Version: s.Version, TikFinity: s.App.TF.Status(), Queue: s.App.Queue.Snapshot(),
 		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(),
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name,
-		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, Raw: raw, FirstRaw: first,
+		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
 	}
 	if s.Extra != nil {
 		st.Extra = s.Extra()
@@ -111,6 +112,7 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/action/{name}", s.action)
 	mux.HandleFunc("POST /api/queue/{id}/{op}", s.queueOp)
 	mux.HandleFunc("POST /api/test", s.test)
+	mux.HandleFunc("POST /api/simulate", s.simulate)
 	return guard(port, mux)
 }
 
@@ -229,6 +231,10 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 		cfg := a.Cfg.Get()
 		n := a.DL.Cleanup(cfg.Download.CacheLimitMB, a.Queue.Files())
 		a.Notify("info", "cache cleanup removed %d file(s)", n)
+	case "toggleDryRun":
+		a.ToggleDryRun()
+	case "clearTest":
+		a.ClearTest()
 	case "openTikfinityDownload":
 		err = a.OpenURL(tikfinity.DownloadURL)
 	default:
@@ -287,6 +293,28 @@ func (s *Server) test(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "item": it})
+}
+
+// simulate runs a chat message through the real chat path.
+func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		User    string `json:"user"`
+		Message string `json:"message"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body) != nil {
+		httpErr(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	it, rej, matched := s.App.SimulateChat(body.User, body.Message)
+	s.Push()
+	switch {
+	case !matched:
+		writeJSON(w, map[string]any{"ok": false, "code": "ignored", "error": "not a request: real chat would ignore this message"})
+	case rej != nil:
+		writeJSON(w, map[string]any{"ok": false, "code": rej.Code, "error": rej.Detail})
+	default:
+		writeJSON(w, map[string]any{"ok": true, "item": it})
+	}
 }
 
 func result(w http.ResponseWriter, err error) {

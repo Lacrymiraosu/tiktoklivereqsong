@@ -50,7 +50,8 @@ type Item struct {
 	Status    string    `json:"status"`
 	Cover     string    `json:"cover"`
 	AddedAt   time.Time `json:"addedAt"`
-	Test      bool      `json:"test,omitempty"`
+	Test      bool      `json:"test,omitempty"`      // added from the dashboard's test panel
+	Simulated bool      `json:"simulated,omitempty"` // simulated chat: counts for cooldown/limits like a real one
 
 	State     State     `json:"state"`
 	File      string    `json:"file,omitempty"`
@@ -69,6 +70,7 @@ type Played struct {
 	User   string    `json:"user"`
 	At     time.Time `json:"at"`
 	Result string    `json:"result"` // played | skipped
+	Test   bool      `json:"test,omitempty"`
 }
 
 type Rejected struct {
@@ -77,6 +79,7 @@ type Rejected struct {
 	Input  string    `json:"input"`
 	Code   string    `json:"code"`
 	Detail string    `json:"detail"`
+	Test   bool      `json:"test,omitempty"`
 }
 
 type data struct {
@@ -85,6 +88,8 @@ type data struct {
 	History  []Played             `json:"history"`
 	LastReq  map[string]time.Time `json:"lastRequest"`
 	Rejected []Rejected           `json:"rejected"`
+	// users whose cooldown was set by a simulated chat, reset by ClearTest
+	TestUsers map[string]bool `json:"testUsers,omitempty"`
 }
 
 // Snapshot is a deep enough copy for rendering.
@@ -198,10 +203,59 @@ func (q *Queue) Add(it *Item) {
 	defer q.mu.Unlock()
 	it.State = Queued
 	q.d.Items = append(q.d.Items, it)
-	if !it.Test {
-		q.d.LastReq[strings.ToLower(it.User)] = it.AddedAt
+	if !it.Test || it.Simulated {
+		u := strings.ToLower(it.User)
+		q.d.LastReq[u] = it.AddedAt
+		if it.Simulated {
+			if q.d.TestUsers == nil {
+				q.d.TestUsers = map[string]bool{}
+			}
+			q.d.TestUsers[u] = true
+		}
 	}
 	q.changed()
+}
+
+// ClearTest removes everything the test panel created: test requests (also
+// when playing), their history and rejections, and simulated cooldowns. It
+// returns the ids of removed items so running downloads can be cancelled.
+func (q *Queue) ClearTest() []string {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	var ids []string
+	items := q.d.Items[:0]
+	for _, it := range q.d.Items {
+		if it.Test {
+			ids = append(ids, it.ID)
+		} else {
+			items = append(items, it)
+		}
+	}
+	q.d.Items = items
+	if q.d.Now != nil && q.d.Now.Test {
+		ids = append(ids, q.d.Now.ID)
+		q.d.Now = nil
+	}
+	hist := q.d.History[:0]
+	for _, h := range q.d.History {
+		if !h.Test {
+			hist = append(hist, h)
+		}
+	}
+	q.d.History = hist
+	rej := q.d.Rejected[:0]
+	for _, r := range q.d.Rejected {
+		if !r.Test {
+			rej = append(rej, r)
+		}
+	}
+	q.d.Rejected = rej
+	for u := range q.d.TestUsers {
+		delete(q.d.LastReq, u)
+	}
+	q.d.TestUsers = nil
+	q.changed()
+	return ids
 }
 
 func (q *Queue) Reject(r Rejected) {
@@ -273,10 +327,7 @@ func (q *Queue) Drop(id, result string) bool {
 	for i, it := range q.d.Items {
 		if it.ID == id {
 			q.d.Items = append(q.d.Items[:i], q.d.Items[i+1:]...)
-			q.d.History = append([]Played{{SetID: it.SetID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result}}, q.d.History...)
-			if len(q.d.History) > maxHistory {
-				q.d.History = q.d.History[:maxHistory]
-			}
+			q.record(it, result)
 			q.changed()
 			return true
 		}
@@ -342,13 +393,17 @@ func (q *Queue) finishLocked(result string) {
 	if q.d.Now == nil {
 		return
 	}
-	n := q.d.Now
-	q.d.History = append([]Played{{SetID: n.SetID, Title: n.Artist + " - " + n.Title, User: n.User, At: time.Now(), Result: result}}, q.d.History...)
+	q.record(q.d.Now, result)
+	q.d.Now = nil
+	q.changed()
+}
+
+// record adds it to the history; q.mu must be held.
+func (q *Queue) record(it *Item, result string) {
+	q.d.History = append([]Played{{SetID: it.SetID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test}}, q.d.History...)
 	if len(q.d.History) > maxHistory {
 		q.d.History = q.d.History[:maxHistory]
 	}
-	q.d.Now = nil
-	q.changed()
 }
 
 // Promote makes item id now playing (finishing the current one as result).

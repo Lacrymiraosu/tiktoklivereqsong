@@ -39,10 +39,21 @@ TikFinity is the only event source. The helper never connects to TikTok itself.
    * 🔴 **red**: TikFinity is not installed or not running. Use the button in the banner.
    * 🟡 **yellow**: TikFinity is running but not connected yet, or connected and no TikTok events have arrived yet ("Waiting for stream").
    * 🟢 **green**: live and taking requests.
-6. Type a beatmap link in **Test request** to check the whole chain (download, MD5, preload) without going live.
+6. Use the **Test** panel (see below) to check the whole chain without going live.
 7. Optional: in OBS, add a **Browser Source** with the URL `http://127.0.0.1:21280/overlay`. The background is transparent.
 
 The dashboard works in English and Thai (language picker at the top).
+
+## Testing without going live
+
+The **Test** panel on the dashboard works while TikFinity is offline:
+
+* **Simulate chat**: type a message as any `@user`, exactly as it would appear in TikTok chat. It goes through the real chat path: command and aliases, requests on/off, per-user limit, cooldown and every map rule. A message that is not a request is reported as "ignored", just as real chat would ignore it. A bare ID or link gets the command added for you.
+* **Quick add**: put a map straight into the queue. Only the map rules apply.
+* **Dry run**: **Next** and **Play** move the queue (and auto mode runs) but never open osu! or copy anything into Songs. A `DRY RUN` badge shows at the top while it is on. Downloads and MD5 checks still happen for real.
+* **Clear test data**: removes test requests (also from Now Playing), their history and rejections, and the cooldowns that simulated chat set. Real requests are not touched.
+
+Test requests carry a `test` tag in the queue.
 
 ## What viewers type
 
@@ -127,6 +138,7 @@ Anything else is ignored. Only numeric IDs on `osu.ppy.sh` are accepted. The com
 | overlay | `visible`, `showRequester`, `theme` (`pink`/`sky`/`mono`), `scale` (%), `position` | | |
 | hotkeys | `enabled` | `false` | Global hotkeys (they work while osu! has focus) |
 | | `next` / `skip` / `removeLast` / `toggleRequests` | `Ctrl+Alt+N` / `Ctrl+Alt+S` / `Ctrl+Alt+Backspace` / `Ctrl+Alt+R` | Format: `Ctrl+Alt+N`, `Shift+F5`, `F9`, `Win+Num5`… |
+| test | `dryRun` | `false` | Next/Play never open osu! or touch Songs (switch in the Test panel) |
 
 Command-line flags: `-dir <folder>` keeps config, queue, cache and log somewhere else; `-no-browser` skips opening the dashboard.
 

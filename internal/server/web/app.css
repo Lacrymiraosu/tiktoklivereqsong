@@ -86,7 +86,17 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .npa{display:flex;gap:8px;flex-wrap:wrap}
 .npa .btn{height:50px;font-size:16px}
 
-/* ---------- test request ---------- */
+/* ---------- test panel ---------- */
+.testbox{margin-top:14px;padding:12px 14px;border-radius:18px;border:1px dashed var(--line);background:rgba(102,204,255,.04)}
+.testh{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.testh>b{font-size:14px;color:var(--sky)}
+.testh .seg{flex:0 1 auto}
+.testh .seg button{min-width:0;padding:0 14px;height:36px}
+.testh .sp{flex:1}
+.testh .reqtog{height:36px}
+.testbox .searchrow{margin-top:10px}
+.testbox .hint{margin:8px 2px 0}
+.pill.dry{background:rgba(255,207,107,.16);border-color:rgba(255,207,107,.5);color:var(--warn);font-weight:600;letter-spacing:.5px;padding:0 14px}
 .searchrow{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
 .searchrow input{height:48px;border-radius:24px;padding:0 18px;font-size:16px}
 .searchrow .q{flex:3;min-width:200px}

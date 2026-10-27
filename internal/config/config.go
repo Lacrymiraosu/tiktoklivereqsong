@@ -104,6 +104,11 @@ type Hotkeys struct {
 	Toggle  string `json:"toggleRequests"`
 }
 
+// Test holds the dashboard's test-panel switches.
+type Test struct {
+	DryRun bool `json:"dryRun"` // Next/Play move the queue but never open or copy anything into osu!
+}
+
 type Config struct {
 	Language   string     `json:"language"` // en | th
 	Connection Connection `json:"connection"`
@@ -116,6 +121,7 @@ type Config struct {
 	Import     Import     `json:"import"`
 	Overlay    Overlay    `json:"overlay"`
 	Hotkeys    Hotkeys    `json:"hotkeys"`
+	Test       Test       `json:"test"`
 }
 
 func Default() Config {

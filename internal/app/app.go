@@ -102,16 +102,52 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 	if !a.TF.Accepting() {
 		return
 	}
-	go a.submit(ch.User, ch.Nick, ch.Comment, req, false)
+	go a.submit(ch.User, ch.Nick, ch.Comment, req, fromChat)
 }
 
-// TestRequest simulates a chat request from the dashboard. It runs the map
-// rules but not the per-user limits, and works while offline.
+// origin says where a request came from.
+type origin int
+
+const (
+	fromChat  origin = iota // TikTok chat via TikFinity
+	fromSim                 // test panel: simulated chat, every rule applies
+	fromQuick               // test panel: quick add, map rules only
+)
+
+func testUser(user, def string) string {
+	if user = strings.TrimPrefix(strings.TrimSpace(user), "@"); user == "" {
+		return def
+	}
+	return user
+}
+
+// SimulateChat feeds a chat message through the same path as TikTok chat
+// (command, requests on/off, per-user limit, cooldown, map rules), but works
+// while offline and marks the result as test data. matched is false when the
+// message is not a request at all, which real chat would silently ignore.
+func (a *App) SimulateChat(user, comment string) (it *queue.Item, rej *validator.Rejection, matched bool) {
+	cfg := a.Cfg.Get()
+	user = testUser(user, "viewer")
+	req, ok := parser.Parse(comment, parser.Options{Command: cfg.Command.Name, Aliases: cfg.Command.Aliases, BareNumberAs: cfg.Command.BareNumberAs})
+	if !ok {
+		return nil, nil, false
+	}
+	if !cfg.Command.Enabled {
+		r := &validator.Rejection{Code: "requests_off", Detail: "requests are turned off"}
+		rr := queue.RejectedFrom(user, comment, r)
+		rr.Test = true
+		a.Queue.Reject(rr)
+		return nil, r, true
+	}
+	it, rej = a.submit(user, user, comment, req, fromSim)
+	return it, rej, true
+}
+
+// TestRequest adds a map from the dashboard. It runs the map rules but not
+// the per-user limits, and works while offline.
 func (a *App) TestRequest(user, input string) (*queue.Item, *validator.Rejection) {
 	cfg := a.Cfg.Get()
-	if user = strings.TrimPrefix(strings.TrimSpace(user), "@"); user == "" {
-		user = "dashboard"
-	}
+	user = testUser(user, "dashboard")
 	input = strings.TrimSpace(input)
 	arg := input
 	if f := strings.Fields(input); len(f) >= 2 && strings.HasPrefix(f[0], "!") {
@@ -120,13 +156,15 @@ func (a *App) TestRequest(user, input string) (*queue.Item, *validator.Rejection
 	req, ok := parser.ParseArg(arg, cfg.Command.BareNumberAs)
 	if !ok {
 		r := &validator.Rejection{Code: "bad_input", Detail: "not a beatmap ID or osu! link"}
-		a.Queue.Reject(queue.RejectedFrom(user, input, r))
+		rr := queue.RejectedFrom(user, input, r)
+		rr.Test = true
+		a.Queue.Reject(rr)
 		return nil, r
 	}
-	return a.submit(user, user, input, req, true)
+	return a.submit(user, user, input, req, fromQuick)
 }
 
-func (a *App) submit(user, nick, input string, req parser.Request, test bool) (*queue.Item, *validator.Rejection) {
+func (a *App) submit(user, nick, input string, req parser.Request, o origin) (*queue.Item, *validator.Rejection) {
 	a.mu.Lock()
 	a.pending++
 	a.mu.Unlock()
@@ -136,9 +174,11 @@ func (a *App) submit(user, nick, input string, req parser.Request, test bool) (*
 		a.mu.Unlock()
 		a.Changed()
 	}()
-	it, rej := a.resolve(user, nick, input, req, test)
+	it, rej := a.resolve(user, nick, input, req, o)
 	if rej != nil {
-		a.Queue.Reject(queue.RejectedFrom(user, input, rej))
+		rr := queue.RejectedFrom(user, input, rej)
+		rr.Test = o != fromChat
+		a.Queue.Reject(rr)
 		log.Printf("rejected @%s %q: %s", user, input, rej.Detail)
 		return nil, rej
 	}
@@ -147,11 +187,11 @@ func (a *App) submit(user, nick, input string, req parser.Request, test bool) (*
 	return it, nil
 }
 
-func (a *App) resolve(user, nick, input string, req parser.Request, test bool) (*queue.Item, *validator.Rejection) {
+func (a *App) resolve(user, nick, input string, req parser.Request, o origin) (*queue.Item, *validator.Rejection) {
 	cfg := a.Cfg.Get()
 	now := time.Now()
 	st := a.Queue.ValidationState(user)
-	if !test {
+	if o != fromQuick {
 		if r := validator.CheckUser(user, st, cfg.Rules, cfg.Queue, now); r != nil {
 			return nil, r
 		}
@@ -187,7 +227,7 @@ func (a *App) resolve(user, nick, input string, req parser.Request, test bool) (
 	it := &queue.Item{
 		ID: queue.NewID(), User: user, Nick: nick, SetID: set.ID, BeatmapID: diff.ID, BySet: beatmapID == 0,
 		Title: set.Title, Artist: set.Artist, Creator: set.Creator, Version: diff.Version, Mode: mode,
-		Stars: diff.Stars, Length: diff.Length, Status: set.Status, Cover: set.Cover, AddedAt: now, Test: test,
+		Stars: diff.Stars, Length: diff.Length, Status: set.Status, Cover: set.Cover, AddedAt: now, Test: o != fromChat, Simulated: o == fromSim,
 	}
 	if set.Partial {
 		it.Warning = "osu! page unavailable; star rating, length and status were not checked"
@@ -367,6 +407,9 @@ func (a *App) preImport(id string) {
 		return
 	}
 	cfg := a.Cfg.Get()
+	if cfg.Test.DryRun {
+		return // dry run never touches the Songs folder
+	}
 	if err := a.Import.Import(it.File, importer.Copy, cfg.Osu.Game, cfg.Osu.Folder, target(it)); err != nil {
 		log.Printf("preload import of %d failed: %v", it.SetID, err)
 		return
@@ -446,6 +489,8 @@ func (a *App) play(id, result string) error {
 	cfg := a.Cfg.Get()
 	var err error
 	switch {
+	case cfg.Test.DryRun:
+		a.Notify("info", "dry run: would open %s - %s [%s] (%s)", it.Artist, it.Title, it.Version, cfg.Import.Mode)
 	case it.MD5 == "installed":
 		err = a.OpenURL(fmt.Sprintf("osu://b/%d", it.BeatmapID))
 	case it.Imported || cfg.Osu.Game == "lazer":
@@ -527,6 +572,28 @@ func (a *App) Resolving() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.pending
+}
+
+// ClearTest removes all test-panel data and cancels its downloads.
+func (a *App) ClearTest() int {
+	ids := a.Queue.ClearTest()
+	for _, id := range ids {
+		a.Cancel(id)
+	}
+	a.Notify("info", "cleared %d test request(s)", len(ids))
+	return len(ids)
+}
+
+func (a *App) ToggleDryRun() bool {
+	c := a.Cfg.Get()
+	c.Test.DryRun = !c.Test.DryRun
+	a.Cfg.Set(c)
+	if c.Test.DryRun {
+		a.Notify("info", "dry run ON: Next/Play will not open osu!")
+	} else {
+		a.Notify("info", "dry run OFF")
+	}
+	return c.Test.DryRun
 }
 
 // Hotkey dispatches a global hotkey.

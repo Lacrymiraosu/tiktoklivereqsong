@@ -43,9 +43,19 @@ const T = {
   settings: ["Settings", "ตั้งค่า"],
   save: ["Save", "บันทึก"],
   resetTab: ["Reset tab", "คืนค่าแท็บนี้"],
-  testPh: ["Beatmap ID or osu! link", "ID บีทแมพ หรือลิงก์ osu!"],
-  testUserPh: ["as @user", "ในชื่อ @ผู้ใช้"],
-  testBtn: ["Test request", "ทดสอบขอเพลง"],
+  testPanel: ["Test", "ทดสอบ"],
+  modeChat: ["Simulate chat", "จำลองแชท"],
+  modeQuick: ["Quick add", "เพิ่มด่วน"],
+  dryRun: ["Dry run", "ทดลองไม่เปิดเกม"],
+  clearTest: ["Clear test data", "ล้างข้อมูลทดสอบ"],
+  testPh: ["!req 2096297 or a link", "!req 2096297 หรือลิงก์"],
+  testUserPh: ["@user", "@ผู้ใช้"],
+  testBtn: ["Send", "ส่ง"],
+  hintChat: ["Sends the message as if @user typed it in TikTok chat: command, requests on/off, per-user limit, cooldown and every map rule apply. Works offline. A bare ID or link gets {cmd} added.", "ส่งข้อความเหมือน @ผู้ใช้ พิมพ์ในแชท TikTok ใช้กฎทั้งหมด (คำสั่ง เปิด/ปิดรับ จำนวนต่อคน คูลดาวน์ กฎแมพ) ใช้ได้แม้ไม่ได้ไลฟ์ ถ้าพิมพ์แค่ ID หรือลิงก์จะเติม {cmd} ให้"],
+  hintQuick: ["Adds a map straight to the queue. Only map rules apply (no per-user limit or cooldown).", "เพิ่มแมพเข้าคิวทันที ใช้แค่กฎแมพ (ไม่นับจำนวนต่อคนและคูลดาวน์)"],
+  hintDry: [" Dry run is on: Next and Play move the queue but never open osu! or copy into Songs.", " เปิดโหมดทดลองอยู่: กด ถัดไป/เล่น จะเลื่อนคิวแต่ไม่เปิด osu! และไม่คัดลอกเข้า Songs"],
+  ignored: ["Ignored: real chat would not treat this as a request", "ไม่ใช่คำขอ: แชทจริงจะไม่นับข้อความนี้"],
+  confirmClearTest: ["Remove all test requests, their history, rejections and cooldowns?", "ลบคำขอทดสอบทั้งหมด รวมประวัติ การปฏิเสธ และคูลดาวน์ที่เกิดจากการทดสอบ?"],
   nowPlaying: ["Now playing", "กำลังเล่น"],
   nothingPlaying: ["Nothing playing. Press Next to open the first map in the queue.", "ยังไม่มีเพลงที่เล่นอยู่ กด ถัดไป เพื่อเปิดแมพแรกในคิว"],
   next: ["Next", "ถัดไป"],
@@ -162,6 +172,9 @@ function render() {
   $("#tfPill").title = tf.error || "";
   $("#logo").classList.toggle("beat", tf.level === "green" && S.requests);
   $("#reqSw").checked = S.requests;
+  $("#dryRunSw").checked = S.dryRun;
+  $("#dryPill").hidden = !S.dryRun;
+  renderTestHint();
   renderBanner(tf);
   renderNow(S.queue.now);
   renderQueue(S.queue.items || []);
@@ -318,7 +331,7 @@ function connect() {
     S = JSON.parse(e.data);
     // Chat rejections are easy to miss in the side panel; flash the newest one.
     const r = (S.queue.rejected || [])[0], p = prev && (prev.queue.rejected || [])[0];
-    if (prev && r && (!p || r.at !== p.at)) toast(`@${r.user} ${t("rejectedToast")}: ${t("r_" + r.code)} (${r.detail})`, true);
+    if (prev && r && !r.test && (!p || r.at !== p.at)) toast(`@${r.user} ${t("rejectedToast")}: ${t("r_" + r.code)} (${r.detail})`, true);
     render();
   };
   ws.onclose = () => {
@@ -332,14 +345,39 @@ $("#reqSw").addEventListener("change", () => act("/api/action/toggleRequests"));
 $("#langSel").addEventListener("change", e => { LANG = e.target.value; langPicked = true; try { localStorage.setItem("osureq.lang", LANG); } catch {} applyLang(); render(); });
 $("#rmLastBtn").addEventListener("click", () => act("/api/action/removeLast"));
 $("#clearBtn").addEventListener("click", () => { if (confirm(t("confirmClear"))) act("/api/action/clear"); });
+/* ---------- test panel ---------- */
+let testMode = "chat";
+try { testMode = localStorage.getItem("osureq.testMode") || "chat"; } catch {}
+function renderTestHint() {
+  document.querySelectorAll("#testMode button").forEach(b => b.classList.toggle("on", b.dataset.mode === testMode));
+  const cmd = S ? S.command : "!req";
+  $("#testHint").textContent = t(testMode === "chat" ? "hintChat" : "hintQuick", { cmd }) + (S && S.dryRun ? t("hintDry") : "");
+}
+$("#testMode").addEventListener("click", e => {
+  const b = e.target.closest("button[data-mode]");
+  if (!b) return;
+  testMode = b.dataset.mode;
+  try { localStorage.setItem("osureq.testMode", testMode); } catch {}
+  renderTestHint();
+});
+$("#dryRunSw").addEventListener("change", () => act("/api/action/toggleDryRun"));
+$("#clearTestBtn").addEventListener("click", () => { if (confirm(t("confirmClearTest"))) act("/api/action/clearTest"); });
 $("#testForm").addEventListener("submit", async e => {
   e.preventDefault();
-  const input = $("#testIn").value.trim();
+  let input = $("#testIn").value.trim();
   if (!input) return;
+  const user = $("#testUser").value;
   const btn = e.submitter; btn.disabled = true;
   try {
-    const j = await api("POST", "/api/test", { input, user: $("#testUser").value });
+    let j;
+    if (testMode === "chat") {
+      if (!input.startsWith("!")) input = (S ? S.command : "!req") + " " + input;
+      j = await api("POST", "/api/simulate", { user, message: input });
+    } else {
+      j = await api("POST", "/api/test", { input, user });
+    }
     if (j.ok) { toast(t("added", { t: `${j.item.artist} - ${j.item.title} [${j.item.version}]` })); $("#testIn").value = ""; }
+    else if (j.code === "ignored") toast(t("ignored"), true);
     else toast((j.code ? t("r_" + j.code) + ": " : "") + j.error, true);
   } finally { btn.disabled = false; }
 });
@@ -555,4 +593,5 @@ $("#setSave").addEventListener("click", async e => {
 });
 
 applyLang();
+renderTestHint();
 connect();
