@@ -89,6 +89,7 @@ const T = {
   r_cooldown: ["cooldown", "ติดคูลดาวน์"], r_set_blacklisted: ["map blacklisted", "แมพถูกแบน"], r_mapper_blacklisted: ["mapper blacklisted", "แมพเปอร์ถูกแบน"],
   r_status: ["status not allowed", "สถานะไม่อนุญาต"], r_duplicate: ["already queued", "อยู่ในคิวแล้ว"], r_recently_played: ["played recently", "เพิ่งเล่นไป"],
   r_not_found: ["not found", "ไม่พบแมพ"], r_mode: ["mode not allowed", "โหมดไม่อนุญาต"], r_stars_low: ["too easy", "ดาวต่ำเกิน"], r_stars_high: ["too hard", "ดาวสูงเกิน"],
+  rejectedToast: ["rejected", "ถูกปฏิเสธ"],
   r_too_long: ["too long", "ยาวเกิน"], r_meta_error: ["osu! lookup failed", "ดึงข้อมูล osu! ไม่ได้"], r_bad_input: ["invalid input", "รูปแบบไม่ถูกต้อง"], r_requests_off: ["requests off", "ปิดรับคำขอ"],
   // settings tabs
   tab_connection: ["Connection", "การเชื่อมต่อ"], tab_osu: ["osu!", "osu!"], tab_command: ["Command", "คำสั่ง"], tab_rules: ["Map rules", "กฎแมพ"],
@@ -312,7 +313,14 @@ let ws, wsRetry = 0, offlineT;
 function connect() {
   ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
   ws.onopen = () => { wsRetry = 0; clearTimeout(offlineT); };
-  ws.onmessage = e => { S = JSON.parse(e.data); render(); };
+  ws.onmessage = e => {
+    const prev = S;
+    S = JSON.parse(e.data);
+    // Chat rejections are easy to miss in the side panel; flash the newest one.
+    const r = (S.queue.rejected || [])[0], p = prev && (prev.queue.rejected || [])[0];
+    if (prev && r && (!p || r.at !== p.at)) toast(`@${r.user} ${t("rejectedToast")}: ${t("r_" + r.code)} (${r.detail})`, true);
+    render();
+  };
   ws.onclose = () => {
     offlineT = setTimeout(() => toast(t("offline"), true), 3000);
     setTimeout(connect, Math.min(5000, 500 * 2 ** wsRetry++));
@@ -376,8 +384,9 @@ const SCHEMA = {
   ],
   queue: [
     F("queue.maxSize", "number", "Max queue size", "คิวสูงสุด", "0 = no limit", "0 = ไม่จำกัด", { min: 0 }),
-    F("queue.perUserLimit", "number", "Requests per user", "คำขอต่อคน", "Waiting + playing. 0 = no limit", "ที่รอ + กำลังเล่น 0 = ไม่จำกัด", { min: 0 }),
+    F("queue.perUserLimit", "number", "Requests per user", "คำขอต่อคน", "Maps waiting in the queue (the one playing does not count). 0 = no limit", "แมพที่รออยู่ในคิว (ไม่นับเพลงที่กำลังเล่น) 0 = ไม่จำกัด", { min: 0 }),
     F("queue.cooldownSec", "number", "Per-user cooldown (s)", "คูลดาวน์ต่อคน (วินาที)", null, null, { min: 0 }),
+    F("rules.exemptUsers", "list", "No-limit users", "ผู้ใช้ที่ไม่จำกัด", "Comma separated @uniqueId (you, your mods). They skip the per-user limit and cooldown.", "@uniqueId คั่นด้วยจุลภาค (คุณ หรือม็อด) ไม่ติดจำนวนคำขอต่อคนและคูลดาวน์"),
     F("queue.noRepeatMin", "number", "No repeat within (min)", "ห้ามซ้ำภายใน (นาที)", null, null, { min: 0 }),
     F("queue.playMode", "seg", "Play mode", "โหมดเล่น", "auto opens the next map once the current one has had its length plus the gap below.", "auto จะเปิดแมพถัดไปเมื่อแมพปัจจุบันเล่นครบความยาวบวกช่วงพักด้านล่าง", { options: [["manual", ["manual (press Next)", "กดเอง (ถัดไป)"]], ["auto", ["auto", "อัตโนมัติ"]]] }),
     F("queue.autoGapSec", "number", "Auto gap after map end (s)", "ช่วงพักหลังจบแมพ (วินาที)", null, null, { min: 0 }),

@@ -41,7 +41,7 @@ func (im *Importer) Import(file string, mode Mode, game, osuDir string, t Target
 	if game == "lazer" || mode == Open {
 		return im.ShellOpen(file)
 	}
-	songs, err := songsDir(osuDir)
+	songs, err := SongsDir(osuDir)
 	if err != nil {
 		return err
 	}
@@ -56,12 +56,38 @@ func (im *Importer) Import(file string, mode Mode, game, osuDir string, t Target
 	return err
 }
 
-func songsDir(osuDir string) (string, error) {
+// SongsDir finds stable's Songs folder, honouring a BeatmapDirectory moved
+// elsewhere in osu!.<user>.cfg (the current Windows user's file first).
+func SongsDir(osuDir string) (string, error) {
 	songs := filepath.Join(osuDir, "Songs")
+	cfgs := []string{filepath.Join(osuDir, "osu!."+os.Getenv("USERNAME")+".cfg")}
+	more, _ := filepath.Glob(filepath.Join(osuDir, "osu!.*.cfg"))
+	for _, c := range append(cfgs, more...) {
+		if d := beatmapDirectory(c); d != "" {
+			if !filepath.IsAbs(d) {
+				d = filepath.Join(osuDir, d)
+			}
+			songs = d
+			break
+		}
+	}
 	if st, err := os.Stat(songs); err != nil || !st.IsDir() {
-		return "", fmt.Errorf("osu! Songs folder not found at %s", songs)
+		return "", fmt.Errorf("osu! Songs folder not found at %s (check Settings → osu! → osu! folder)", songs)
 	}
 	return songs, nil
+}
+
+func beatmapDirectory(cfg string) string {
+	b, err := os.ReadFile(cfg)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if k, v, ok := strings.Cut(line, "="); ok && strings.TrimSpace(k) == "BeatmapDirectory" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 var reBad = regexp.MustCompile(`[<>:"/\\|?*\x00-\x1f]`)

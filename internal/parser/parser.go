@@ -33,6 +33,7 @@ type Request struct {
 	SetID     int
 	BeatmapID int
 	Mode      string // only from #mode fragments
+	Bare      bool   // a plain number: its kind is a guess (see Options.BareNumberAs)
 }
 
 type Options struct {
@@ -80,9 +81,9 @@ func ParseArg(arg, bareAs string) (Request, bool) {
 			return Request{}, false
 		}
 		if bareAs == "set" {
-			return Request{Kind: KindSet, SetID: id}, true
+			return Request{Kind: KindSet, SetID: id, Bare: true}, true
 		}
-		return Request{Kind: KindBeatmap, BeatmapID: id}, true
+		return Request{Kind: KindBeatmap, BeatmapID: id, Bare: true}, true
 	}
 
 	if !strings.Contains(arg, "://") {
@@ -126,6 +127,14 @@ func ParseArg(arg, bareAs string) (Request, bool) {
 		}
 	}
 	return Request{}, false
+}
+
+// Flip returns a bare request reinterpreted as the other kind of ID.
+func (r Request) Flip() Request {
+	if r.Kind == KindSet {
+		return Request{Kind: KindBeatmap, BeatmapID: r.SetID, Bare: true}
+	}
+	return Request{Kind: KindSet, SetID: r.BeatmapID, Bare: true}
 }
 
 func isModeOnly(f string) bool {

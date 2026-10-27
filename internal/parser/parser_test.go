@@ -10,10 +10,10 @@ func TestParse(t *testing.T) {
 		ok   bool
 		want Request
 	}{
-		{"!req 2096297", true, Request{Kind: KindBeatmap, BeatmapID: 2096297}},
-		{"!REQ 2096297", true, Request{Kind: KindBeatmap, BeatmapID: 2096297}},
-		{"  !r   123  please", true, Request{Kind: KindBeatmap, BeatmapID: 123}},
-		{"!request 123", true, Request{Kind: KindBeatmap, BeatmapID: 123}},
+		{"!req 2096297", true, Request{Kind: KindBeatmap, BeatmapID: 2096297, Bare: true}},
+		{"!REQ 2096297", true, Request{Kind: KindBeatmap, BeatmapID: 2096297, Bare: true}},
+		{"  !r   123  please", true, Request{Kind: KindBeatmap, BeatmapID: 123, Bare: true}},
+		{"!request 123", true, Request{Kind: KindBeatmap, BeatmapID: 123, Bare: true}},
 		{"!req https://osu.ppy.sh/beatmapsets/962870#mania/2096297", true, Request{Kind: KindBeatmap, SetID: 962870, BeatmapID: 2096297, Mode: "mania"}},
 		{"!req osu.ppy.sh/beatmapsets/962870#osu/2096297", true, Request{Kind: KindBeatmap, SetID: 962870, BeatmapID: 2096297, Mode: "osu"}},
 		{"!req https://osu.ppy.sh/beatmapsets/962870", true, Request{Kind: KindSet, SetID: 962870}},
@@ -58,13 +58,23 @@ func TestBareNumberAsSet(t *testing.T) {
 	o := opts
 	o.BareNumberAs = "set"
 	got, ok := Parse("!req 962870", o)
-	if !ok || got != (Request{Kind: KindSet, SetID: 962870}) {
+	if !ok || got != (Request{Kind: KindSet, SetID: 962870, Bare: true}) {
 		t.Errorf("got %+v %v", got, ok)
 	}
 	// links keep their own meaning
 	got, _ = Parse("!req https://osu.ppy.sh/b/5", o)
 	if got.Kind != KindBeatmap || got.BeatmapID != 5 {
 		t.Errorf("link should stay a beatmap: %+v", got)
+	}
+}
+
+func TestFlip(t *testing.T) {
+	r, _ := Parse("!req 2618766", opts)
+	if f := r.Flip(); f != (Request{Kind: KindSet, SetID: 2618766, Bare: true}) {
+		t.Errorf("flip beatmap -> set: %+v", f)
+	}
+	if f := r.Flip().Flip(); f != r {
+		t.Errorf("double flip: %+v", f)
 	}
 }
 

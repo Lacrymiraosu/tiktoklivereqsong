@@ -47,7 +47,7 @@ The dashboard works in English and Thai (language picker at the top).
 ## What viewers type
 
 ```
-!req 2096297                                              ← beatmap (difficulty) ID by default
+!req 2096297                                              ← beatmap (difficulty) ID by default; if no such beatmap exists it is tried as a set ID
 !req https://osu.ppy.sh/beatmapsets/962870#mania/2096297
 !req https://osu.ppy.sh/beatmapsets/962870                ← whole set: picks the hardest diff that fits your rules
 !req https://osu.ppy.sh/b/2096297
@@ -96,7 +96,7 @@ Anything else is ignored. Only numeric IDs on `osu.ppy.sh` are accepted. The com
 | | `openDashboardOnStart` | `true` | |
 | | `logRawEvents` | `false` | Show every TikFinity message in the dashboard |
 | osu | `game` | `stable` | `stable` or `lazer` |
-| | `folder` | `%LOCALAPPDATA%\osu!` | osu! stable folder (contains `Songs`) |
+| | `folder` | `%LOCALAPPDATA%\osu!` | osu! stable folder. If it has no Songs folder, the helper uses the folder from the `.osz` file association at startup and saves it. A `BeatmapDirectory` in `osu!.<user>.cfg` is respected |
 | | `cacheFolder` | `cache` | Relative to the exe |
 | | `downloadsFolder` | `%USERPROFILE%\Downloads` | Watched by the official source |
 | | `useOsuDb` | `false` | stable: if `osu!.db` already has the map, skip the download and open `osu://b/{id}` instead. Experimental: turn it on only if your client jumps to the map from an `osu://b/` link |
@@ -108,8 +108,9 @@ Anything else is ignored. Only numeric IDs on `osu.ppy.sh` are accepted. The com
 | | `modes` | all four | `osu`, `taiko`, `fruits`, `mania` |
 | | `statuses` | ranked, approved, qualified, loved | plus `pending`, `wip`, `graveyard` |
 | | `blacklistSets` / `blacklistMappers` / `blacklistUsers` | empty | |
+| | `exemptUsers` | empty | TikTok users (you, your mods) who skip the per-user limit and cooldown |
 | queue | `maxSize` | `30` | 0 = no limit |
-| | `perUserLimit` | `2` | Waiting + now playing |
+| | `perUserLimit` | `2` | Maps waiting in the queue per user (the one playing does not count) |
 | | `cooldownSec` | `60` | Per user |
 | | `noRepeatMin` | `60` | Block maps played within this many minutes |
 | | `playMode` | `manual` | `auto` opens the next ready map once the current one has run its length plus `autoGapSec` |
@@ -144,6 +145,7 @@ Command-line flags: `-dir <folder>` keeps config, queue, cache and log somewhere
 | "TikFinity not installed" while it is installed | Set **Settings → Connection → TikFinity.exe path**. |
 | Yellow "Connecting…" | TikFinity's WebSocket API is off or uses another port. Check the URL in TikFinity and in Settings. |
 | Yellow "Waiting for stream" while live | No TikTok events are reaching TikFinity. Reconnect TikFinity to your account. |
+| My `!req` was not added | Check the **Rejected** panel (a red pop-up also appears). Usually it is the per-user limit or cooldown: add yourself to **Settings → Queue → No-limit users**. |
 | Chat requests are ignored | Check that **Requests** is on, the status is green, and the message starts with the command. Turn on **Log raw events** and look at the `chat` event in the side panel. If TikFinity renamed its fields, tell the developer what you see there. |
 | Every download is "MD5 mismatch" | The map was updated recently and the mirrors are not in sync yet. Enable the official source, or set **If every source fails** to "open with warning". |
 | Official download times out | Make sure you are logged in to osu.ppy.sh in your **default** browser and that the browser saves to the configured Downloads folder without asking. |

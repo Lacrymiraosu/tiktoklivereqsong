@@ -174,11 +174,12 @@ func (q *Queue) ValidationState(user string) validator.State {
 		QueuedSets:  map[int]bool{},
 		PlayedAt:    map[int]time.Time{},
 	}
-	all := q.d.Items
+	// The map being played no longer counts toward the user's limit, so a
+	// viewer can queue their next request while their current one plays.
 	if q.d.Now != nil {
-		all = append([]*Item{q.d.Now}, all...)
+		st.QueuedSets[q.d.Now.SetID] = true
 	}
-	for _, it := range all {
+	for _, it := range q.d.Items {
 		st.QueuedSets[it.SetID] = true
 		if strings.EqualFold(it.User, user) {
 			st.UserActive++

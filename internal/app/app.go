@@ -161,15 +161,14 @@ func (a *App) resolve(user, nick, input string, req parser.Request, test bool) (
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(max(cfg.MD5.MetaTimeoutSec, 5))*time.Second)
 	defer cancel()
-	setID := req.SetID
-	if setID == 0 {
-		id, err := a.Meta.ResolveSet(ctx, req.BeatmapID)
-		if err != nil {
-			return nil, metaErr(err)
+	set, err := a.lookup(ctx, req)
+	if errors.Is(err, osumeta.ErrNotFound) && req.Bare {
+		// Viewers often paste a set ID where a beatmap ID is expected (or the
+		// reverse); try the other meaning before giving up.
+		if s, ferr := a.lookup(ctx, req.Flip()); ferr == nil {
+			set, err, req = s, nil, req.Flip()
 		}
-		setID = id
 	}
-	set, err := a.Meta.Get(ctx, setID, req.BeatmapID)
 	if err != nil {
 		return nil, metaErr(err)
 	}
@@ -194,6 +193,18 @@ func (a *App) resolve(user, nick, input string, req parser.Request, test bool) (
 		it.Warning = "osu! page unavailable; star rating, length and status were not checked"
 	}
 	return it, nil
+}
+
+func (a *App) lookup(ctx context.Context, req parser.Request) (*osumeta.Set, error) {
+	setID := req.SetID
+	if setID == 0 {
+		id, err := a.Meta.ResolveSet(ctx, req.BeatmapID)
+		if err != nil {
+			return nil, err
+		}
+		setID = id
+	}
+	return a.Meta.Get(ctx, setID, req.BeatmapID)
 }
 
 func metaErr(err error) *validator.Rejection {

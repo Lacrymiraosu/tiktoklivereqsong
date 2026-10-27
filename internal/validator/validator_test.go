@@ -125,3 +125,19 @@ func TestPartialMetadataSkipsUnknownChecks(t *testing.T) {
 		t.Errorf("partial metadata should not be rejected on unknown values: %v", rej)
 	}
 }
+
+func TestExemptUsersSkipLimitsButNotQueueSize(t *testing.T) {
+	q := config.Queue{MaxSize: 3, PerUserLimit: 1, CooldownSec: 60}
+	r := rules()
+	r.ExemptUsers = []string{"@Streamer"}
+	busy := State{QueueLen: 2, UserActive: 5, LastRequest: now}
+	if rej := CheckUser("streamer", busy, r, q, now); rej != nil {
+		t.Errorf("exempt user was rejected: %v", rej)
+	}
+	if got := code(CheckUser("viewer", busy, r, q, now)); got != "user_limit" {
+		t.Errorf("normal user: got %q want user_limit", got)
+	}
+	if got := code(CheckUser("streamer", State{QueueLen: 3}, r, q, now)); got != "queue_full" {
+		t.Errorf("exempt user still respects queue size: got %q", got)
+	}
+}

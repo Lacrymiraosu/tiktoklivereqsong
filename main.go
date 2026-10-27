@@ -47,6 +47,19 @@ func main() {
 		fatal(err)
 	}
 	cfg := store.Get()
+	if cfg.Osu.Game == "stable" {
+		if _, err := importer.SongsDir(cfg.Osu.Folder); err != nil {
+			if dir, ok := platform.FindOsuStable(); ok && !strings.EqualFold(dir, cfg.Osu.Folder) {
+				if _, err := importer.SongsDir(dir); err == nil {
+					log.Printf("osu! folder %s has no Songs folder; using %s (from the .osz file association)", cfg.Osu.Folder, dir)
+					cfg.Osu.Folder = dir
+					if err := store.Set(cfg); err != nil {
+						log.Printf("saving detected osu! folder: %v", err)
+					}
+				}
+			}
+		}
+	}
 
 	q, err := queue.Open(filepath.Join(base, "queue.json"))
 	if err != nil {

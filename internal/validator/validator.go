@@ -25,7 +25,7 @@ func reject(code, f string, a ...any) *Rejection {
 // State is a snapshot of the queue used for the checks.
 type State struct {
 	QueueLen    int
-	UserActive  int               // requests by this user still waiting/playing
+	UserActive  int               // requests by this user still waiting (not the one playing)
 	LastRequest time.Time         // last accepted request by this user
 	QueuedSets  map[int]bool      // sets waiting or playing
 	PlayedAt    map[int]time.Time // set id -> last time it was played
@@ -34,16 +34,17 @@ type State struct {
 // CheckUser runs the checks that need no beatmap metadata, so a spammer
 // costs no osu! requests.
 func CheckUser(user string, st State, rules config.Rules, q config.Queue, now time.Time) *Rejection {
-	for _, b := range rules.BlacklistUsers {
-		if strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(b), "@"), user) {
-			return reject("user_blacklisted", "@%s is blacklisted", user)
-		}
+	if listed(rules.BlacklistUsers, user) {
+		return reject("user_blacklisted", "@%s is blacklisted", user)
 	}
 	if q.MaxSize > 0 && st.QueueLen >= q.MaxSize {
 		return reject("queue_full", "queue is full (%d)", q.MaxSize)
 	}
+	if listed(rules.ExemptUsers, user) {
+		return nil
+	}
 	if q.PerUserLimit > 0 && st.UserActive >= q.PerUserLimit {
-		return reject("user_limit", "@%s already has %d request(s) in the queue", user, st.UserActive)
+		return reject("user_limit", "@%s already has %d request(s) waiting", user, st.UserActive)
 	}
 	if q.CooldownSec > 0 && !st.LastRequest.IsZero() {
 		if left := time.Duration(q.CooldownSec)*time.Second - now.Sub(st.LastRequest); left > 0 {
@@ -51,6 +52,16 @@ func CheckUser(user string, st State, rules config.Rules, q config.Queue, now ti
 		}
 	}
 	return nil
+}
+
+// listed reports whether a TikTok user (@ optional) is in the list.
+func listed(list []string, user string) bool {
+	for _, b := range list {
+		if strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(b), "@"), user) {
+			return true
+		}
+	}
+	return false
 }
 
 // Input is a resolved request.

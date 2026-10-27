@@ -94,6 +94,35 @@ func uninstallPaths(root registry.Key) []string {
 	return out
 }
 
+// FindOsuStable returns the osu! stable folder from the .osz / osu:// file
+// associations, e.g. `"F:\osu!\osu!.exe" "%1"` -> `F:\osu!`.
+func FindOsuStable() (string, bool) {
+	for _, key := range []string{`osustable.File.osz\shell\open\command`, `osu\shell\open\command`, `osu!\shell\open\command`} {
+		k, err := registry.OpenKey(registry.CLASSES_ROOT, key, registry.QUERY_VALUE)
+		if err != nil {
+			continue
+		}
+		cmd, _, err := k.GetStringValue("")
+		k.Close()
+		if err != nil {
+			continue
+		}
+		exe := strings.TrimSpace(cmd)
+		if strings.HasPrefix(exe, `"`) {
+			exe = strings.SplitN(exe[1:], `"`, 2)[0]
+		} else {
+			exe = strings.Fields(exe)[0]
+		}
+		if !strings.EqualFold(filepath.Base(exe), "osu!.exe") {
+			continue // lazer registers osu.exe
+		}
+		if st, err := os.Stat(exe); err == nil && !st.IsDir() {
+			return filepath.Dir(exe), true
+		}
+	}
+	return "", false
+}
+
 // Launch starts an executable detached from the helper.
 func Launch(path string) error {
 	cmd := exec.Command(path)

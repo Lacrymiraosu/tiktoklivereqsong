@@ -89,3 +89,20 @@ func TestScanHashes(t *testing.T) {
 		t.Fatalf("got %v", h)
 	}
 }
+
+func TestSongsDirReadsBeatmapDirectory(t *testing.T) {
+	osu := t.TempDir()
+	if _, err := SongsDir(osu); err == nil {
+		t.Fatal("no Songs folder should be an error")
+	}
+	os.MkdirAll(filepath.Join(osu, "Songs"), 0o755)
+	if d, err := SongsDir(osu); err != nil || d != filepath.Join(osu, "Songs") {
+		t.Fatalf("default Songs: %s %v", d, err)
+	}
+	moved := filepath.Join(t.TempDir(), "Beatmaps")
+	os.MkdirAll(moved, 0o755)
+	os.WriteFile(filepath.Join(osu, "osu!.someone.cfg"), []byte("VolumeUniversal = 100\r\nBeatmapDirectory = "+moved+"\r\n"), 0o644)
+	if d, err := SongsDir(osu); err != nil || d != moved {
+		t.Fatalf("moved Songs: got %s %v, want %s", d, err, moved)
+	}
+}
