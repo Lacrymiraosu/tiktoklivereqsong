@@ -1,0 +1,7 @@
+/dist/
+/cache/
+config.json
+queue.json
+*.tmp
+osureq.log
+osureq.log.old

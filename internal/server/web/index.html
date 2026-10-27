@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1c1726">
+<title>osu! requests</title>
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600&family=Varela+Round&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/app.css">
+<script src="/assets/app.js" defer></script>
+</head>
+<body>
+<div id="shell">
+  <header class="top">
+    <div class="brand">
+      <div class="logo" id="logo"></div>
+      <div><h1 data-t="title">osu! requests</h1><p data-t="subtitle">TikTok LIVE → TikFinity → osu!</p></div>
+    </div>
+    <div class="topacts">
+      <span class="pill" id="tfPill"><i class="dot" id="tfDot"></i><span id="tfText">…</span></span>
+      <label class="reqtog"><span data-t="requests">Requests</span><input type="checkbox" class="switch" id="reqSw"></label>
+      <select class="langsel" id="langSel" aria-label="Language"><option value="en">English</option><option value="th">ไทย</option></select>
+      <button class="icon" id="setBtn" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+  </header>
+
+  <div id="banner"></div>
+
+  <div class="cols">
+    <main>
+      <div id="np"></div>
+
+      <form class="searchrow" id="testForm" autocomplete="off">
+        <input class="q" id="testIn" type="text" data-tp="testPh" placeholder="Beatmap ID or osu! link">
+        <input class="u" id="testUser" type="text" data-tp="testUserPh" placeholder="as @user">
+        <button class="btn sky" type="submit"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span data-t="testBtn">Test request</span></button>
+      </form>
+
+      <div class="subh"><span data-t="queue">Queue</span><span id="qCount"></span><span class="sp"></span>
+        <button class="btn sm ghost" id="rmLastBtn" data-t="removeLast">Remove last</button>
+        <button class="btn sm ghost" id="clearBtn" data-t="clear">Clear</button>
+      </div>
+      <div class="list" id="queue"></div>
+    </main>
+
+    <aside class="side">
+      <section class="box"><h3><span data-t="rejections">Rejected</span><small id="rejCount"></small></h3><div class="log" id="rejLog"></div></section>
+      <section class="box"><h3 data-t="activity">Activity</h3><div class="log" id="noteLog"></div></section>
+      <section class="box"><h3 data-t="history">History</h3><div class="log" id="histLog"></div></section>
+      <section class="box"><h3 data-t="tfEvents">TikFinity events</h3><div class="log" id="rawLog"></div><p class="hint" data-t="rawHint">The first event of each type is kept so you can check field names. Turn on “Log raw events” in Settings → Connection to see every event.</p></section>
+      <section class="box"><h3 data-t="info">Info</h3><dl class="kv" id="infoKv"></dl></section>
+    </aside>
+  </div>
+</div>
+
+<div id="settings" hidden>
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <div class="sheet-h"><b id="setTitle" data-t="settings">Settings</b>
+      <button class="icon" id="setClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="tabs" id="setTabs" role="tablist"></div>
+    <div class="sbody" id="setBody"></div>
+    <div class="sfoot">
+      <button class="btn ghost" id="setReset" data-t="resetTab">Reset tab</button>
+      <button class="btn main" id="setSave" data-t="save">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

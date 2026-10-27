@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>osu! requests overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600&family=Varela+Round&display=swap" rel="stylesheet">
+<style>
+/* Transparent OBS browser source, same palette as the dashboard / beatmap viewer. */
+:root{--ink:#f3eefb;--dim:#cfc4e3;--acc:#ff66aa;--accdk:#2a0f1f;--card:rgba(28,23,38,.86);--line:rgba(255,255,255,.14);font-family:"Varela Round","IBM Plex Sans Thai",system-ui,sans-serif}
+body.sky{--acc:#66ccff;--accdk:#0d2233}
+body.mono{--acc:#ffffff;--accdk:#1c1726;--card:rgba(0,0,0,.72)}
+html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hidden}
+#wrap{position:fixed;width:440px;display:flex;flex-direction:column;gap:8px;padding:16px;transform-origin:top left}
+#wrap.top-right{right:0;top:0;transform-origin:top right}
+#wrap.bottom-left{left:0;bottom:0;transform-origin:bottom left;flex-direction:column-reverse}
+#wrap.bottom-right{right:0;bottom:0;transform-origin:bottom right;flex-direction:column-reverse}
+#wrap.top-left{left:0;top:0}
+.np{position:relative;border-radius:18px;overflow:hidden;background:#120e19 center/cover no-repeat;border:2px solid var(--acc);box-shadow:0 10px 30px rgba(0,0,0,.45);animation:in .5s cubic-bezier(.2,.8,.2,1)}
+.np::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(28,23,38,.95) 30%,rgba(28,23,38,.55))}
+.npi{position:relative;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.lab{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--acc)}
+.lab i{width:14px;height:14px;border-radius:50%;background:var(--acc);box-shadow:inset 0 0 0 2px #fff;animation:beat .5s cubic-bezier(.2,.9,.3,1) infinite alternate}
+@keyframes beat{to{transform:scale(1.2)}}
+.np b{font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np span{font-size:13px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who{font-size:13px;margin-top:2px}
+.who em{font-style:normal;color:var(--acc);font-weight:600}
+.star{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;color:#1c1726;margin-right:6px;vertical-align:1px}
+.up{display:flex;flex-direction:column;gap:5px}
+.row{display:flex;align-items:center;gap:10px;padding:7px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-size:13px;animation:in .4s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i) * 60ms)}
+.row .n{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:600;background:var(--acc);color:var(--accdk)}
+.row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .r{flex:0 0 auto;color:var(--dim);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmd{font-size:12px;color:var(--dim);padding:6px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);align-self:flex-start}
+.cmd b{color:var(--acc)}
+@keyframes in{from{opacity:0;transform:translateY(10px)}}
+</style>
+</head>
+<body>
+<div id="wrap"></div>
+<script>
+"use strict";
+const wrap = document.getElementById("wrap");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+function starColor(s) {
+  if (s == null || s < 0) return "#8a7fa3";
+  const stops = [[0, "#4290fb"], [2, "#4fc0ff"], [2.5, "#4fffd5"], [3.3, "#7cff4f"], [4.2, "#f6f05c"], [4.9, "#ff8068"], [5.8, "#ff4e6f"], [6.7, "#c645b8"], [7.7, "#6563de"], [9, "#18158e"]];
+  if (s >= 9) return "#000";
+  for (let i = 1; i < stops.length; i++) if (s <= stops[i][0]) {
+    const [a, ca] = stops[i - 1], [b, cb] = stops[i], f = (s - a) / (b - a);
+    const p = c => [1, 3, 5].map(j => parseInt(c.slice(j, j + 2), 16));
+    const x = p(ca), y = p(cb);
+    return "rgb(" + x.map((v, j) => Math.round(v + (y[j] - v) * f)).join(",") + ")";
+  }
+  return "#18158e";
+}
+const th = () => (navigator.language || "").startsWith("th");
+let last = "";
+function render(S) {
+  const o = S.overlay, n = S.queue.now, items = (S.queue.items || []).slice(0, o.visible);
+  document.body.className = o.theme;
+  wrap.className = o.position;
+  wrap.style.transform = `scale(${(o.scale || 100) / 100})`;
+  const star = it => `<span class="star" style="background:${starColor(it.stars)};color:${it.stars >= 6.7 ? "#fff" : "#1c1726"}">${it.stars >= 0 ? it.stars.toFixed(2) : "?"}★</span>`;
+  let html = "";
+  if (n) {
+    const cover = esc(n.cover || `https://assets.ppy.sh/beatmaps/${n.setId}/covers/cover.jpg`);
+    html += `<div class="np" style="background-image:url('${cover}')"><div class="npi">
+      <div class="lab"><i></i>${th() ? "กำลังเล่น" : "Now playing"}</div>
+      <b>${esc(n.title)}</b><span>${star(n)}${esc(n.artist)} · [${esc(n.version)}] · ${esc(n.creator)}</span>
+      ${o.showRequester ? `<div class="who">${th() ? "ขอโดย" : "requested by"} <em>@${esc(n.user)}</em></div>` : ""}</div></div>`;
+  }
+  if (items.length) html += `<div class="up">` + items.map((it, i) =>
+    `<div class="row" style="--i:${i}"><span class="n">${i + 1}</span><span class="t">${star(it)}${esc(it.artist)} - ${esc(it.title)}</span>${o.showRequester ? `<span class="r">@${esc(it.user)}</span>` : ""}</div>`).join("") + `</div>`;
+  if (S.requests && S.tikfinity.level === "green") html += `<div class="cmd">${th() ? "ขอเพลง" : "Request"}: <b>${esc(S.command)}</b> &lt;ID / link&gt;</div>`;
+  if (html !== last) { wrap.innerHTML = html; last = html; }
+}
+let retry = 0;
+(function connect() {
+  const ws = new WebSocket("ws://" + location.host + "/ws");
+  ws.onopen = () => retry = 0;
+  ws.onmessage = e => render(JSON.parse(e.data));
+  ws.onclose = () => setTimeout(connect, Math.min(5000, 500 * 2 ** retry++));
+})();
+</script>
+</body>
+</html>
