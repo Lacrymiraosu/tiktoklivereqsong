@@ -18,6 +18,7 @@ import (
 	"github.com/draft/osureq/internal/parser"
 	"github.com/draft/osureq/internal/queue"
 	"github.com/draft/osureq/internal/tikfinity"
+	"github.com/draft/osureq/internal/tosu"
 	"github.com/draft/osureq/internal/validator"
 	"github.com/draft/osureq/internal/verifier"
 )
@@ -29,6 +30,7 @@ type App struct {
 	DL      *downloader.Downloader
 	Import  *importer.Importer
 	TF      *tikfinity.Client
+	Tosu    *tosu.Client // song-end detection for auto mode (required)
 	OsuDB   *importer.OsuDB
 	OpenURL func(string) error
 
@@ -39,6 +41,8 @@ type App struct {
 	notices  []Notice
 	advance  sync.Mutex
 	pending  int // requests being resolved
+	track    tosu.Tracker
+	trackID  string // queue item the tracker follows
 }
 
 type Notice struct {
@@ -292,14 +296,49 @@ func (a *App) tick(ctx context.Context) {
 		if !ok || head.State != queue.Ready {
 			return
 		}
+		// Auto mode only trusts tosu: without it there is no way to know the
+		// song has ended, so it waits instead of guessing.
+		if a.Tosu == nil || !a.Tosu.Connected() {
+			return
+		}
 		if now, playing := a.Queue.Now(); playing {
-			length := max(now.Length, 0)
-			if time.Since(now.StartedAt) < time.Duration(length+cfg.Queue.AutoGapSec)*time.Second {
+			if now.PlayPhase != string(tosu.Ended) || time.Since(now.PhaseAt) < time.Duration(cfg.Queue.AutoGapSec)*time.Second {
 				return
 			}
 		}
 		go a.Next("played")
 	}
+}
+
+// OnGame follows tosu's game state to see when the now-playing map has been
+// played through (see tosu.Tracker), and records it on the item.
+func (a *App) OnGame(g tosu.Game) {
+	now, ok := a.Queue.Now()
+	a.mu.Lock()
+	if !ok {
+		a.track, a.trackID = tosu.Tracker{}, ""
+		a.mu.Unlock()
+		return
+	}
+	if a.trackID != now.ID {
+		a.trackID = now.ID
+		a.track = tosu.Tracker{SetID: now.SetID, Phase: tosu.Phase(now.PlayPhase), Since: now.PhaseAt}
+		if a.track.Phase == "" {
+			a.track.Reset(now.SetID, time.Now())
+		}
+	}
+	changed := a.track.Update(g, time.Now())
+	phase, since := a.track.Phase, a.track.Since
+	a.mu.Unlock()
+	if !changed {
+		return
+	}
+	a.Queue.Update(now.ID, func(x *queue.Item) { x.PlayPhase, x.PhaseAt = string(phase), since })
+	log.Printf("tosu: %s - %s is now %s", now.Artist, now.Title, phase)
+	if phase == tosu.Ended {
+		a.Notify("info", "finished: %s - %s (@%s)", now.Artist, now.Title, now.User)
+	}
+	a.Wake()
 }
 
 // startDownload fetches the item in the background. silentImport copies it

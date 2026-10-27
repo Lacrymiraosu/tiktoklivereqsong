@@ -62,6 +62,9 @@ type Item struct {
 	Attempts  []Attempt `json:"attempts,omitempty"`
 	Imported  bool      `json:"imported,omitempty"`
 	StartedAt time.Time `json:"startedAt,omitempty"`
+	// what tosu has seen of the now-playing map: waiting | playing | results | ended
+	PlayPhase string    `json:"playPhase,omitempty"`
+	PhaseAt   time.Time `json:"phaseAt,omitempty"`
 }
 
 type Played struct {
@@ -416,6 +419,7 @@ func (q *Queue) Promote(id, result string) (Item, bool) {
 			q.d.Items = append(q.d.Items[:i], q.d.Items[i+1:]...)
 			it.State = Playing
 			it.StartedAt = time.Now()
+			it.PlayPhase, it.PhaseAt = "waiting", it.StartedAt
 			q.d.Now = it
 			q.changed()
 			return copyItem(it), true

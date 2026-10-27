@@ -85,6 +85,13 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .npt small{color:var(--dim);font-size:13px}
 .npa{display:flex;gap:8px;flex-wrap:wrap}
 .npa .btn{height:50px;font-size:16px}
+.phase{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;margin-top:8px;padding:5px 12px;border-radius:14px;font-size:13px;background:rgba(255,255,255,.1)}
+.phase i{width:9px;height:9px;border-radius:50%;background:var(--dim)}
+.phase.waiting i{background:var(--warn)}
+.phase.playing i{background:var(--pink);animation:pulse 1.2s ease-in-out infinite}
+.phase.results i,.phase.ended i{background:var(--ok)}
+.phase.paused{background:rgba(255,90,110,.16);color:#ff9aa6}
+.phase.paused i{background:var(--err)}
 
 /* ---------- test panel ---------- */
 .testbox{margin-top:14px;padding:12px 14px;border-radius:18px;border:1px dashed var(--line);background:rgba(102,204,255,.04)}

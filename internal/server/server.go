@@ -21,6 +21,7 @@ import (
 	"github.com/draft/osureq/internal/config"
 	"github.com/draft/osureq/internal/queue"
 	"github.com/draft/osureq/internal/tikfinity"
+	"github.com/draft/osureq/internal/tosu"
 )
 
 //go:embed web
@@ -43,6 +44,8 @@ func New(a *app.App, version string) *Server {
 type State struct {
 	Version   string                        `json:"version"`
 	TikFinity tikfinity.Status              `json:"tikfinity"`
+	Tosu      tosu.Status                   `json:"tosu"`
+	AutoGap   int                           `json:"autoGap"`
 	Queue     queue.Snapshot                `json:"queue"`
 	Requests  bool                          `json:"requests"`
 	Resolving int                           `json:"resolving"`
@@ -62,7 +65,7 @@ func (s *Server) state() State {
 	cfg := s.App.Cfg.Get()
 	raw, first := s.App.TF.Raw()
 	st := State{
-		Version: s.Version, TikFinity: s.App.TF.Status(), Queue: s.App.Queue.Snapshot(),
+		Version: s.Version, TikFinity: s.App.TF.Status(), Tosu: s.App.Tosu.Status(), AutoGap: cfg.Queue.AutoGapSec, Queue: s.App.Queue.Snapshot(),
 		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(),
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name,
 		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
@@ -223,6 +226,12 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 		a.ToggleRequests()
 	case "clear":
 		a.Queue.Clear()
+	case "launchTosu":
+		err = a.Tosu.LaunchNow()
+	case "reconnectTosu":
+		a.Tosu.Reconnect()
+	case "openTosuDownload":
+		err = a.OpenURL(tosu.DownloadURL)
 	case "launchTikfinity":
 		err = a.TF.LaunchNow()
 	case "reconnect":

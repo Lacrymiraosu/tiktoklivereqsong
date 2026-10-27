@@ -23,6 +23,7 @@ import (
 	"github.com/draft/osureq/internal/queue"
 	"github.com/draft/osureq/internal/server"
 	"github.com/draft/osureq/internal/tikfinity"
+	"github.com/draft/osureq/internal/tosu"
 )
 
 var version = "dev"
@@ -86,6 +87,24 @@ func main() {
 	tf.OnChat = a.HandleChat
 	srv := server.New(a, version)
 	a.OnChange(srv.Push)
+	ts := tosu.New(tosu.Env{Running: platform.ProcessRunning, Path: platform.ProcessPath, Launch: platform.Launch},
+		func() tosu.Settings {
+			c := store.Get().Connection
+			return tosu.Settings{URL: c.TosuURL, Path: c.TosuPath, Reconnect: time.Duration(c.ReconnectSec) * time.Second, AutoLaunch: c.AutoLaunchTosu}
+		})
+	a.Tosu = ts
+	ts.OnGame = a.OnGame
+	ts.OnStatus = func(st tosu.Status) {
+		log.Printf("tosu: %s (%s) state=%s set=%d %s", st.Level, st.Code, st.Game.State, st.Game.SetID, st.Error)
+		srv.Push()
+	}
+	ts.OnPath = func(p string) { // remember where tosu.exe lives so it can be launched later
+		c := store.Get()
+		c.Connection.TosuPath = p
+		if err := store.Set(c); err != nil {
+			log.Printf("saving tosu path: %v", err)
+		}
+	}
 	tf.OnStatus = func(st tikfinity.Status) {
 		log.Printf("TikFinity: %s (%s) %s", st.Level, st.Code, st.Error)
 		srv.Push()
@@ -118,6 +137,9 @@ func main() {
 		if c.Connection.TikFinityURL != prev.Connection.TikFinityURL || c.Connection.TikFinityPath != prev.Connection.TikFinityPath {
 			tf.Reconnect()
 		}
+		if c.Connection.TosuURL != prev.Connection.TosuURL {
+			ts.Reconnect()
+		}
 		dl.CacheDir = cacheDir()
 		prev = c
 		srv.Push()
@@ -147,6 +169,7 @@ func main() {
 	}
 
 	go tf.Run(ctx)
+	go ts.Run(ctx)
 	go a.Run(ctx)
 	<-ctx.Done()
 	hk.Stop()

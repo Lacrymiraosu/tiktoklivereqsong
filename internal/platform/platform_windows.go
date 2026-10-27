@@ -47,6 +47,34 @@ func ProcessRunning(exe string) bool {
 	return false
 }
 
+// ProcessPath returns the full path of the first running process with this exe name.
+func ProcessPath(exe string) (string, bool) {
+	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
+		return "", false
+	}
+	defer windows.CloseHandle(snap)
+	var e windows.ProcessEntry32
+	e.Size = uint32(unsafe.Sizeof(e))
+	for err = windows.Process32First(snap, &e); err == nil; err = windows.Process32Next(snap, &e) {
+		if !strings.EqualFold(windows.UTF16ToString(e.ExeFile[:]), exe) {
+			continue
+		}
+		h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, e.ProcessID)
+		if err != nil {
+			continue
+		}
+		buf := make([]uint16, windows.MAX_LONG_PATH)
+		n := uint32(len(buf))
+		err = windows.QueryFullProcessImageName(h, 0, &buf[0], &n)
+		windows.CloseHandle(h)
+		if err == nil {
+			return windows.UTF16ToString(buf[:n]), true
+		}
+	}
+	return "", false
+}
+
 // FindTikFinity looks for TikFinity.exe: the configured path, the default
 // per-user install folder, then the Uninstall registry entries.
 func FindTikFinity(configured string) (string, bool) {

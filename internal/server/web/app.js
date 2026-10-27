@@ -100,6 +100,26 @@ const T = {
   r_status: ["status not allowed", "สถานะไม่อนุญาต"], r_duplicate: ["already queued", "อยู่ในคิวแล้ว"], r_recently_played: ["played recently", "เพิ่งเล่นไป"],
   r_not_found: ["not found", "ไม่พบแมพ"], r_mode: ["mode not allowed", "โหมดไม่อนุญาต"], r_stars_low: ["too easy", "ดาวต่ำเกิน"], r_stars_high: ["too hard", "ดาวสูงเกิน"],
   rejectedToast: ["rejected", "ถูกปฏิเสธ"],
+  tosu_not_running: ["tosu not running", "tosu ไม่ได้เปิดอยู่"],
+  tosu_connecting: ["Connecting to tosu…", "กำลังเชื่อมต่อ tosu…"],
+  tosu_no_game: ["tosu: osu! not detected", "tosu: ไม่พบ osu!"],
+  tosu_ok: ["tosu", "tosu"],
+  tb_title: ["tosu is required", "ต้องใช้ tosu"],
+  tb_not_running: ["Start tosu. The helper reads osu!'s game state from it to know when a requested song has ended (auto mode).", "เปิด tosu ไว้ โปรแกรมใช้ tosu อ่านสถานะเกม osu! เพื่อรู้ว่าเพลงที่ขอเล่นจบแล้ว (โหมดอัตโนมัติ)"],
+  tb_connecting: ["tosu is running but its WebSocket did not answer. Check the tosu URL in Settings → Connection (default ws://127.0.0.1:24050/websocket/v2).", "tosu เปิดอยู่แต่ WebSocket ไม่ตอบ ตรวจ URL ของ tosu ใน ตั้งค่า → การเชื่อมต่อ (ค่าเริ่มต้น ws://127.0.0.1:24050/websocket/v2)"],
+  tb_no_game: ["tosu is connected but does not see osu!. Start osu!.", "เชื่อมต่อ tosu แล้วแต่ยังไม่เห็น osu! ให้เปิด osu!"],
+  tb_note: ["Until then auto mode is paused; Next still works.", "ระหว่างนี้โหมดอัตโนมัติจะหยุดรอ แต่ยังกด ถัดไป เองได้"],
+  getTosu: ["Download tosu", "ดาวน์โหลด tosu"],
+  launchTosu: ["Launch tosu", "เปิด tosu"],
+  chk_osu: ["osu!", "osu!"],
+  ph_waiting: ["waiting for you to play it", "รอเริ่มเล่นแมพนี้"],
+  ph_playing: ["playing", "กำลังเล่น"],
+  ph_results: ["results screen", "หน้าผลคะแนน"],
+  ph_ended: ["finished", "เล่นจบแล้ว"],
+  ph_nextIn: ["next map in {n}s", "แมพถัดไปใน {n} วิ"],
+  ph_pressNext: ["press Next", "กด ถัดไป"],
+  ph_noTosu: ["auto mode paused: tosu not connected", "โหมดอัตโนมัติหยุดรอ: ยังไม่เชื่อมต่อ tosu"],
+  ph_queueEmpty: ["queue is empty", "คิวว่าง"],
   r_too_long: ["too long", "ยาวเกิน"], r_meta_error: ["osu! lookup failed", "ดึงข้อมูล osu! ไม่ได้"], r_bad_input: ["invalid input", "รูปแบบไม่ถูกต้อง"], r_requests_off: ["requests off", "ปิดรับคำขอ"],
   // settings tabs
   tab_connection: ["Connection", "การเชื่อมต่อ"], tab_osu: ["osu!", "osu!"], tab_command: ["Command", "คำสั่ง"], tab_rules: ["Map rules", "กฎแมพ"],
@@ -176,7 +196,13 @@ function render() {
   $("#dryPill").hidden = !S.dryRun;
   renderTestHint();
   renderBanner(tf);
+  const ts = S.tosu;
+  $("#tosuDot").className = "dot " + ts.level;
+  $("#tosuText").textContent = t("tosu_" + ts.code);
+  $("#tosuPill").title = ts.error || (ts.game && ts.game.state ? `${ts.game.client} · ${ts.game.state}` : "");
+  renderTosuBanner(ts);
   renderNow(S.queue.now);
+  updatePhase();
   renderQueue(S.queue.items || []);
   renderSide();
 }
@@ -222,6 +248,45 @@ function tagsFor(it) {
     it.test ? h("em", {}, t("test")) : null);
 }
 
+function renderTosuBanner(ts) {
+  const b = $("#tosuBanner");
+  if (same(b, JSON.stringify([ts.level, ts.code, ts.running, ts.connected, !!ts.path, ts.error, LANG]))) return;
+  b.replaceChildren();
+  if (ts.level === "green") return;
+  const chk = (ok, k) => h("em", { class: ok ? "ok" : "no" }, (ok ? "✓ " : "✕ ") + t(k));
+  const acts = h("div", { class: "npa" });
+  if (!ts.running && !ts.path) acts.append(h("button", { class: "btn main", onclick: () => act("/api/action/openTosuDownload") }, t("getTosu")));
+  if (!ts.running && ts.path) acts.append(h("button", { class: "btn main", onclick: () => act("/api/action/launchTosu") }, t("launchTosu")));
+  acts.append(h("button", { class: "btn", onclick: () => act("/api/action/reconnectTosu") }, t("reconnect")));
+  b.append(h("div", { class: "banner " + ts.level },
+    h("i", { class: "dot " + ts.level }),
+    h("div", { class: "bt" },
+      h("b", {}, t("tb_title") + " · " + t("tosu_" + ts.code)),
+      h("small", {}, t("tb_" + ts.code) + " " + t("tb_note")),
+      ts.error ? h("small", { style: "display:block;color:#ff9aa6" }, ts.error) : null,
+      h("div", { class: "steps" }, chk(ts.running, "chk_running"), chk(ts.connected, "chk_ws"), chk(ts.code === "ok", "chk_osu"))),
+    acts));
+}
+
+// The phase line under now playing: what tosu has seen of the map, and in
+// auto mode when the next one opens. Updated every second without a rebuild.
+function updatePhase() {
+  const el = $("#phase");
+  if (!el || !S || !S.queue.now) return;
+  const n = S.queue.now, auto = S.playMode === "auto";
+  const phase = n.playPhase || "waiting";
+  let cls = phase, text = t("ph_" + phase);
+  if (auto && !S.tosu.connected) { cls = "paused"; text = t("ph_noTosu"); }
+  else if (phase === "ended") {
+    const left = Math.ceil(S.autoGap - (Date.now() - new Date(n.phaseAt)) / 1000);
+    const hasNext = (S.queue.items || []).some(i => i.state !== "failed");
+    text += " · " + (!auto ? t("ph_pressNext") : !hasNext ? t("ph_queueEmpty") : t("ph_nextIn", { n: Math.max(0, left) }));
+  }
+  el.className = "phase " + cls;
+  el.lastChild.textContent = text;
+}
+setInterval(updatePhase, 1000);
+
 function renderNow(n) {
   const box = $("#np");
   if (same(box, JSON.stringify([n, LANG]))) return;
@@ -239,7 +304,8 @@ function renderNow(n) {
         h("b", {}, n.title),
         h("span", {}, `${n.artist} · [${n.version}] · ${t("mappedBy")} ${n.creator}`),
         h("small", {}, t("reqBy") + " ", h("span", { class: "req" }, "@" + n.user), n.nick && n.nick !== n.user ? ` (${n.nick})` : "", " · ", h("a", { class: "mlink", href: setLink(n), target: "_blank", rel: "noopener" }, "osu.ppy.sh")),
-        tagsFor(n)),
+        tagsFor(n),
+        h("span", { class: "phase", id: "phase" }, h("i"), h("span"))),
       h("div", { class: "npa" },
         h("button", { class: "btn", onclick: e => busy(e.currentTarget, () => act("/api/action/skip")) }, svg(ICON.skip), t("skip")),
         next))));
@@ -463,6 +529,9 @@ const SCHEMA = {
     F("connection.tikfinityPath", "text", "TikFinity.exe path", "ที่อยู่ TikFinity.exe", "Leave as is unless TikFinity lives somewhere unusual.", "ปล่อยไว้ได้ ยกเว้นติดตั้งไว้ที่อื่น"),
     F("connection.dashboardPort", "number", "Dashboard port", "พอร์ตแดชบอร์ด", "Takes effect after a restart.", "มีผลหลังรีสตาร์ทโปรแกรม", { min: 1024, max: 65535 }),
     F("connection.openDashboardOnStart", "switch", "Open dashboard on start", "เปิดแดชบอร์ดตอนเริ่มโปรแกรม"),
+    F("connection.tosuUrl", "text", "tosu WebSocket URL (required)", "URL WebSocket ของ tosu (จำเป็น)", "Default ws://127.0.0.1:24050/websocket/v2. Auto mode uses it to see when a song has ended.", "ค่าเริ่มต้น ws://127.0.0.1:24050/websocket/v2 โหมดอัตโนมัติใช้ดูว่าเพลงจบแล้ว"),
+    F("connection.tosuPath", "text", "tosu.exe path", "ที่อยู่ tosu.exe", "Filled in automatically the first time tosu is seen running.", "จะถูกกรอกให้อัตโนมัติเมื่อเห็น tosu เปิดอยู่ครั้งแรก"),
+    F("connection.autoLaunchTosu", "switch", "Auto-launch tosu", "เปิด tosu อัตโนมัติ", "Starts tosu if it is not running (needs the path above).", "เปิด tosu ให้ถ้ายังไม่ได้เปิด (ต้องมีที่อยู่ด้านบน)"),
     F("connection.logRawEvents", "switch", "Log raw events", "บันทึกอีเวนต์ดิบ", "Shows every TikFinity message in the side panel. Use it to check field names.", "แสดงทุกข้อความจาก TikFinity ที่แผงข้าง ใช้ตรวจชื่อฟิลด์"),
   ],
   osu: [
@@ -494,8 +563,8 @@ const SCHEMA = {
     F("queue.cooldownSec", "number", "Per-user cooldown (s)", "คูลดาวน์ต่อคน (วินาที)", null, null, { min: 0 }),
     F("rules.exemptUsers", "list", "No-limit users", "ผู้ใช้ที่ไม่จำกัด", "Comma separated @uniqueId (you, your mods). They skip the per-user limit and cooldown.", "@uniqueId คั่นด้วยจุลภาค (คุณ หรือม็อด) ไม่ติดจำนวนคำขอต่อคนและคูลดาวน์"),
     F("queue.noRepeatMin", "number", "No repeat within (min)", "ห้ามซ้ำภายใน (นาที)", null, null, { min: 0 }),
-    F("queue.playMode", "seg", "Play mode", "โหมดเล่น", "auto opens the next map once the current one has had its length plus the gap below.", "auto จะเปิดแมพถัดไปเมื่อแมพปัจจุบันเล่นครบความยาวบวกช่วงพักด้านล่าง", { options: [["manual", ["manual (press Next)", "กดเอง (ถัดไป)"]], ["auto", ["auto", "อัตโนมัติ"]]] }),
-    F("queue.autoGapSec", "number", "Auto gap after map end (s)", "ช่วงพักหลังจบแมพ (วินาที)", null, null, { min: 0 }),
+    F("queue.playMode", "seg", "Play mode", "โหมดเล่น", "auto opens the next map when tosu sees that you played the current one and went back to song select (requires tosu). Without tosu, auto waits.", "auto จะเปิดแมพถัดไปเมื่อ tosu เห็นว่าเล่นแมพปัจจุบันจบและกลับไปหน้าเลือกเพลงแล้ว (ต้องใช้ tosu) ถ้าไม่มี tosu จะหยุดรอ", { options: [["manual", ["manual (press Next)", "กดเอง (ถัดไป)"]], ["auto", ["auto", "อัตโนมัติ"]]] }),
+    F("queue.autoGapSec", "number", "Wait after song ends (s)", "รอหลังเพลงจบ (วินาที)", "Seconds after you return to song select before the next map opens.", "จำนวนวินาทีหลังกลับไปหน้าเลือกเพลง ก่อนเปิดแมพถัดไป", { min: 0 }),
   ],
   download: [
     F("download.sources", "sources", "Sources (in order)", "แหล่งดาวน์โหลด (ตามลำดับ)", "The official source opens osu.ppy.sh in your browser (you must be logged in there) and waits for the file in Downloads. It is only used when MD5 checking is on.", "แหล่ง official จะเปิด osu.ppy.sh ในเบราว์เซอร์ (ต้องล็อกอินไว้) แล้วรอไฟล์ในโฟลเดอร์ดาวน์โหลด ใช้เฉพาะตอนเปิดตรวจ MD5"),

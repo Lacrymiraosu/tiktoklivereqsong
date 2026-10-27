@@ -12,13 +12,16 @@ import (
 )
 
 type Connection struct {
-	TikFinityURL  string `json:"tikfinityUrl"`
-	DashboardPort int    `json:"dashboardPort"`
-	AutoLaunch    bool   `json:"autoLaunchTikfinity"`
-	TikFinityPath string `json:"tikfinityPath"`
-	ReconnectSec  int    `json:"reconnectSec"`
-	OpenDashboard bool   `json:"openDashboardOnStart"`
-	LogRawEvents  bool   `json:"logRawEvents"`
+	TikFinityURL   string `json:"tikfinityUrl"`
+	DashboardPort  int    `json:"dashboardPort"`
+	AutoLaunch     bool   `json:"autoLaunchTikfinity"`
+	TikFinityPath  string `json:"tikfinityPath"`
+	ReconnectSec   int    `json:"reconnectSec"`
+	OpenDashboard  bool   `json:"openDashboardOnStart"`
+	LogRawEvents   bool   `json:"logRawEvents"`
+	TosuURL        string `json:"tosuUrl"`
+	TosuPath       string `json:"tosuPath"` // filled in automatically once tosu is seen running
+	AutoLaunchTosu bool   `json:"autoLaunchTosu"`
 }
 
 type Osu struct {
@@ -135,6 +138,7 @@ func Default() Config {
 			TikFinityPath: filepath.Join(local, "Programs", "tikfinity", "TikFinity.exe"),
 			ReconnectSec:  5,
 			OpenDashboard: true,
+			TosuURL:       "ws://127.0.0.1:24050/websocket/v2",
 		},
 		Osu: Osu{
 			Game:         "stable",
@@ -149,7 +153,7 @@ func Default() Config {
 			Modes:    []string{"osu", "taiko", "fruits", "mania"},
 			Statuses: []string{"ranked", "approved", "qualified", "loved"},
 		},
-		Queue: Queue{MaxSize: 30, PerUserLimit: 2, CooldownSec: 60, NoRepeatMin: 60, PlayMode: "manual", AutoGapSec: 15},
+		Queue: Queue{MaxSize: 30, PerUserLimit: 2, CooldownSec: 60, NoRepeatMin: 60, PlayMode: "manual", AutoGapSec: 5},
 		Download: Download{
 			Sources: []Source{
 				{Name: "catboy", Enabled: true, URL: "https://catboy.best/d/{id}", NoVideoURL: "https://catboy.best/d/{id}n", Referer: "https://catboy.best/", TimeoutSec: 60},
@@ -176,6 +180,9 @@ func (c *Config) Validate() error {
 	}
 	if !strings.HasPrefix(c.Connection.TikFinityURL, "ws://127.0.0.1") && !strings.HasPrefix(c.Connection.TikFinityURL, "ws://localhost") {
 		add("TikFinity URL must be ws://127.0.0.1:<port> or ws://localhost:<port>")
+	}
+	if !strings.HasPrefix(c.Connection.TosuURL, "ws://127.0.0.1") && !strings.HasPrefix(c.Connection.TosuURL, "ws://localhost") {
+		add("tosu URL must be ws://127.0.0.1:<port>/websocket/v2 or ws://localhost:<port>/websocket/v2")
 	}
 	if c.Connection.ReconnectSec < 1 {
 		c.Connection.ReconnectSec = 1

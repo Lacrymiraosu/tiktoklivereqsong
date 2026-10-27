@@ -11,11 +11,12 @@ TikTok LIVE viewers request osu! beatmaps in chat. The helper:
 
 ```
 TikTok LIVE → TikFinity Desktop → ws://127.0.0.1:21213 → osureq → osu!
-                                                           ↓
-                                    http://127.0.0.1:21280 → Dashboard / OBS overlay
+                                                           ↑   ↓
+                 osu! → tosu → ws://127.0.0.1:24050/websocket/v2   http://127.0.0.1:21280 → Dashboard / OBS overlay
 ```
 
-TikFinity is the only event source. The helper never connects to TikTok itself.
+TikFinity is the only event source; the helper never connects to TikTok itself.
+tosu is the only way the helper sees what is happening in osu! (used to tell when a requested song has ended).
 
 ---
 
@@ -26,23 +27,41 @@ TikFinity is the only event source. The helper never connects to TikTok itself.
 | OS | Windows 10/11 x64, internet connection |
 | osu! | osu! **stable** or **lazer** installed, with `.osz` files opening in osu! (double-click a `.osz` once to check) |
 | **TikFinity Desktop** (required) | Installed, logged in, connected to your TikTok account, and **running during the stream**. Download: <https://tikfinity.zerody.one/> |
+| **tosu** (required) | Running during the stream, with its WebSocket on the default `127.0.0.1:24050`. Auto play mode depends on it; without tosu, auto mode pauses (manual Next still works). Download: <https://github.com/tosuapp/tosu/releases/latest> |
 | Optional | OBS or TikTok LIVE Studio, for the overlay |
 | Optional | Logged in to osu.ppy.sh in your default browser. Only needed for the official-download fallback |
 
 ## Setup
 
 1. Put `osureq.exe` in its own folder, for example `C:\osureq\`. It creates `config.json`, `queue.json`, `osureq.log` and a `cache\` folder next to itself.
-2. Start TikFinity Desktop and connect it to your TikTok account.
+2. Start TikFinity Desktop and connect it to your TikTok account, then start **tosu** and osu!.
 3. Double-click `osureq.exe`. The dashboard opens at <http://127.0.0.1:21280/>.
 4. In **Settings → osu!**, choose stable or lazer and check the osu! folder (stable default: `%LOCALAPPDATA%\osu!`).
 5. Check the status pill at the top:
    * 🔴 **red**: TikFinity is not installed or not running. Use the button in the banner.
    * 🟡 **yellow**: TikFinity is running but not connected yet, or connected and no TikTok events have arrived yet ("Waiting for stream").
    * 🟢 **green**: live and taking requests.
+
+   The second pill is **tosu**: red = not running, yellow = running but not connected or osu! not detected, green = reading osu!.
+   The first time the helper sees tosu running it remembers where `tosu.exe` is, so the banner can offer **Launch tosu** later.
 6. Use the **Test** panel (see below) to check the whole chain without going live.
 7. Optional: in OBS, add a **Browser Source** with the URL `http://127.0.0.1:21280/overlay`. The background is transparent.
 
 The dashboard works in English and Thai (language picker at the top).
+
+## Auto mode (requires tosu)
+
+In **auto** play mode the helper reads osu!'s state from tosu and follows the map it opened (matched by beatmapset, so any difficulty counts):
+
+| What tosu shows | Phase on the dashboard |
+|---|---|
+| Map opened, not started yet (song select counts as not started) | waiting |
+| Gameplay on that map (retries stay here, failing too) | playing |
+| Results screen | results |
+| Back to song select or the menu after playing, or straight into another map | **finished** → the next map opens after `autoGapSec` |
+
+There is no timer fallback. If tosu is not connected, auto mode **pauses** and the dashboard says so. Manual **Next** always works, and auto mode resumes by itself as soon as tosu is back.
+The first map opens straight away when nothing is playing.
 
 ## Testing without going live
 
@@ -106,6 +125,9 @@ Anything else is ignored. Only numeric IDs on `osu.ppy.sh` are accepted. The com
 | | `tikfinityPath` | `%LOCALAPPDATA%\Programs\tikfinity\TikFinity.exe` | Also found through the registry |
 | | `openDashboardOnStart` | `true` | |
 | | `logRawEvents` | `false` | Show every TikFinity message in the dashboard |
+| | `tosuUrl` | `ws://127.0.0.1:24050/websocket/v2` | tosu's v2 WebSocket (must be on this PC) |
+| | `tosuPath` | empty | Filled in automatically the first time tosu is seen running |
+| | `autoLaunchTosu` | `false` | Start tosu if it is not running (needs `tosuPath`) |
 | osu | `game` | `stable` | `stable` or `lazer` |
 | | `folder` | `%LOCALAPPDATA%\osu!` | osu! stable folder. If it has no Songs folder, the helper uses the folder from the `.osz` file association at startup and saves it. A `BeatmapDirectory` in `osu!.<user>.cfg` is respected |
 | | `cacheFolder` | `cache` | Relative to the exe |
@@ -124,7 +146,8 @@ Anything else is ignored. Only numeric IDs on `osu.ppy.sh` are accepted. The com
 | | `perUserLimit` | `2` | Maps waiting in the queue per user (the one playing does not count) |
 | | `cooldownSec` | `60` | Per user |
 | | `noRepeatMin` | `60` | Block maps played within this many minutes |
-| | `playMode` | `manual` | `auto` opens the next ready map once the current one has run its length plus `autoGapSec` |
+| | `playMode` | `manual` | `auto` opens the next ready map when tosu sees the current one has been played (see **Auto mode** below) |
+| | `autoGapSec` | `5` | Seconds to wait after the song ends (back in song select) before opening the next map |
 | download | `sources` | catboy, osu.direct, official | Order, on/off, URL templates (`{id}`), no-video URL, timeout |
 | | `noVideo` | `true` | Uses the no-video URL when the set has a video |
 | | `cacheLimitMb` / `autoCleanup` | `2048` / `true` | Deletes the oldest unused files when over the limit |
@@ -155,6 +178,8 @@ Command-line flags: `-dir <folder>` keeps config, queue, cache and log somewhere
 | Problem | Fix |
 |---|---|
 | "TikFinity not installed" while it is installed | Set **Settings → Connection → TikFinity.exe path**. |
+| Auto mode does not move on | It needs tosu (green tosu pill). It also waits until you have actually **played** the opened map: just looking at it in song select does not count. Press **Next** to move on by hand. |
+| tosu pill is red/yellow | Start tosu. If it runs on another port, change **Settings → Connection → tosu WebSocket URL**. Yellow "osu! not detected" means tosu is up but osu! is not running. |
 | Yellow "Connecting…" | TikFinity's WebSocket API is off or uses another port. Check the URL in TikFinity and in Settings. |
 | Yellow "Waiting for stream" while live | No TikTok events are reaching TikFinity. Reconnect TikFinity to your account. |
 | My `!req` was not added | Check the **Rejected** panel (a red pop-up also appears). Usually it is the per-user limit or cooldown: add yourself to **Settings → Queue → No-limit users**. |
@@ -188,6 +213,7 @@ Regenerate the `.osz` test fixtures with `go test ./internal/verifier -update`.
 | Package | Responsibility |
 |---|---|
 | `internal/tikfinity` | TikFinity install/process/WebSocket checks, status levels, chat events |
+| `internal/tosu` | tosu WebSocket client, status levels, and the tracker that decides when a map has been played |
 | `internal/parser` | `!req` command and link parsing |
 | `internal/osumeta` | Beatmapset metadata and reference MD5 from osu.ppy.sh (the only module that scrapes osu!) |
 | `internal/validator` | User and map rules → accept/reject with a reason code |
