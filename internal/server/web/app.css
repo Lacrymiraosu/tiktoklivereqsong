@@ -107,7 +107,9 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .list{display:flex;flex-direction:column;gap:10px}
 .card{position:relative;min-height:112px;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#120e19 center/cover no-repeat;animation:cardIn .4s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i) * 30ms);transition:border-color .2s,transform .15s}
 .card::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(28,23,38,.96) 35%,rgba(28,23,38,.5));pointer-events:none}
+.card.seen{animation:none}
 .card:hover{border-color:var(--pink)}
+#resolving{margin:0 4px 8px}
 .card.failed{border-color:rgba(255,90,110,.6)}
 .card.drag{opacity:.4}
 .card.over{border-color:var(--sky);transform:translateY(2px)}

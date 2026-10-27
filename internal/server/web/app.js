@@ -181,8 +181,18 @@ function render() {
   renderSide();
 }
 
+// same() remembers what an element was last drawn from, so the 4-per-second
+// progress pushes during a download don't rebuild (and re-animate) it.
+function same(el, key) {
+  if (el.dataset.key === key) return true;
+  el.dataset.key = key;
+  return false;
+}
+
 function renderBanner(tf) {
   const b = $("#banner");
+  const { lastEvent, ...shown } = tf;
+  if (same(b, JSON.stringify([shown, LANG]))) return;
   b.replaceChildren();
   if (tf.level === "green") return;
   const chk = (ok, k) => h("em", { class: ok ? "ok" : "no" }, (ok ? "✓ " : "✕ ") + t(k));
@@ -214,6 +224,7 @@ function tagsFor(it) {
 
 function renderNow(n) {
   const box = $("#np");
+  if (same(box, JSON.stringify([n, LANG]))) return;
   box.replaceChildren();
   const next = h("button", { class: "btn main", onclick: e => busy(e.currentTarget, () => act("/api/action/next")) }, svg(ICON.next), t("next"));
   if (!n) {
@@ -240,55 +251,107 @@ async function busy(btn, f) {
 }
 
 let dragId = null;
+const cards = new Map(); // item id -> card element currently shown
+const seen = new Set();  // ids whose card already played its entrance animation
 function renderQueue(items) {
   const list = $("#queue");
   $("#qCount").textContent = items.length ? `(${items.length})` : "";
-  list.replaceChildren();
-  if (S.resolving > 0) list.append(h("div", { class: "hint", style: "margin:0 4px" }, t("resolving", { n: S.resolving })));
+  const res = $("#resolving");
+  res.hidden = !(S.resolving > 0);
+  res.textContent = S.resolving > 0 ? t("resolving", { n: S.resolving }) : "";
   if (!items.length) {
-    list.append(h("div", { class: "empty" }, t("emptyQueue", { cmd: S.command })));
+    cards.clear();
+    if (!same(list, "empty" + LANG + S.command)) list.replaceChildren(h("div", { class: "empty" }, t("emptyQueue", { cmd: S.command })));
     return;
   }
-  items.forEach((it, i) => {
-    const q = (op, body) => act(`/api/queue/${it.id}/${op}`, body);
-    const btn = (ico, title, f, cls, dis) => h("button", { class: "cbtn " + (cls || ""), title, "aria-label": title, disabled: dis, onclick: e => busy(e.currentTarget, f) }, svg(ico));
-    const card = h("div", { class: "card " + (it.state === "failed" ? "failed" : ""), style: `--i:${i};background-image:url("${coverOf(it)}")`, draggable: "true", "data-id": it.id },
-      h("span", { class: "pos", title: "drag" }, i + 1),
-      h("div", { class: "ci" },
-        h("b", {}, it.title),
-        h("span", {}, `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}`),
-        h("small", {}, h("span", { class: "req" }, "@" + it.user), " · " + ago(it.addedAt) + " · ", h("span", { class: "s-" + it.state }, t("st_" + it.state)), " · ",
-          h("a", { class: "mlink", href: setLink(it), target: "_blank", rel: "noopener" }, it.setId)),
-        tagsFor(it)),
-      h("div", { class: "cact" },
-        it.state === "failed" ? btn(ICON.retry, L("Retry", "ลองใหม่"), () => q("retry")) : btn(ICON.play, L("Play now", "เล่นเลย"), () => q("play"), "go"),
-        btn(ICON.up, L("Move up", "เลื่อนขึ้น"), () => q("move", { to: i - 1 }), "", i === 0),
-        btn(ICON.down, L("Move down", "เลื่อนลง"), () => q("move", { to: i + 1 }), "", i === items.length - 1),
-        btn(ICON.skip, t("skip"), () => q("skip")),
-        btn(ICON.x, L("Remove", "ลบ"), () => q("remove"))));
-    if (it.attempts && it.attempts.length && it.state !== "ready" || it.state === "downloading") card.append(attempts(it.attempts || []));
-    else if (it.state === "ready" && it.attempts && it.attempts.length) card.append(attempts(it.attempts.slice(-1)));
-    if (it.warning) card.append(h("div", { class: "warnline" }, "⚠ " + it.warning));
-    if (it.error) card.append(h("div", { class: "errline" }, it.error));
-    card.addEventListener("dragstart", e => { dragId = it.id; card.classList.add("drag"); e.dataTransfer.effectAllowed = "move"; });
-    card.addEventListener("dragend", () => { dragId = null; card.classList.remove("drag"); });
-    card.addEventListener("dragover", e => { if (dragId && dragId !== it.id) { e.preventDefault(); card.classList.add("over"); } });
-    card.addEventListener("dragleave", () => card.classList.remove("over"));
-    card.addEventListener("drop", e => { e.preventDefault(); card.classList.remove("over"); if (dragId) act(`/api/queue/${dragId}/move`, { to: i }); });
-    list.append(card);
+  list.dataset.key = "";
+  const next = items.map((it, i) => {
+    const { attempts: _, ...rest } = it;
+    const key = JSON.stringify([rest, i, items.length, LANG, ago(it.addedAt)]);
+    let card = cards.get(it.id);
+    if (!card || card.dataset.key !== key) {
+      card = buildCard(it, i, items.length);
+      card.dataset.key = key;
+    }
+    updateAttempts(card, it);
+    return card;
   });
+  const cur = [...list.children];
+  if (cur.length === next.length && cur.every((c, i) => c.dataset.id === next[i].dataset.id)) {
+    cur.forEach((c, i) => { if (c !== next[i]) c.replaceWith(next[i]); }); // swap only rebuilt cards
+  } else {
+    list.replaceChildren(...next); // added, removed or reordered
+  }
+  cards.clear();
+  items.forEach((it, i) => { cards.set(it.id, next[i]); seen.add(it.id); });
+}
+
+function buildCard(it, i, total) {
+  const q = (op, body) => act(`/api/queue/${it.id}/${op}`, body);
+  const btn = (ico, title, f, cls, dis) => h("button", { class: "cbtn " + (cls || ""), title, "aria-label": title, disabled: dis, onclick: e => busy(e.currentTarget, f) }, svg(ico));
+  const card = h("div", { class: "card" + (it.state === "failed" ? " failed" : "") + (seen.has(it.id) ? " seen" : ""), style: `--i:${i};background-image:url("${coverOf(it)}")`, draggable: "true", "data-id": it.id },
+    h("span", { class: "pos", title: "drag" }, i + 1),
+    h("div", { class: "ci" },
+      h("b", {}, it.title),
+      h("span", {}, `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}`),
+      h("small", {}, h("span", { class: "req" }, "@" + it.user), " · " + ago(it.addedAt) + " · ", h("span", { class: "s-" + it.state }, t("st_" + it.state)), " · ",
+        h("a", { class: "mlink", href: setLink(it), target: "_blank", rel: "noopener" }, it.setId)),
+      tagsFor(it)),
+    h("div", { class: "cact" },
+      it.state === "failed" ? btn(ICON.retry, L("Retry", "ลองใหม่"), () => q("retry")) : btn(ICON.play, L("Play now", "เล่นเลย"), () => q("play"), "go"),
+      btn(ICON.up, L("Move up", "เลื่อนขึ้น"), () => q("move", { to: i - 1 }), "", i === 0),
+      btn(ICON.down, L("Move down", "เลื่อนลง"), () => q("move", { to: i + 1 }), "", i === total - 1),
+      btn(ICON.skip, t("skip"), () => q("skip")),
+      btn(ICON.x, L("Remove", "ลบ"), () => q("remove"))));
+  if (it.warning) card.append(h("div", { class: "warnline" }, "⚠ " + it.warning));
+  if (it.error) card.append(h("div", { class: "errline" }, it.error));
+  card.addEventListener("dragstart", e => { dragId = it.id; card.classList.add("drag"); e.dataTransfer.effectAllowed = "move"; });
+  card.addEventListener("dragend", () => { dragId = null; card.classList.remove("drag"); });
+  card.addEventListener("dragover", e => { if (dragId && dragId !== it.id) { e.preventDefault(); card.classList.add("over"); } });
+  card.addEventListener("dragleave", () => card.classList.remove("over"));
+  card.addEventListener("drop", e => { e.preventDefault(); card.classList.remove("over"); if (dragId) act(`/api/queue/${dragId}/move`, { to: i }); });
+  return card;
+}
+
+// updateAttempts keeps the download rows on a card current. When only the
+// numbers changed it edits the existing bars, so progress animates smoothly.
+function updateAttempts(card, it) {
+  let list = [];
+  if (it.attempts && it.attempts.length && it.state !== "ready" || it.state === "downloading") list = it.attempts || [];
+  else if (it.state === "ready" && it.attempts && it.attempts.length) list = it.attempts.slice(-1);
+  const old = card.querySelector(".att");
+  if (!list.length) { if (old) old.remove(); return; }
+  const shape = JSON.stringify(list.map(a => [a.source, a.status, a.status === "running" && !(a.total > 0)]));
+  if (old && old.dataset.shape === shape) {
+    list.forEach((a, i) => {
+      const v = attemptView(a), row = old.children[i];
+      row.title = a.message || "";
+      row.querySelector(".bar>div").style.width = v.pct + "%";
+      row.querySelector("i").textContent = v.text;
+    });
+    return;
+  }
+  const el = attempts(list);
+  el.dataset.shape = shape;
+  if (old) old.replaceWith(el);
+  else card.querySelector(".cact").after(el);
+}
+
+function attemptView(a) {
+  const pct = a.total > 0 ? Math.min(100, a.received / a.total * 100) : (a.status === "running" ? 0 : 100);
+  const right = a.status === "running" ? (a.total > 0 ? Math.round(pct) + "%" : a.received ? mb(a.received) : "…") : a.status;
+  return { pct, text: a.message ? `${right} · ${a.message}` : right };
 }
 
 function attempts(list) {
   return h("div", { class: "att" }, list.map(a => {
-    const pct = a.total > 0 ? Math.min(100, a.received / a.total * 100) : (a.status === "running" ? 0 : 100);
+    const { pct, text } = attemptView(a);
     const cls = { ok: "ok", failed: "bad", mismatch: "mm", running: "run" }[a.status] || "";
     const indet = a.status === "running" && !(a.total > 0);
-    const right = a.status === "running" ? (a.total > 0 ? Math.round(pct) + "%" : a.received ? mb(a.received) : "…") : a.status;
     return h("div", { class: "arow", title: a.message || "" },
       h("b", {}, a.source),
       h("div", { class: `bar ${cls} ${indet ? "indet" : ""}` }, h("div", { style: `width:${pct}%` })),
-      h("i", {}, a.message ? `${right} · ${a.message}` : right));
+      h("i", {}, text));
   }));
 }
 
@@ -297,16 +360,21 @@ function logItem(cls, head, who, at, body, code) {
     h("div", { class: "h" }, h("b", {}, head), who ? h("span", {}, who) : null, h("time", { datetime: at, title: new Date(at).toLocaleString() }, timeOf(at))),
     body ? h("p", {}, body) : null, code ? h("code", {}, code) : null);
 }
-function fill(sel, items) { const e = $(sel); e.replaceChildren(...(items.length ? items : [h("div", { class: "hint" }, t("none"))])); }
+function fill(sel, items, key) {
+  const e = $(sel);
+  if (same(e, JSON.stringify([key, LANG]))) return;
+  e.replaceChildren(...(items.length ? items : [h("div", { class: "hint" }, t("none"))]));
+}
 
 function renderSide() {
   const rej = S.queue.rejected || [];
   $("#rejCount").textContent = rej.length || "";
-  fill("#rejLog", rej.slice(0, 40).map(r => logItem("err", t("r_" + r.code), "@" + r.user, r.at, r.detail, r.input)));
-  fill("#noteLog", (S.notices || []).slice(0, 30).map(n => logItem({ error: "err", warn: "warn" }[n.kind] || "info", n.kind, "", n.at, n.text)));
-  fill("#histLog", (S.queue.history || []).map(p => logItem(p.result === "played" ? "ok" : "warn", p.title, "@" + p.user, p.at, t(p.result))));
+  const notes = (S.notices || []).slice(0, 30), hist = S.queue.history || [];
   const raw = (S.raw && S.raw.length ? S.raw : Object.values(S.firstRaw || {})).slice(0, 30);
-  fill("#rawLog", raw.map(r => logItem("info", r.event, "", r.at, "", r.raw)));
+  fill("#rejLog", rej.slice(0, 40).map(r => logItem("err", t("r_" + r.code), "@" + r.user, r.at, r.detail, r.input)), rej.slice(0, 40));
+  fill("#noteLog", notes.map(n => logItem({ error: "err", warn: "warn" }[n.kind] || "info", n.kind, "", n.at, n.text)), notes);
+  fill("#histLog", hist.map(p => logItem(p.result === "played" ? "ok" : "warn", p.title, "@" + p.user, p.at, t(p.result))), hist);
+  fill("#rawLog", raw.map(r => logItem("info", r.event, "", r.at, "", r.raw)), raw.map(r => [r.at, r.event]));
   const ov = location.origin + "/overlay";
   const kv = $("#infoKv");
   kv.replaceChildren(
