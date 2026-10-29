@@ -322,6 +322,8 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": false, "code": "ignored", "error": "not a request: real chat would ignore this message"})
 	case rej != nil:
 		writeJSON(w, map[string]any{"ok": false, "code": rej.Code, "error": rej.Detail})
+	case it == nil:
+		writeJSON(w, map[string]any{"ok": true, "command": true}) // a chat command, not a request
 	default:
 		writeJSON(w, map[string]any{"ok": true, "item": it})
 	}

@@ -40,6 +40,27 @@ type Chat struct {
 	User    string // TikTok @uniqueId
 	Nick    string
 	Comment string
+	// Viewer roles, when TikFinity forwards them. Unknown is the zero value,
+	// so rules never block a viewer because a field is missing.
+	Moderator  Tri
+	Follower   Tri
+	Subscriber Tri
+}
+
+// Tri is a yes/no answer that may be unknown.
+type Tri int8
+
+const (
+	Unknown Tri = 0
+	Yes     Tri = 1
+	No      Tri = -1
+)
+
+func tri(b bool) Tri {
+	if b {
+		return Yes
+	}
+	return No
 }
 
 type RawEvent struct {
@@ -322,6 +343,28 @@ func ParseChat(data json.RawMessage) (Chat, bool) {
 	}
 	if ch.Comment == "" || ch.User == "" {
 		return Chat{}, false
+	}
+	// Role fields as TikTok sends them through TikFinity: isModerator,
+	// isSubscriber, followRole (0 none, 1 follower, 2 friend), or the
+	// userIdentity block. Not verified on a live stream yet.
+	ident, _ := m["userIdentity"].(map[string]any)
+	flag := func(keys ...string) Tri {
+		for _, src := range []map[string]any{m, user, ident} {
+			for _, k := range keys {
+				if v, ok := src[k].(bool); ok {
+					return tri(v)
+				}
+			}
+		}
+		return Unknown
+	}
+	ch.Moderator = flag("isModerator", "isModeratorOfAnchor")
+	ch.Subscriber = flag("isSubscriber", "isSubscriberOfAnchor")
+	ch.Follower = flag("isFollower", "isFollowerOfAnchor")
+	for _, src := range []map[string]any{m, user} {
+		if v, ok := src["followRole"].(float64); ok && ch.Follower == Unknown {
+			ch.Follower = tri(v >= 1)
+		}
 	}
 	return ch, true
 }

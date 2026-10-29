@@ -54,6 +54,7 @@ const T = {
   hintChat: ["Sends the message as if @user typed it in TikTok chat: command, requests on/off, per-user limit, cooldown and every map rule apply. Works offline. A bare ID or link gets {cmd} added.", "ส่งข้อความเหมือน @ผู้ใช้ พิมพ์ในแชท TikTok ใช้กฎทั้งหมด (คำสั่ง เปิด/ปิดรับ จำนวนต่อคน คูลดาวน์ กฎแมพ) ใช้ได้แม้ไม่ได้ไลฟ์ ถ้าพิมพ์แค่ ID หรือลิงก์จะเติม {cmd} ให้"],
   hintQuick: ["Adds a map straight to the queue. Only map rules apply (no per-user limit or cooldown).", "เพิ่มแมพเข้าคิวทันที ใช้แค่กฎแมพ (ไม่นับจำนวนต่อคนและคูลดาวน์)"],
   hintDry: [" Dry run is on: Next and Play move the queue but never open osu! or copy into Songs.", " เปิดโหมดทดลองอยู่: กด ถัดไป/เล่น จะเลื่อนคิวแต่ไม่เปิด osu! และไม่คัดลอกเข้า Songs"],
+  cmdSent: ["Command sent (see Activity)", "ส่งคำสั่งแล้ว (ดูที่ กิจกรรม)"],
   ignored: ["Ignored: real chat would not treat this as a request", "ไม่ใช่คำขอ: แชทจริงจะไม่นับข้อความนี้"],
   confirmClearTest: ["Remove all test requests, their history, rejections and cooldowns?", "ลบคำขอทดสอบทั้งหมด รวมประวัติ การปฏิเสธ และคูลดาวน์ที่เกิดจากการทดสอบ?"],
   nowPlaying: ["Now playing", "กำลังเล่น"],
@@ -510,7 +511,8 @@ $("#testForm").addEventListener("submit", async e => {
     } else {
       j = await api("POST", "/api/test", { input, user });
     }
-    if (j.ok) { toast(t("added", { t: `${j.item.artist} - ${j.item.title} [${j.item.version}]` })); $("#testIn").value = ""; }
+    if (j.ok && j.command) { toast(t("cmdSent")); $("#testIn").value = ""; }
+    else if (j.ok) { toast(t("added", { t: `${j.item.artist} - ${j.item.title} [${j.item.version}]` })); $("#testIn").value = ""; }
     else if (j.code === "ignored") toast(t("ignored"), true);
     else toast((j.code ? t("r_" + j.code) + ": " : "") + j.error, true);
   } finally { btn.disabled = false; }
@@ -545,6 +547,12 @@ const SCHEMA = {
     F("command.enabled", "switch", "Accept requests", "รับคำขอ"),
     F("command.name", "text", "Command", "คำสั่ง", "Must start with !", "ต้องขึ้นต้นด้วย !"),
     F("command.aliases", "list", "Aliases", "คำสั่งอื่น", "Comma separated, e.g. !request, !r", "คั่นด้วยจุลภาค เช่น !request, !r"),
+    F("command.mods", "list", "Mods (TikTok users)", "ม็อด (ผู้ใช้ TikTok)", "Comma separated @uniqueId. Mods can use !skip, !reqon / !reqoff and !remove @user.", "@uniqueId คั่นด้วยจุลภาค ม็อดใช้ !skip, !reqon / !reqoff และ !remove @ชื่อ ได้"),
+    F("command.trustTikTokMods", "switch", "TikTok moderators are mods too", "ม็อดของ TikTok นับเป็นม็อดด้วย", "Uses TikTok's moderator flag when TikFinity sends it.", "ใช้สถานะม็อดจาก TikTok ถ้า TikFinity ส่งมา"),
+    F("command.skipCmd", "text", "Skip command (mods)", "คำสั่งข้ามเพลง (ม็อด)", "Skips the song being played. Empty = off.", "ข้ามเพลงที่กำลังเล่น เว้นว่าง = ปิด"),
+    F("command.removeCmd", "text", "Remove command", "คำสั่งลบคำขอ", "Anyone removes their own latest request; mods can add @user. Empty = off.", "ทุกคนลบคำขอล่าสุดของตัวเองได้ ม็อดเติม @ชื่อ เพื่อลบของคนอื่น เว้นว่าง = ปิด"),
+    F("command.openCmd", "text", "Open requests (mods)", "เปิดรับคำขอ (ม็อด)", null, null),
+    F("command.closeCmd", "text", "Close requests (mods)", "ปิดรับคำขอ (ม็อด)", null, null),
     F("command.bareNumberAs", "seg", "A bare number is a…", "ตัวเลขเปล่าๆ หมายถึง…", null, null, { options: [["beatmap", ["beatmap (difficulty) ID", "ID บีทแมพ (ระดับ)"]], ["set", ["beatmapset ID", "ID เซ็ต"]]] }),
   ],
   rules: [

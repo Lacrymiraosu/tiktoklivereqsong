@@ -40,3 +40,18 @@ func TestClassify(t *testing.T) {
 		}
 	}
 }
+
+func TestParseChatRoles(t *testing.T) {
+	ch, ok := ParseChat([]byte(`{"comment":"!skip","uniqueId":"m","isModerator":true,"isSubscriber":false,"followRole":1}`))
+	if !ok || ch.Moderator != Yes || ch.Subscriber != No || ch.Follower != Yes {
+		t.Errorf("flat fields: %+v", ch)
+	}
+	ch, _ = ParseChat([]byte(`{"comment":"x","uniqueId":"m","userIdentity":{"isModeratorOfAnchor":false,"isFollowerOfAnchor":true}}`))
+	if ch.Moderator != No || ch.Follower != Yes || ch.Subscriber != Unknown {
+		t.Errorf("userIdentity fields: %+v", ch)
+	}
+	ch, _ = ParseChat([]byte(`{"comment":"x","uniqueId":"m","followRole":0}`))
+	if ch.Follower != No {
+		t.Errorf("followRole 0 means not following: %+v", ch)
+	}
+}

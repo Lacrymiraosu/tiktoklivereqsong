@@ -97,6 +97,12 @@ func (a *App) Notices() []Notice {
 // HandleChat is called for every TikFinity chat event.
 func (a *App) HandleChat(ch tikfinity.Chat) {
 	cfg := a.Cfg.Get()
+	if !a.TF.Accepting() {
+		return
+	}
+	if a.command(ch, false) {
+		return
+	}
 	req, ok := parser.Parse(ch.Comment, parser.Options{Command: cfg.Command.Name, Aliases: cfg.Command.Aliases, BareNumberAs: cfg.Command.BareNumberAs})
 	if !ok {
 		return
@@ -104,9 +110,6 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 	if !cfg.Command.Enabled {
 		a.Queue.Reject(queue.Rejected{At: time.Now(), User: ch.User, Input: ch.Comment, Code: "requests_off", Detail: "requests are turned off"})
 		a.emit(FeedEvent{Kind: "rejected", User: ch.User, Nick: ch.Nick, Code: "requests_off"})
-		return
-	}
-	if !a.TF.Accepting() {
 		return
 	}
 	go a.submit(ch.User, ch.Nick, ch.Comment, req, fromChat)
@@ -135,6 +138,9 @@ func testUser(user, def string) string {
 func (a *App) SimulateChat(user, comment string) (it *queue.Item, rej *validator.Rejection, matched bool) {
 	cfg := a.Cfg.Get()
 	user = testUser(user, "viewer")
+	if a.command(tikfinity.Chat{User: user, Nick: user, Comment: comment}, true) {
+		return nil, nil, true
+	}
 	req, ok := parser.Parse(comment, parser.Options{Command: cfg.Command.Name, Aliases: cfg.Command.Aliases, BareNumberAs: cfg.Command.BareNumberAs})
 	if !ok {
 		return nil, nil, false

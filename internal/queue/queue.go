@@ -339,6 +339,25 @@ func (q *Queue) Drop(id, result string) bool {
 	return false
 }
 
+// RemoveLatestBy removes the most recently added waiting request of user.
+func (q *Queue) RemoveLatestBy(user string) (Item, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	idx := -1
+	for i, it := range q.d.Items {
+		if strings.EqualFold(it.User, user) && (idx < 0 || it.AddedAt.After(q.d.Items[idx].AddedAt)) {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		return Item{}, false
+	}
+	it := q.d.Items[idx]
+	q.d.Items = append(q.d.Items[:idx], q.d.Items[idx+1:]...)
+	q.changed()
+	return copyItem(it), true
+}
+
 // RemoveLast removes the most recently added request.
 func (q *Queue) RemoveLast() (Item, bool) {
 	q.mu.Lock()

@@ -37,6 +37,14 @@ type Command struct {
 	Aliases      []string `json:"aliases"`
 	Enabled      bool     `json:"enabled"`
 	BareNumberAs string   `json:"bareNumberAs"` // beatmap | set
+
+	// Mod commands. An empty name turns that command off.
+	Mods            []string `json:"mods"`            // TikTok users who may use mod commands
+	TrustTikTokMods bool     `json:"trustTikTokMods"` // also accept TikTok's own moderator flag
+	SkipCmd         string   `json:"skipCmd"`         // mod: skip the song being played
+	RemoveCmd       string   `json:"removeCmd"`       // anyone: remove own latest; mod: "!remove @user"
+	OpenCmd         string   `json:"openCmd"`         // mod: requests on
+	CloseCmd        string   `json:"closeCmd"`        // mod: requests off
 }
 
 type Rules struct {
@@ -150,7 +158,8 @@ func Default() Config {
 			DownloadsDir: filepath.Join(home, "Downloads"),
 			UseOsuDB:     false,
 		},
-		Command: Command{Name: "!req", Aliases: []string{"!request", "!r"}, Enabled: true, BareNumberAs: "beatmap"},
+		Command: Command{Name: "!req", Aliases: []string{"!request", "!r"}, Enabled: true, BareNumberAs: "beatmap",
+			TrustTikTokMods: true, SkipCmd: "!skip", RemoveCmd: "!remove", OpenCmd: "!reqon", CloseCmd: "!reqoff"},
 		Rules: Rules{
 			MinStars: 0, MaxStars: 0, MaxLengthSec: 0,
 			Modes:    []string{"osu", "taiko", "fruits", "mania"},
@@ -195,6 +204,11 @@ func (c *Config) Validate() error {
 	}
 	if !strings.HasPrefix(c.Command.Name, "!") || len(c.Command.Name) < 2 || strings.ContainsAny(c.Command.Name, " \t") {
 		add("command must start with ! and contain no spaces")
+	}
+	for _, mc := range []string{c.Command.SkipCmd, c.Command.RemoveCmd, c.Command.OpenCmd, c.Command.CloseCmd} {
+		if mc != "" && (!strings.HasPrefix(mc, "!") || len(mc) < 2 || strings.ContainsAny(mc, " \t")) {
+			add("mod command %q must start with ! and contain no spaces", mc)
+		}
 	}
 	if c.Command.BareNumberAs != "beatmap" && c.Command.BareNumberAs != "set" {
 		add("bare number must be beatmap or set")
