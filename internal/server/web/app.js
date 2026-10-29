@@ -47,9 +47,9 @@ const T = {
   modeChat: ["Simulate chat", "จำลองแชท"],
   modeQuick: ["Quick add", "เพิ่มด่วน"],
   modeGift: ["Gift", "ของขวัญ"],
-  hintGift: ["Pretends @user sent a gift worth this many coins (gift priority must be on in Settings → Queue).", "จำลองว่า @ผู้ใช้ ส่งของขวัญมูลค่าเท่านี้เหรียญ (ต้องเปิดคิวพิเศษจากของขวัญใน ตั้งค่า → คิว)"],
+  hintGift: ["Pretends @user sent a gift worth this many coins (gift priority or gift-only requests must be on in Settings → Queue).", "จำลองว่า @ผู้ใช้ ส่งของขวัญมูลค่าเท่านี้เหรียญ (ต้องเปิดคิวพิเศษจากของขวัญ หรือขอเพลงด้วยของขวัญ ใน ตั้งค่า → คิว)"],
   giftPh: ["coins, e.g. 30", "จำนวนเหรียญ เช่น 30"],
-  giftDone: ["Gift sent: {n} priority earned", "ส่งของขวัญแล้ว: ได้คิวพิเศษ {n} ครั้ง"],
+  giftDone: ["Gift sent: {n} priority and {r} request(s) earned", "ส่งของขวัญแล้ว: ได้คิวพิเศษ {n} ครั้ง และขอเพลงได้ {r} เพลง"],
   priority: ["priority", "คิวพิเศษ"],
   dryRun: ["Dry run", "ทดลองไม่เปิดเกม"],
   clearTest: ["Clear test data", "ล้างข้อมูลทดสอบ"],
@@ -90,7 +90,7 @@ const T = {
   e_not_found: ["That request is no longer in the queue", "คำขอนี้ไม่อยู่ในคิวแล้ว"],
   e_get_failed: ["Could not get {title}: {msg}", "โหลด {title} ไม่ได้: {msg}"],
   e_ban_empty: ["Nothing to ban", "ไม่มีอะไรให้แบน"], e_ban_set_id: ["{v} is not a beatmapset ID", "{v} ไม่ใช่ ID เซ็ต"], e_ban_kind: ["Unknown ban type", "ไม่รู้จักประเภทการแบน"],
-  e_gifts_off: ["Gift priority is off (Settings → Queue)", "ปิดคิวพิเศษจากของขวัญอยู่ (ตั้งค่า → คิว)"],
+  e_gifts_off: ["Gift priority and gift-only requests are both off (Settings → Queue)", "ปิดทั้งคิวพิเศษและการขอเพลงด้วยของขวัญอยู่ (ตั้งค่า → คิว)"],
   e_tikfinity_missing: ["TikFinity is not installed", "ยังไม่ได้ติดตั้ง TikFinity"],
   e_tosu_no_path: ["Where tosu.exe is is not known yet: set it in Settings → Connection, or start tosu once", "ยังไม่รู้ที่อยู่ tosu.exe: ใส่ใน ตั้งค่า → การเชื่อมต่อ หรือเปิด tosu สักครั้ง"],
   e_vol_range: ["Master volume must be 0-100", "ระดับเสียงต้องอยู่ระหว่าง 0-100"],
@@ -121,7 +121,8 @@ const T = {
   reqBy: ["requested by", "ขอโดย"],
   emptyQueue: ["The queue is empty. Viewers type {cmd} <ID or link> in TikTok chat.", "คิวว่าง ผู้ชมพิมพ์ {cmd} <ID หรือลิงก์> ในแชท TikTok"],
   emptyQueueName: ["The queue is empty. Viewers type {cmd} <song name, ID or link> in TikTok chat.", "คิวว่าง ผู้ชมพิมพ์ {cmd} <ชื่อเพลง, ID หรือลิงก์> ในแชท TikTok"],
-  r_search_none: ["no map with that name", "ไม่พบแมพชื่อนี้"], r_search_error: ["song search failed", "ค้นหาเพลงไม่ได้"],
+  r_search_none: ["no map with that name", "ไม่พบแมพชื่อนี้"], r_needs_gift: ["no gift sent", "ยังไม่ได้ส่งของขวัญ"],
+  e_request_coins: ["Coins per request cannot be negative", "เหรียญต่อคำขอติดลบไม่ได้"], r_search_error: ["song search failed", "ค้นหาเพลงไม่ได้"],
   resolving: ["looking up {n} request(s)…", "กำลังค้นหา {n} คำขอ…"],
   st_queued: ["waiting", "รอดาวน์โหลด"],
   st_downloading: ["downloading", "กำลังดาวน์โหลด"],
@@ -885,7 +886,7 @@ $("#testForm").addEventListener("submit", async e => {
       const coins = Number(input);
       if (!Number.isInteger(coins) || coins <= 0) { toast(t("giftNum"), true); return; }
       j = await api("POST", "/api/simulateGift", { user, coins });
-      if (j.ok) { toast(t("giftDone", { n: j.earned })); $("#testIn").value = ""; } else toast(errText(j), true);
+      if (j.ok) { toast(t("giftDone", { n: j.earned, r: j.requests })); $("#testIn").value = ""; } else toast(errText(j), true);
       return;
     }
     if (testMode === "chat") {
@@ -966,6 +967,7 @@ const SCHEMA = {
     F("queue.cooldownSec", "number", "Per-user cooldown (s)", "คูลดาวน์ต่อคน (วินาที)", null, null, { min: 0 }),
     F("rules.exemptUsers", "list", "No-limit users", "ผู้ใช้ที่ไม่จำกัด", "Comma separated @uniqueId (you, your mods). They skip the per-user limit and cooldown.", "@uniqueId คั่นด้วยจุลภาค (คุณ หรือม็อด) ไม่ติดจำนวนคำขอต่อคนและคูลดาวน์"),
     F("queue.noRepeatMin", "number", "No repeat within (min)", "ห้ามซ้ำภายใน (นาที)", null, null, { min: 0 }),
+    F("gifts.requestCoins", "number", "Gift-only requests: coins per request", "ขอเพลงด้วยของขวัญ: เหรียญต่อคำขอ", "Viewers must send gifts worth this many coins (added up) for each request; a rejected map costs nothing. No-limit users are free. Paid requests last as long as \"Unused priority lasts\". 0 = requests are free.", "ผู้ชมต้องส่งของขวัญรวมเท่านี้เหรียญต่อ 1 คำขอ ถ้าแมพถูกปฏิเสธจะไม่เสียสิทธิ์ ผู้ใช้ที่ไม่จำกัดขอได้ฟรี สิทธิ์อยู่ได้นานเท่ากับ \"สิทธิ์ที่ยังไม่ใช้อยู่ได้\" 0 = ขอฟรี", { min: 0 }),
     F("gifts.enabled", "switch", "Gifts buy priority", "ของขวัญได้คิวพิเศษ", "A viewer's gift coins add up; every full amount below moves their oldest waiting request to the top (after other priority requests), or is kept for their next request.", "เหรียญของขวัญของแต่ละคนจะสะสม ครบตามจำนวนด้านล่างเมื่อไหร่ คำขอที่รออยู่เก่าที่สุดของคนนั้นจะขึ้นหน้าคิว (ต่อจากคำขอพิเศษอื่น) หรือเก็บไว้ใช้กับคำขอถัดไป"),
     F("gifts.coinsPerPriority", "number", "Coins per priority", "เหรียญต่อคิวพิเศษ 1 ครั้ง", null, null, { min: 1 }),
     F("gifts.creditMinutes", "number", "Unused priority lasts (min)", "สิทธิ์ที่ยังไม่ใช้อยู่ได้ (นาที)", null, null, { min: 1 }),

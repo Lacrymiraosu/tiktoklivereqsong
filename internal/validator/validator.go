@@ -48,6 +48,9 @@ type State struct {
 	PlayedAt    map[int]time.Time // set id -> last time it was played
 }
 
+// Exempt reports whether user is on the no-limit list.
+func Exempt(rules config.Rules, user string) bool { return listed(rules.ExemptUsers, user) }
+
 // CheckUser runs the checks that need no beatmap metadata, so a spammer
 // costs no osu! requests.
 func CheckUser(user string, st State, rules config.Rules, q config.Queue, now time.Time) *Rejection {
