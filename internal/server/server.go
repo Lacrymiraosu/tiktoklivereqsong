@@ -34,9 +34,10 @@ type Server struct {
 	Extra   func() map[string]any // platform info (hotkey errors, paths)
 	Quit    func()                // stops the helper (dashboard's Quit button)
 
-	mu      sync.Mutex
-	clients map[chan []byte]bool
-	pushT   *time.Timer
+	mu       sync.Mutex
+	clients  map[chan []byte]bool
+	overlays int // connected OBS overlays (the overlay connects with ?client=overlay)
+	pushT    *time.Timer
 }
 
 func New(a *app.App, version string) *Server {
@@ -130,6 +131,7 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/simulateGift", s.simulateGift)
 	mux.HandleFunc("POST /api/ban", s.ban)
 	mux.HandleFunc("POST /api/volume", s.volume)
+	mux.HandleFunc("POST /api/preflight", s.preflight)
 	return guard(port, mux)
 }
 
@@ -173,12 +175,19 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.CloseNow()
 	ch := make(chan []byte, 4)
+	overlay := r.URL.Query().Get("client") == "overlay"
 	s.mu.Lock()
 	s.clients[ch] = true
+	if overlay {
+		s.overlays++
+	}
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
 		delete(s.clients, ch)
+		if overlay {
+			s.overlays--
+		}
 		s.mu.Unlock()
 	}()
 	ctx := c.CloseRead(r.Context())
@@ -376,6 +385,18 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(w, map[string]any{"ok": true, "item": it})
 	}
+}
+
+// preflight runs the pre-stream check (a few seconds: it asks osu! and the mirrors).
+func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
+	env := app.PreflightEnv{}
+	s.mu.Lock()
+	env.OverlayClients = s.overlays
+	s.mu.Unlock()
+	if s.Extra != nil {
+		env.HotkeyErrors, _ = s.Extra()["hotkeyErrors"].(map[string]string)
+	}
+	writeJSON(w, map[string]any{"ok": true, "checks": s.App.Preflight(r.Context(), env)})
 }
 
 // volume sets the master volume: {"volume": 0-100}.

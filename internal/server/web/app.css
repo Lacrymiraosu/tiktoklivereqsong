@@ -129,6 +129,14 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .testtoggle .chev{display:inline-block;transition:transform .15s}
 .testtoggle[aria-expanded="true"] .chev{transform:rotate(90deg)}
 .testh2{margin-top:8px}
+.pf{margin:8px 0 6px;display:flex;flex-direction:column;gap:4px}
+.pf .pfh{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;margin-bottom:2px}
+.pf .pfh.ok{color:var(--ok)}.pf .pfh.warn{color:var(--warn)}.pf .pfh.fail{color:var(--err)}
+.pf .pfh .sp{flex:1}
+.pf .pfr{display:grid;grid-template-columns:22px minmax(0,1fr);gap:2px 8px;font-size:13px;align-items:baseline}
+.pf .pfr i{font-style:normal;font-weight:700;text-align:center}
+.pf .pfr.ok i{color:var(--ok)}.pf .pfr.warn i{color:var(--warn)}.pf .pfr.fail i{color:var(--err)}.pf .pfr.off{color:var(--dim)}
+.pf .pfr small{grid-column:2;color:var(--dim);overflow-wrap:anywhere}
 .testbox{padding:6px 14px}
 .testh .seg{flex:0 1 auto;flex-wrap:wrap}
 .testh .seg button{flex:0 0 auto}
