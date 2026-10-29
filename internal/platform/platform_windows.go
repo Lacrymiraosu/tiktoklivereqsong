@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -164,17 +165,97 @@ func Launch(path string) error {
 	return cmd.Process.Release()
 }
 
+// Close stops every running process with this exe name. Visible windows are
+// asked to close first (so a GUI app can save); whatever is still running
+// after a few seconds, or has no window (a console app such as tosu), is
+// terminated. It returns how many processes were running.
+func Close(exe string) (int, error) {
+	pids := processIDs(exe)
+	if len(pids) == 0 {
+		return 0, nil
+	}
+	if closeWindows(pids) > 0 {
+		for end := time.Now().Add(3 * time.Second); time.Now().Before(end) && len(processIDs(exe)) > 0; {
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+	var errs []error
+	for _, pid := range processIDs(exe) {
+		h, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, pid)
+		if err == nil {
+			err = windows.TerminateProcess(h, 1)
+			windows.CloseHandle(h)
+		}
+		if err != nil && !errors.Is(err, windows.ERROR_INVALID_PARAMETER) { // gone already
+			errs = append(errs, err)
+		}
+	}
+	return len(pids), errors.Join(errs...)
+}
+
+// processIDs lists the running processes with this exe name.
+func processIDs(exe string) []uint32 {
+	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
+		return nil
+	}
+	defer windows.CloseHandle(snap)
+	var ids []uint32
+	var e windows.ProcessEntry32
+	e.Size = uint32(unsafe.Sizeof(e))
+	for err = windows.Process32First(snap, &e); err == nil; err = windows.Process32Next(snap, &e) {
+		if strings.EqualFold(windows.UTF16ToString(e.ExeFile[:]), exe) {
+			ids = append(ids, e.ProcessID)
+		}
+	}
+	return ids
+}
+
+// closing is the request enumCloseCb works on; closeMu keeps one at a time
+// (the callback cannot be given a Go pointer through EnumWindows' lParam).
+var (
+	closeMu sync.Mutex
+	closing struct {
+		pids map[uint32]bool
+		n    int
+	}
+	enumCloseCb = syscall.NewCallback(func(hwnd windows.HWND, _ uintptr) uintptr {
+		var pid uint32
+		windows.GetWindowThreadProcessId(hwnd, &pid)
+		if closing.pids[pid] && windows.IsWindowVisible(hwnd) {
+			pPostMessage.Call(uintptr(hwnd), wmClose, 0, 0)
+			closing.n++
+		}
+		return 1
+	})
+)
+
+// closeWindows posts WM_CLOSE to the visible top-level windows of pids and
+// returns how many it asked.
+func closeWindows(pids []uint32) int {
+	closeMu.Lock()
+	defer closeMu.Unlock()
+	closing.pids, closing.n = map[uint32]bool{}, 0
+	for _, p := range pids {
+		closing.pids[p] = true
+	}
+	windows.EnumWindows(enumCloseCb, nil)
+	return closing.n
+}
+
 var (
 	user32            = windows.NewLazySystemDLL("user32.dll")
 	pRegisterHotKey   = user32.NewProc("RegisterHotKey")
 	pUnregisterHotKey = user32.NewProc("UnregisterHotKey")
 	pGetMessage       = user32.NewProc("GetMessageW")
 	pPostThreadMsg    = user32.NewProc("PostThreadMessageW")
+	pPostMessage      = user32.NewProc("PostMessageW")
 )
 
 const (
 	wmHotkey = 0x0312
 	wmQuit   = 0x0012
+	wmClose  = 0x0010
 )
 
 type msg struct {

@@ -78,6 +78,7 @@ type Env struct {
 	Running func(exe string) bool
 	Path    func(exe string) (string, bool) // path of the running process
 	Launch  func(path string) error
+	Close   func(exe string) (int, error) // stop every process with this exe name
 }
 
 type Settings struct {
@@ -97,6 +98,7 @@ type Client struct {
 	mu         sync.Mutex
 	st         Status
 	lastLaunch time.Time
+	stopped    bool // closed from the dashboard: no auto-launch until started again
 	kick       chan struct{}
 }
 
@@ -136,11 +138,23 @@ func (c *Client) LaunchNow() error {
 		return ErrNoPath
 	}
 	c.mu.Lock()
-	c.lastLaunch = time.Now()
+	c.lastLaunch, c.stopped = time.Now(), false
 	c.mu.Unlock()
 	err := c.Env.Launch(p)
 	c.Reconnect()
 	return err
+}
+
+// StopNow closes tosu and keeps auto-launch from starting it again until it
+// is launched from the dashboard or started by hand. It returns how many
+// tosu processes were running.
+func (c *Client) StopNow() (int, error) {
+	c.mu.Lock()
+	c.stopped = true
+	c.mu.Unlock()
+	n, err := c.Env.Close(ProcessName)
+	c.Reconnect()
+	return n, err
 }
 
 func (c *Client) path() string {
@@ -197,9 +211,14 @@ func (c *Client) Run(ctx context.Context) {
 				st.Path = s.Path
 			}
 		})
+		if running {
+			c.mu.Lock()
+			c.stopped = false
+			c.mu.Unlock()
+		}
 		if !running && s.AutoLaunch {
 			c.mu.Lock()
-			due := time.Since(c.lastLaunch) > 60*time.Second
+			due := !c.stopped && time.Since(c.lastLaunch) > 60*time.Second
 			if due {
 				c.lastLaunch = time.Now()
 			}

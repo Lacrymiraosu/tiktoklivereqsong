@@ -81,7 +81,7 @@ func main() {
 	dl := downloader.New(store.Get, cacheDir(), platform.ShellOpen)
 	im := &importer.Importer{Trusted: dl.Trusted, ShellOpen: platform.ShellOpen}
 
-	tf := tikfinity.New(tikfinity.Env{Find: platform.FindTikFinity, Running: platform.ProcessRunning, Launch: platform.Launch},
+	tf := tikfinity.New(tikfinity.Env{Find: platform.FindTikFinity, Running: platform.ProcessRunning, Launch: platform.Launch, Close: platform.Close},
 		func() tikfinity.Settings {
 			c := store.Get().Connection
 			return tikfinity.Settings{URL: c.TikFinityURL, Path: c.TikFinityPath, Reconnect: time.Duration(c.ReconnectSec) * time.Second, AutoLaunch: c.AutoLaunch, LogRaw: c.LogRawEvents}
@@ -92,7 +92,7 @@ func main() {
 	tf.OnGift = a.HandleGift
 	srv := server.New(a, version)
 	a.OnChange(srv.Push)
-	ts := tosu.New(tosu.Env{Running: platform.ProcessRunning, Path: platform.ProcessPath, Launch: platform.Launch},
+	ts := tosu.New(tosu.Env{Running: platform.ProcessRunning, Path: platform.ProcessPath, Launch: platform.Launch, Close: platform.Close},
 		func() tosu.Settings {
 			c := store.Get().Connection
 			return tosu.Settings{URL: c.TosuURL, Path: c.TosuPath, Reconnect: time.Duration(c.ReconnectSec) * time.Second, AutoLaunch: c.AutoLaunchTosu}

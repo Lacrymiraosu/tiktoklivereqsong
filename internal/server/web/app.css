@@ -237,6 +237,10 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .kv dt{color:var(--dim);white-space:nowrap}
 .kv dd{margin:0;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .hint{color:var(--dim);font-size:12px;line-height:1.5;margin:6px 0 0}
+.closebtns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.closebtns .btn{min-width:0;padding:0 10px;overflow:hidden;text-overflow:ellipsis}
+.btn.danger{color:#ff9aa6;border-color:rgba(255,90,110,.45)}
+.btn.danger:hover{background:rgba(255,90,110,.18)}
 .mlink{color:var(--sky);text-decoration:none;background:none;border:0;padding:0;font:inherit;cursor:pointer}
 .mlink:hover{text-decoration:underline}
 .mlink.pv.on{color:var(--pink);font-weight:600}

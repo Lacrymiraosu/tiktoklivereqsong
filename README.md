@@ -19,7 +19,7 @@ A local dashboard (English/Thai) and a transparent OBS overlay run inside the sa
 
 * **คืออะไร:** โปรแกรม Windows ไฟล์เดียว (`osureq.exe`) ให้ผู้ชม TikTok LIVE ขอเพลง osu! ผ่านแชทด้วย `!req <ID หรือลิงก์>`
 * **ทำอะไรได้:** รับแชทจาก TikFinity → ตรวจกฎ (ดาว ความยาว โหมด สถานะ แบน คูลดาวน์ ผู้ติดตาม ฯลฯ) → ดาวน์โหลดจาก mirror → ตรวจ MD5 เทียบกับ osu! → เปิดแมพใน osu! เมื่อกด ถัดไป หรือเปิดอัตโนมัติเมื่อ tosu เห็นว่าเพลงก่อนหน้าเล่นจบ
-* **เพิ่มเติม:** ป๊อปอัปแจ้งผู้ชมบน overlay, คำสั่งม็อด (`!skip`, `!remove`, `!reqon`/`!reqoff`), เก็บผลการเล่นจาก tosu, ของขวัญได้คิวพิเศษ, ฟังตัวอย่างเพลง/เปิดใน beatmap viewer, ปุ่มแบนคลิกเดียว
+* **เพิ่มเติม:** ป๊อปอัปแจ้งผู้ชมบน overlay, คำสั่งม็อด (`!skip`, `!remove`, `!reqon`/`!reqoff`), เก็บผลการเล่นจาก tosu, ของขวัญได้คิวพิเศษ, ฟังตัวอย่างเพลง/เปิดใน beatmap viewer, ปุ่มแบนคลิกเดียว, ปุ่มปิด tosu / TikFinity / ปิดทั้งหมด ในกล่อง ข้อมูล
 * **ต้องมี:** Windows 10/11 x64, osu! (stable หรือ lazer), **TikFinity Desktop** และ **tosu** (เปิดไว้ระหว่างไลฟ์)
 * **สำหรับนักพัฒนา:** Go 1.23+ บน Windows, รัน `go test ./...`, build ด้วย `build.ps1`
 * **โครงสร้าง:** `main.go` ต่อสายทุกอย่าง, โค้ดหลักอยู่ใน `internal/<โมดูล>` แยกหน้าที่ชัดเจน, หน้าเว็บอยู่ใน `internal/server/web` และถูกฝังลงใน exe
@@ -57,7 +57,7 @@ A local dashboard (English/Thai) and a transparent OBS overlay run inside the sa
 
 | | |
 |---|---|
-| Version | **1.3.6** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.3.7** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
 | Tests | `go test ./...`: 12 packages with tests, all passing |
 | Repository | local git repo, branch `main`, no remote yet |
@@ -142,6 +142,9 @@ Out of scope for now: sending messages to TikTok chat (TikFinity's API does not 
 5. Check the two status pills at the top:
    * **TikFinity**: 🔴 not installed/not running · 🟡 not connected, or connected and "Waiting for stream" · 🟢 live and taking requests.
    * **tosu**: 🔴 not running · 🟡 not connected or osu! not detected · 🟢 reading osu!. The first time tosu is seen running, its path is remembered so the banner can offer **Launch tosu**.
+     tosu launched by osureq opens in its own console window.
+   * To stop things, the **Info** box has **Close tosu**, **Close TikFinity**, **Quit osureq** and **Close everything** (all three).
+     A program closed this way is not auto-launched again until you launch it from the dashboard or start it yourself.
 6. Use the **Test** panel to check the whole chain without going live.
 7. Optional: in OBS, add a **Browser Source** with `http://127.0.0.1:21280/overlay` (transparent background).
 
@@ -366,9 +369,9 @@ otiktokdownloader/
 | `internal/importer/osudb.go` | ~70 | Finds beatmap MD5s in `osu!.db` by scanning for `0x0b 0x20 <32 hex>` instead of parsing the versioned format | `OsuDB.Has`, `ScanHashes` |
 | `internal/tikfinity/tikfinity.go` | ~440 | Install/process checks, WebSocket loop, `config` handshake, live detection (any event; times out after 5 min of silence), raw event log (first event of each type kept), chat field extraction with fallbacks, viewer roles (yes/no/unknown), gift parsing (streaks counted once) | `Client`, `Status` (`red`/`yellow`/`green`, codes), `Chat`, `Tri`, `ParseChat`, `Gift`, `ParseGift`, `Accepting` |
 | `internal/tosu/tosu.go` | ~420 | tosu WebSocket loop (`/websocket/v2`), payload parsing (state, beatmap, live `play` numbers, `resultsScreen`), status levels (only the short `Brief` state drives pushes), remembers `tosu.exe` path, song-end state machine | `Client`, `Status`, `Game`, `Brief`, `Score`, `Parse`, `Tracker`, `Phase` (`waiting`/`playing`/`results`/`ended`) |
-| `internal/platform/platform_windows.go` | ~280 | `ShellExecuteW` open, Toolhelp process list, process image path, TikFinity lookup (path + Uninstall registry), osu! stable lookup (`HKCR\osustable.File.osz\shell\open\command`), detached launch, `RegisterHotKey` message loop, console window title | `ShellOpen`, `ProcessRunning`, `ProcessPath`, `FindTikFinity`, `FindOsuStable`, `Launch`, `Hotkeys`, `SetConsoleTitle` |
+| `internal/platform/platform_windows.go` | ~280 | `ShellExecuteW` open, Toolhelp process list, process image path, TikFinity lookup (path + Uninstall registry), osu! stable lookup (`HKCR\osustable.File.osz\shell\open\command`), launch in a new console window, close by exe name (`WM_CLOSE`, then `TerminateProcess` after 3 s), `RegisterHotKey` message loop, console window title | `ShellOpen`, `ProcessRunning`, `ProcessPath`, `FindTikFinity`, `FindOsuStable`, `Launch`, `Close`, `Hotkeys`, `SetConsoleTitle` |
 | `internal/platform/hotkey.go` | ~50 | Parses `Ctrl+Alt+N`, `Shift+F5`, `F9`, `Win+Num5`… into modifier + virtual key | `ParseHotkey` |
-| `internal/server/server.go` | ~420 | Routes, `guard` (Host + `X-Osureq` header), `State` snapshot, coalesced WebSocket push + 20 s keepalive state, config GET/PUT, actions (incl. quit), queue operations, test/simulate/simulateGift, ban | `Server`, `State`, `Handler`, `Push`, `Listen`, `Quit` |
+| `internal/server/server.go` | ~420 | Routes, `guard` (Host + `X-Osureq` header), `State` snapshot, coalesced WebSocket push + 20 s keepalive state, config GET/PUT, actions (incl. quit and closing tosu/TikFinity), queue operations, test/simulate/simulateGift, ban | `Server`, `State`, `Handler`, `Push`, `Listen`, `Quit` |
 | `internal/server/web/index.html` | ~90 | Dashboard skeleton: top bar (status pills, requests switch, language, settings), banners, now playing, test panel, queue, side logs, settings sheet, toast | |
 | `internal/server/web/app.js` | ~860 | Everything on the dashboard: `T` i18n table (en/th), API helper, WebSocket client, incremental rendering, queue cards, drag & drop, ban menu, audio preview + viewer links, results, test panel (chat / quick / gift), settings `SCHEMA` → form | `render`, `renderBanner`, `renderTosuBanner`, `renderNow`, `updatePhase`, `resultShort`, `renderQueue`, `buildCard`, `banMenu`, `mapLinks`, `updateAttempts`, `renderSide`, `same`, `SCHEMA`, `field` |
 | `internal/server/web/app.css` | ~230 | Design tokens and components copied from the owner's osu! beatmap viewer: pills, banners, cover cards, star chips, switches, tabs, sheet, toast | `:root` tokens |
@@ -456,7 +459,7 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 | `GET /api/state` | the same `State` once |
 | `GET /api/config` | `{config, defaults}` |
 | `PUT /api/config` | replace the whole config (validated); `{ok, restartNeeded}` |
-| `POST /api/action/{name}` | `next`, `skip`, `removeLast`, `toggleRequests`, `clear`, `cleanup`, `toggleDryRun`, `clearTest`, `launchTikfinity`, `reconnect`, `openTikfinityDownload`, `launchTosu`, `reconnectTosu`, `openTosuDownload`, `quit` |
+| `POST /api/action/{name}` | `next`, `skip`, `removeLast`, `toggleRequests`, `clear`, `cleanup`, `toggleDryRun`, `clearTest`, `launchTikfinity`, `reconnect`, `openTikfinityDownload`, `launchTosu`, `reconnectTosu`, `openTosuDownload`, `stopTosu`, `stopTikfinity`, `quit`, `quitAll` (closes tosu and TikFinity, then quits) |
 | `POST /api/queue/{id}/{op}` | `remove`, `skip`, `play`, `retry`, `move` (body `{"to": <index>}`) |
 | `POST /api/test` | quick add: `{"input": "<id or link>", "user": "<name>"}` → `{ok, item}` or `{ok:false, code, error}` |
 | `POST /api/simulate` | simulated chat: `{"message": "!req …", "user": "<name>"}`; `code: "ignored"` when it is not a request; for a chat command `{ok, command: "cmd_done" \| "cmd_not_mod" \| "cmd_nothing"}` |
@@ -504,13 +507,13 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | connection | `tikfinityUrl` | `ws://127.0.0.1:21213/` | TikFinity WebSocket API (must be on this PC) |
 | | `dashboardPort` | `21280` | Dashboard/overlay port (applies after restart) |
 | | `reconnectSec` | `5` | Retry interval for TikFinity and tosu |
-| | `autoLaunchTikfinity` | `false` | Start TikFinity if it is installed but not running |
+| | `autoLaunchTikfinity` | `false` | Start TikFinity if it is installed but not running; paused after **Close TikFinity** until it is started again |
 | | `tikfinityPath` | `%LOCALAPPDATA%\Programs\tikfinity\TikFinity.exe` | Also found through the registry |
 | | `openDashboardOnStart` | `true` | |
 | | `logRawEvents` | `false` | Show every TikFinity message in the dashboard |
 | | `tosuUrl` | `ws://127.0.0.1:24050/websocket/v2` | tosu's v2 WebSocket (must be on this PC) |
 | | `tosuPath` | empty | Filled in automatically the first time tosu is seen running |
-| | `autoLaunchTosu` | `false` | Start tosu if it is not running (needs `tosuPath`) |
+| | `autoLaunchTosu` | `false` | Start tosu if it is not running (needs `tosuPath`); paused after **Close tosu** until tosu is started again |
 | osu | `game` | `stable` | `stable` or `lazer` |
 | | `folder` | `%LOCALAPPDATA%\osu!` | osu! stable folder. If it has no Songs folder, the folder from the `.osz` association is used at startup and saved |
 | | `cacheFolder` | `cache` | Relative to the exe (or `-dir`) |
@@ -590,15 +593,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.3.6          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.3.7          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.3.6      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.3.6" -o dist\osureq.exe .
+go run ./tools/winres -version 1.3.7      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
 ```
 
 * `main.version` is set at build time (`dev` otherwise).
@@ -711,6 +714,7 @@ Read this before changing anything.
 | | `bb8e34f` | Audio preview and "open in beatmap viewer" links |
 | | `02449a6` | One-click bans from queue cards and the rejection log |
 | | `eb4b13b` | Followers-only and per-subscriber limits |
+| 1.3.7 | `c370611` | tosu launched from osureq opens in its own console window instead of running hidden; **Close tosu**, **Close TikFinity** and **Close everything** buttons in the Info box |
 | 1.3.6 | `e91601d` | All four modes: convert stars from osu!, mania key counts, per-mode star limits, mode tags, mode-mismatch warning |
 | 1.3.5 | `1c2531b` | Click-through audit fixes: card ⋯ menu stays on screen (opens upward, never wider than the screen); card status shown first; overlay never cuts the reason; truthful test-panel feedback for commands and gifts; translated errors and settings validation; side-log titles on their own line; buttons and settings fit narrow screens |
 | 1.3.4 | `7db350f`, `b4c0208` | Settings open as a centred dialog; master volume (default 10%) with a speaker button in the top bar |

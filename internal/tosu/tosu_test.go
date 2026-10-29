@@ -190,3 +190,36 @@ func TestParseSelectedMode(t *testing.T) {
 		}
 	}
 }
+
+func TestStopHoldsOffAutoLaunch(t *testing.T) {
+	var mu sync.Mutex
+	launches, closed := 0, ""
+	c := New(Env{
+		Running: func(string) bool { return false },
+		Path:    func(string) (string, bool) { return "", false },
+		Launch:  func(string) error { mu.Lock(); launches++; mu.Unlock(); return nil },
+		Close:   func(exe string) (int, error) { mu.Lock(); closed = exe; mu.Unlock(); return 1, nil },
+	}, func() Settings {
+		return Settings{URL: "ws://127.0.0.1:1/websocket/v2", Path: `C:\tosu\tosu.exe`, Reconnect: 20 * time.Millisecond, AutoLaunch: true}
+	})
+	if n, err := c.StopNow(); n != 1 || err != nil {
+		t.Fatalf("StopNow = %d, %v", n, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go c.Run(ctx)
+	time.Sleep(200 * time.Millisecond)
+	mu.Lock()
+	if closed != ProcessName || launches != 0 {
+		t.Errorf("after StopNow: closed %q, %d auto-launches (want %q, 0)", closed, launches, ProcessName)
+	}
+	mu.Unlock()
+	if err := c.LaunchNow(); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if launches != 1 {
+		t.Errorf("LaunchNow after StopNow: %d launches, want 1", launches)
+	}
+}

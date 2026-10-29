@@ -60,6 +60,13 @@ const T = {
   hintQuick: ["Adds a map straight to the queue. Only map rules apply (no per-user limit or cooldown).", "เพิ่มแมพเข้าคิวทันที ใช้แค่กฎแมพ (ไม่นับจำนวนต่อคนและคูลดาวน์)"],
   hintDry: [" Dry run is on: Next and Play move the queue but never open osu! or copy into Songs.", " เปิดโหมดทดลองอยู่: กด ถัดไป/เล่น จะเลื่อนคิวแต่ไม่เปิด osu! และไม่คัดลอกเข้า Songs"],
   quit: ["Quit osureq", "ออกจาก osureq"],
+  closeTosu: ["Close tosu", "ปิด tosu"], closeTikfinity: ["Close TikFinity", "ปิด TikFinity"], quitAll: ["Close everything", "ปิดทั้งหมด"],
+  notRunning: ["{app} is not running", "{app} ไม่ได้เปิดอยู่"],
+  confirmCloseTosu: ["Close tosu? Auto mode pauses until tosu runs again.", "ปิด tosu? โหมดอัตโนมัติจะหยุดจนกว่าจะเปิด tosu ใหม่"],
+  confirmCloseTikfinity: ["Close TikFinity? Chat requests stop until it runs again.", "ปิด TikFinity? จะไม่รับคำขอจากแชทจนกว่าจะเปิดใหม่"],
+  confirmQuitAll: ["Close tosu, TikFinity and osureq?", "ปิด tosu, TikFinity และ osureq?"],
+  closedApp: ["Closed {app}", "ปิด {app} แล้ว"],
+  quitAllDone: ["Everything is closed. You can close this tab.", "ปิดทั้งหมดแล้ว ปิดแท็บนี้ได้เลย"],
   masterVolume: ["Master volume", "ระดับเสียงหลัก"], mute: ["Mute", "ปิดเสียง"], unmute: ["Unmute", "เปิดเสียง"],
   volHint: ["Master volume for every sound the dashboard plays (map previews). Saved for all browsers.", "ระดับเสียงหลักของทุกเสียงที่แดชบอร์ดเล่น (ตัวอย่างเพลง) บันทึกไว้ใช้ทุกเบราว์เซอร์"],
   required: ["required", "จำเป็น"],
@@ -174,6 +181,10 @@ const T = {
   n_giftMoved: ["@{u}'s gift moved {title} up the queue", "ของขวัญจาก @{u} ทำให้ {title} ขึ้นคิวก่อน"],
   n_cacheCleanup: ["Cache cleanup removed {n} file(s)", "ล้างแคชแล้ว ลบ {n} ไฟล์"],
   n_quit: ["Quit from the dashboard", "สั่งปิดจากแดชบอร์ด"],
+  n_quitAll: ["Closed everything from the dashboard", "สั่งปิดทั้งหมดจากแดชบอร์ด"],
+  n_closed: ["Closed {app}", "ปิด {app} แล้ว"],
+  n_closeNone: ["{app} was not running", "{app} ไม่ได้เปิดอยู่"],
+  n_closeFailed: ["Could not close {app}: {err}", "ปิด {app} ไม่ได้: {err}"],
   tosu_not_running: ["tosu not running", "tosu ไม่ได้เปิดอยู่"],
   tosu_connecting: ["Connecting to tosu…", "กำลังเชื่อมต่อ tosu…"],
   tosu_no_game: ["tosu: osu! not detected", "tosu: ไม่พบ osu!"],
@@ -281,6 +292,10 @@ function render() {
   $("#tosuText").textContent = t("tosu_" + ts.code);
   $("#tosuPill").title = ts.error || (ts.game && ts.game.state ? `${ts.game.client} · ${ts.game.state}` : "");
   renderStatus(tf, ts);
+  for (const [sel, running, app] of [["#stopTosuBtn", ts.running, "tosu"], ["#stopTfBtn", tf.running, "TikFinity"]]) {
+    $(sel).disabled = !running;
+    $(sel).title = running ? "" : t("notRunning", { app });
+  }
   renderNow(S.queue.now);
   updatePhase();
   renderQueue(S.queue.items || []);
@@ -683,6 +698,22 @@ $("#quitBtn").addEventListener("click", async () => {
   quitting = true;
   await act("/api/action/quit");
   toast(t("quitDone"));
+});
+// Close tosu / TikFinity from here (auto-launch then waits until they are started again).
+function closeApp(btn, path, app, ask) {
+  $(btn).addEventListener("click", async () => {
+    if (!confirm(t(ask))) return;
+    const j = await act(path);
+    if (j.ok !== false) toast(t("closedApp", { app }));
+  });
+}
+closeApp("#stopTosuBtn", "/api/action/stopTosu", "tosu", "confirmCloseTosu");
+closeApp("#stopTfBtn", "/api/action/stopTikfinity", "TikFinity", "confirmCloseTikfinity");
+$("#quitAllBtn").addEventListener("click", async () => {
+  if (!confirm(t("confirmQuitAll"))) return;
+  quitting = true;
+  await act("/api/action/quitAll");
+  toast(t("quitAllDone"));
 });
 $("#rmLastBtn").addEventListener("click", () => act("/api/action/removeLast"));
 $("#clearBtn").addEventListener("click", () => { if (confirm(t("confirmClear"))) act("/api/action/clear"); });

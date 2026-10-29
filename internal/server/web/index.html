@@ -85,7 +85,12 @@
       <section class="box"><h3 data-t="history">History</h3><div class="log" id="histLog"></div></section>
       <section class="box"><h3 data-t="tfEvents">TikFinity events</h3><div class="log" id="rawLog"></div><p class="hint" data-t="rawHint">The first event of each type is kept so you can check field names. Turn on “Log raw events” in Settings → Connection to see every event.</p></section>
       <section class="box"><h3 data-t="info">Info</h3><dl class="kv" id="infoKv"></dl>
-        <button class="btn sm ghost" id="quitBtn" style="margin-top:10px" data-t="quit">Quit osureq</button>
+        <div class="closebtns">
+          <button class="btn sm ghost" id="stopTosuBtn" data-t="closeTosu">Close tosu</button>
+          <button class="btn sm ghost" id="stopTfBtn" data-t="closeTikfinity">Close TikFinity</button>
+          <button class="btn sm ghost" id="quitBtn" data-t="quit">Quit osureq</button>
+          <button class="btn sm ghost danger" id="quitAllBtn" data-t="quitAll">Close everything</button>
+        </div>
         <p class="hint" data-t="trayHint">osureq runs in its CMD window, which shows the log. Closing that window also stops osureq.</p></section>
     </aside>
   </div>

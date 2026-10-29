@@ -250,6 +250,17 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 		cfg := a.Cfg.Get()
 		n := a.DL.Cleanup(cfg.Download.CacheLimitMB, a.Queue.Files())
 		a.Say("info", "cacheCleanup", map[string]string{"n": strconv.Itoa(n)}, "cache cleanup removed %d file(s)", n)
+	case "stopTosu":
+		err = s.stopApp("tosu", a.Tosu.StopNow)
+	case "stopTikfinity":
+		err = s.stopApp("TikFinity", a.TF.StopNow)
+	case "quitAll":
+		// close tosu and TikFinity, then osureq itself (even if one would not close)
+		err = errors.Join(s.stopApp("tosu", a.Tosu.StopNow), s.stopApp("TikFinity", a.TF.StopNow))
+		if s.Quit != nil {
+			a.Say("info", "quitAll", nil, "quit everything from the dashboard")
+			go func() { time.Sleep(300 * time.Millisecond); s.Quit() }()
+		}
 	case "quit":
 		if s.Quit != nil {
 			a.Say("info", "quit", nil, "quit from the dashboard")
@@ -267,6 +278,20 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Push()
 	result(w, err)
+}
+
+// stopApp closes a helper app (tosu or TikFinity) and notes it in Activity.
+func (s *Server) stopApp(name string, stop func() (int, error)) error {
+	n, err := stop()
+	switch {
+	case err != nil:
+		s.App.Say("error", "closeFailed", map[string]string{"app": name, "err": err.Error()}, "could not close %s: %v", name, err)
+	case n == 0:
+		s.App.Say("info", "closeNone", map[string]string{"app": name}, "%s was not running", name)
+	default:
+		s.App.Say("info", "closed", map[string]string{"app": name}, "closed %s", name)
+	}
+	return err
 }
 
 func (s *Server) queueOp(w http.ResponseWriter, r *http.Request) {

@@ -74,6 +74,7 @@ type Env struct {
 	Find    func(configured string) (string, bool)
 	Running func(exe string) bool
 	Launch  func(path string) error
+	Close   func(exe string) (int, error) // stop every process with this exe name
 }
 
 type Settings struct {
@@ -96,6 +97,7 @@ type Client struct {
 	raw         []RawEvent
 	firstOfKind map[string]RawEvent
 	lastLaunch  time.Time
+	stopped     bool // closed from the dashboard: no auto-launch until started again
 	kick        chan struct{}
 }
 
@@ -138,11 +140,23 @@ func (c *Client) LaunchNow() error {
 		return ErrNotInstalled
 	}
 	c.mu.Lock()
-	c.lastLaunch = time.Now()
+	c.lastLaunch, c.stopped = time.Now(), false
 	c.mu.Unlock()
 	err := c.Env.Launch(path)
 	c.Reconnect()
 	return err
+}
+
+// StopNow closes TikFinity and keeps auto-launch from starting it again until
+// it is launched from the dashboard or started by hand. It returns how many
+// TikFinity processes were running.
+func (c *Client) StopNow() (int, error) {
+	c.mu.Lock()
+	c.stopped = true
+	c.mu.Unlock()
+	n, err := c.Env.Close(ProcessName)
+	c.Reconnect()
+	return n, err
 }
 
 type strErr string
@@ -192,9 +206,14 @@ func (c *Client) Run(ctx context.Context) {
 		running := c.Env.Running(ProcessName)
 		c.set(func(st *Status) { st.Installed, st.Path, st.Running = installed, path, running })
 
+		if running {
+			c.mu.Lock()
+			c.stopped = false
+			c.mu.Unlock()
+		}
 		if installed && !running && s.AutoLaunch {
 			c.mu.Lock()
-			due := time.Since(c.lastLaunch) > 60*time.Second
+			due := !c.stopped && time.Since(c.lastLaunch) > 60*time.Second
 			if due {
 				c.lastLaunch = time.Now()
 			}
