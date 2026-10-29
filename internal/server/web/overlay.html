@@ -47,7 +47,9 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 .toast.out{opacity:0;transform:translateX(-14px)}
 .toast .ic{flex:0 0 auto;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--c);color:#1c1726}
 .toast .tx{display:flex;flex-direction:column;gap:1px;min-width:0}
-.toast b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast b{display:flex;gap:5px;min-width:0;font-size:14px;white-space:nowrap}
+.toast b em{min-width:0;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.toast b i{font-style:normal;flex:0 0 auto;max-width:100%}
 .toast span{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .toast em{font-style:normal;color:var(--c);font-weight:600}
 .toast.added{--c:var(--ok)}
@@ -98,15 +100,17 @@ const TX = {
 let LANG = "en";
 const tx = (k, v) => { let s = (TX[k] || [k, k])[LANG === "th" ? 1 : 0]; for (const a in v || {}) s = s.replace("{" + a + "}", v[a]); return s; };
 
+// toastHTML returns [icon, name, what, second line]. The name and the "what"
+// sit side by side; only the name shrinks, so the reason is never cut off.
 function toastHTML(e) {
-  const who = `<em>@${esc(e.user)}</em>`;
+  const who = "@" + esc(e.user);
   const map = e.title ? `${esc(e.artist)} - ${esc(e.title)}${e.version ? " [" + esc(e.version) + "]" : ""}` : "";
   switch (e.kind) {
-    case "added": return ["✓", `${who} ${tx("added")}`, `${e.stars ? star(e) : ""}${map} · ${e.pos === 1 ? tx("next") : tx("pos", { n: e.pos })}`];
-    case "rejected": return ["✕", `${who} ${tx("r_" + e.code)}`, esc(e.short || "")];
-    case "command": return ["!", `${who} ${tx("c_" + e.code)}`, e.target ? "@" + esc(e.target) : map];
-    case "gift": return ["★", `${who} ${tx(e.code === "credit" ? "giftCredit" : "gift")}`, [esc(e.short || ""), map].filter(Boolean).join(" · ")];
-    case "result": return ["♪", `${esc(e.title)} · ${tx("res_" + e.code)}`, `${esc(e.short || "")} · ${tx("resOf", { u: esc(e.user) })}`];
+    case "added": return ["✓", who, tx("added"), `${e.stars ? star(e) : ""}${map} · ${e.pos === 1 ? tx("next") : tx("pos", { n: e.pos })}`];
+    case "rejected": return ["✕", who, tx("r_" + e.code), esc(e.short || "")];
+    case "command": return ["!", who, tx("c_" + e.code), e.target ? "@" + esc(e.target) : map];
+    case "gift": return ["★", who, tx(e.code === "credit" ? "giftCredit" : "gift"), [esc(e.short || ""), map].filter(Boolean).join(" · ")];
+    case "result": return ["♪", esc(e.title), tx("res_" + e.code), `${esc(e.short || "")} · ${tx("resOf", { u: esc(e.user) })}`];
   }
   return null;
 }
@@ -122,7 +126,7 @@ function showToasts(feed, o) {
     if (!parts) continue;
     const el = document.createElement("div");
     el.className = "toast " + e.kind;
-    el.innerHTML = `<span class="ic">${parts[0]}</span><span class="tx"><b>${parts[1]}</b>${parts[2] ? `<span>${parts[2]}</span>` : ""}</span>`;
+    el.innerHTML = `<span class="ic">${parts[0]}</span><span class="tx"><b><em>${parts[1]}</em><i>${parts[2]}</i></b>${parts[3] ? `<span>${parts[3]}</span>` : ""}</span>`;
     toasts.prepend(el);
     while (toasts.children.length > 3) toasts.lastChild.remove();
     setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 450); }, Math.max(2, o.feedbackSec || 7) * 1000);

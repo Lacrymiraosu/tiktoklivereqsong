@@ -135,7 +135,7 @@ func (c *Client) LaunchNow() error {
 	s := c.Settings()
 	path, ok := c.Env.Find(s.Path)
 	if !ok {
-		return errNotInstalled
+		return ErrNotInstalled
 	}
 	c.mu.Lock()
 	c.lastLaunch = time.Now()
@@ -149,7 +149,7 @@ type strErr string
 
 func (e strErr) Error() string { return string(e) }
 
-const errNotInstalled = strErr("TikFinity is not installed")
+const ErrNotInstalled = strErr("TikFinity is not installed")
 
 func (c *Client) set(f func(*Status)) {
 	c.mu.Lock()

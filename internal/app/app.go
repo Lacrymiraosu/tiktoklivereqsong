@@ -125,7 +125,7 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 	if !a.TF.Accepting() {
 		return
 	}
-	if a.command(ch, false) {
+	if a.command(ch, false) != cmdNone {
 		return
 	}
 	req, ok := parser.Parse(ch.Comment, parser.Options{Command: cfg.Command.Name, Aliases: cfg.Command.Aliases, BareNumberAs: cfg.Command.BareNumberAs})
@@ -159,29 +159,44 @@ func testUser(user, def string) string {
 	return user
 }
 
+// SimKind says what a simulated chat message turned out to be.
+type SimKind string
+
+const (
+	SimIgnored  SimKind = "ignored" // neither a request nor a command: real chat ignores it
+	SimRequest  SimKind = "request" // a request (see item / rejection)
+	SimCmdDone  SimKind = "cmd_done"
+	SimCmdNoMod SimKind = "cmd_not_mod"
+	SimCmdNoop  SimKind = "cmd_nothing"
+)
+
 // SimulateChat feeds a chat message through the same path as TikTok chat
-// (command, requests on/off, per-user limit, cooldown, map rules), but works
-// while offline and marks the result as test data. matched is false when the
-// message is not a request at all, which real chat would silently ignore.
-func (a *App) SimulateChat(user, comment string) (it *queue.Item, rej *validator.Rejection, matched bool) {
+// (commands, requests on/off, per-user limit, cooldown, map rules), but works
+// while offline and marks the result as test data.
+func (a *App) SimulateChat(user, comment string) (it *queue.Item, rej *validator.Rejection, kind SimKind) {
 	cfg := a.Cfg.Get()
 	user = testUser(user, "viewer")
-	if a.command(tikfinity.Chat{User: user, Nick: user, Comment: comment}, true) {
-		return nil, nil, true
+	switch a.command(tikfinity.Chat{User: user, Nick: user, Comment: comment}, true) {
+	case cmdDone:
+		return nil, nil, SimCmdDone
+	case cmdNotMod:
+		return nil, nil, SimCmdNoMod
+	case cmdNothing:
+		return nil, nil, SimCmdNoop
 	}
 	req, ok := parser.Parse(comment, parser.Options{Command: cfg.Command.Name, Aliases: cfg.Command.Aliases, BareNumberAs: cfg.Command.BareNumberAs})
 	if !ok {
-		return nil, nil, false
+		return nil, nil, SimIgnored
 	}
 	if !cfg.Command.Enabled {
 		r := &validator.Rejection{Code: "requests_off", Detail: "requests are turned off"}
 		rr := queue.RejectedFrom(user, comment, r)
 		rr.Test = true
 		a.Queue.Reject(rr)
-		return nil, r, true
+		return nil, r, SimRequest
 	}
 	it, rej = a.submit(user, user, comment, req, fromSim, validator.Roles{})
-	return it, rej, true
+	return it, rej, SimRequest
 }
 
 // TestRequest adds a map from the dashboard. It runs the map rules but not
@@ -560,7 +575,7 @@ func target(it queue.Item) importer.Target {
 // first playable item.
 func (a *App) Next(result string) error {
 	if !a.advance.TryLock() {
-		return errors.New("already opening the next map")
+		return uerr("busy", "already opening the next map", nil)
 	}
 	defer a.advance.Unlock()
 	for _, it := range a.Queue.First(1 << 30) {
@@ -570,13 +585,13 @@ func (a *App) Next(result string) error {
 		return a.play(it.ID, result)
 	}
 	a.Queue.Finish(result)
-	return errors.New("the queue is empty")
+	return uerr("queue_empty", "the queue is empty", nil)
 }
 
 // Play opens a specific queued item now.
 func (a *App) Play(id string) error {
 	if !a.advance.TryLock() {
-		return errors.New("already opening a map")
+		return uerr("busy", "already opening a map", nil)
 	}
 	defer a.advance.Unlock()
 	return a.play(id, "played")
@@ -585,7 +600,7 @@ func (a *App) Play(id string) error {
 func (a *App) play(id, result string) error {
 	it, ok := a.Queue.Get(id)
 	if !ok {
-		return errors.New("request not found")
+		return uerr("not_found", "request not found", nil)
 	}
 	if it.State != queue.Ready {
 		a.mu.Lock()
@@ -615,10 +630,10 @@ func (a *App) play(id, result string) error {
 			c()
 		}
 		if it, ok = a.Queue.Get(id); !ok {
-			return errors.New("request was removed")
+			return uerr("not_found", "request was removed", nil)
 		}
 		if it.State != queue.Ready {
-			return fmt.Errorf("could not get %s - %s: %s", it.Artist, it.Title, it.Error)
+			return uerr("get_failed", fmt.Sprintf("could not get %s - %s: %s", it.Artist, it.Title, it.Error), map[string]string{"title": it.Artist + " - " + it.Title, "msg": it.Error})
 		}
 	}
 	cfg := a.Cfg.Get()
@@ -650,7 +665,7 @@ func (a *App) Skip(id string) error {
 	}
 	a.Cancel(id)
 	if !a.Queue.Drop(id, "skipped") {
-		return errors.New("request not found")
+		return uerr("not_found", "request not found", nil)
 	}
 	return nil
 }
@@ -658,7 +673,7 @@ func (a *App) Skip(id string) error {
 func (a *App) Remove(id string) error {
 	a.Cancel(id)
 	if !a.Queue.Remove(id) {
-		return errors.New("request not found")
+		return uerr("not_found", "request not found", nil)
 	}
 	return nil
 }
@@ -666,7 +681,7 @@ func (a *App) Remove(id string) error {
 func (a *App) RemoveLast() error {
 	it, ok := a.Queue.RemoveLast()
 	if !ok {
-		return errors.New("the queue is empty")
+		return uerr("queue_empty", "the queue is empty", nil)
 	}
 	a.Cancel(it.ID)
 	a.Say("info", "removedLast", map[string]string{"title": it.Artist + " - " + it.Title, "u": it.User}, "removed %s - %s (@%s)", it.Artist, it.Title, it.User)

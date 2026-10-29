@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -52,7 +53,7 @@ func TestRemoveCommand(t *testing.T) {
 	add(a, "fan-2", "fan", 2, t0.Add(time.Second))
 	add(a, "other-1", "other", 3, t0.Add(2*time.Second))
 
-	if !a.command(tikfinity.Chat{User: "fan", Comment: "!remove"}, false) {
+	if a.command(tikfinity.Chat{User: "fan", Comment: "!remove"}, false) != cmdDone {
 		t.Fatal("!remove should be handled")
 	}
 	if got := ids(a); len(got) != 2 || got[0] != "fan-1" {
@@ -77,8 +78,8 @@ func TestModOnlyCommands(t *testing.T) {
 	a := newTestApp(t, func(c *config.Config) { c.Command.Mods = []string{"modman"} })
 
 	// not a mod: handled (never parsed as a request) but nothing changes
-	if !a.command(tikfinity.Chat{User: "fan", Comment: "!reqoff"}, false) {
-		t.Fatal("!reqoff should be recognised")
+	if got := a.command(tikfinity.Chat{User: "fan", Comment: "!reqoff"}, false); got != cmdNotMod {
+		t.Fatalf("!reqoff from a viewer = %q, want not_mod", got)
 	}
 	if !a.Cfg.Get().Command.Enabled {
 		t.Fatal("a viewer must not close requests")
@@ -107,10 +108,23 @@ func TestModOnlyCommands(t *testing.T) {
 	// renamed or disabled commands
 	c.Command.SkipCmd = ""
 	a.Cfg.Set(c)
-	if a.command(tikfinity.Chat{User: "modman", Comment: "!skip"}, false) {
+	if a.command(tikfinity.Chat{User: "modman", Comment: "!skip"}, false) != cmdNone {
 		t.Error("a disabled command must fall through")
 	}
-	if a.command(tikfinity.Chat{User: "fan", Comment: "!req 123"}, false) {
+	if a.command(tikfinity.Chat{User: "fan", Comment: "!req 123"}, false) != cmdNone {
 		t.Error("requests are not commands")
+	}
+	if got := a.command(tikfinity.Chat{User: "nobody", Comment: "!remove"}, false); got != cmdNothing {
+		t.Errorf("!remove with nothing queued = %q, want nothing", got)
+	}
+}
+
+func TestUserFacingErrorsHaveCodes(t *testing.T) {
+	a := newTestApp(t, nil)
+	for name, err := range map[string]error{"queue_empty": a.Next("played"), "not_found": a.Remove("nope")} {
+		var ue *UserError
+		if !errors.As(err, &ue) || ue.Code != name {
+			t.Errorf("want code %s, got %v", name, err)
+		}
 	}
 }

@@ -130,7 +130,8 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .testtoggle[aria-expanded="true"] .chev{transform:rotate(90deg)}
 .testh2{margin-top:8px}
 .testbox{padding:6px 14px}
-.testh .seg{flex:0 1 auto}
+.testh .seg{flex:0 1 auto;flex-wrap:wrap}
+.testh .seg button{flex:0 0 auto}
 .testh .seg button{min-width:0;padding:0 14px;height:36px;white-space:nowrap}
 .testh .sp{flex:1}
 .testh .reqtog{height:36px}
@@ -183,7 +184,7 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .cbtn:active{transform:scale(.9)}
 .cbtn:disabled{opacity:.35;cursor:default}
 .banwrap{position:relative;display:inline-flex}
-.banpop{position:fixed;z-index:12;min-width:200px;display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:14px;background:var(--panel);border:1px solid var(--line);box-shadow:0 14px 40px rgba(0,0,0,.5);animation:fadeIn .15s}
+.banpop{position:fixed;z-index:12;min-width:200px;max-width:min(340px,calc(100vw - 16px));display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:14px;background:var(--panel);border:1px solid var(--line);box-shadow:0 14px 40px rgba(0,0,0,.5);animation:fadeIn .15s}
 .banpop[hidden]{display:none!important}
 .banpop button,.banpop a{display:flex;align-items:center;min-height:38px;padding:0 12px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:inherit;text-decoration:none}
 .banpop button:hover,.banpop a:hover{background:rgba(255,255,255,.08)}
@@ -213,8 +214,9 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 /* ---------- side logs ---------- */
 .log{display:flex;flex-direction:column;gap:4px;max-height:280px;overflow:auto;overscroll-behavior:contain}
 .tp{display:flex;flex-direction:column;gap:2px;padding:7px 10px;border-radius:10px;border-left:3px solid transparent;background:rgba(255,255,255,.04);font-size:13px}
-.tp .h{display:flex;gap:8px;color:var(--dim);font-size:11px}
-.tp .h b{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tp .th{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.35;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tp .h{display:flex;gap:8px;color:var(--dim);font-size:11px;min-width:0}
+.tp .h .who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tp .h time{margin-left:auto;flex:0 0 auto}
 .tp p{margin:0;overflow-wrap:anywhere}
 .tp.err{border-left-color:var(--err)}
@@ -253,7 +255,8 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .row.stack{flex-direction:column;align-items:stretch}
 .swt{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
 .swt b{font-size:14px;font-weight:600}
-.swt small{font-size:12px;color:var(--dim);line-height:1.35}
+.swt small{font-size:12px;color:var(--dim);line-height:1.35;overflow-wrap:anywhere}
+
 .row input[type=text]{width:58%}
 .row.stack input[type=text],.row.stack textarea{width:100%}
 .row input[type=number]{width:110px;text-align:right}
@@ -266,9 +269,9 @@ input.switch:checked::before{transform:translateX(20px)}
 .chip{flex:0 0 auto;height:34px;padding:0 14px;border-radius:17px;border:1px solid var(--line);background:transparent;cursor:pointer;font-size:13px;color:var(--dim)}
 .chip.on{background:var(--pink);border-color:var(--pink);color:var(--pinkdk);font-weight:600}
 .seg{display:flex;gap:4px;flex-wrap:wrap}
-.seg button{flex:1;min-width:80px;height:38px;border-radius:10px;border:1px solid var(--line);background:transparent;cursor:pointer;font-size:13px}
+.seg button{flex:1 1 auto;min-width:80px;white-space:nowrap;padding:0 12px;height:38px;border-radius:10px;border:1px solid var(--line);background:transparent;cursor:pointer;font-size:13px}
 .seg button.on{background:var(--sky);color:#0d2233;border-color:var(--sky);font-weight:600}
-.src{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.src{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.07)}
 .src:last-child{border-bottom:0}
 .src .num{width:76px}
 .src .cbtn{width:34px;height:34px}
@@ -281,3 +284,14 @@ input.switch:checked::before{transform:translateX(20px)}
 .toast{position:fixed;left:50%;bottom:24px;z-index:20;max-width:calc(100% - 32px);padding:12px 18px;border-radius:14px;background:#352c4b;border:1px solid var(--line);font-size:14px;transform:translate(-50%,20px);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;overflow-wrap:anywhere}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .toast.bad{border-color:var(--err)}
+
+/* Narrow screens (settings and sources). Kept last so it overrides the rules above. */
+.src b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:560px){
+  .row{flex-wrap:wrap}
+  .row input[type=text]{width:100%}
+  .row select{max-width:100%}
+  .src{grid-template-columns:auto minmax(0,1fr) 52px auto auto;gap:6px}
+  .src .num{width:52px;padding:0 6px}
+  .src .cbtn{width:30px;height:30px}
+}

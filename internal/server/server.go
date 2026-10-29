@@ -211,7 +211,9 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	old := s.App.Cfg.Get()
 	if err := s.App.Cfg.Set(c); err != nil {
-		httpErr(w, http.StatusBadRequest, err.Error())
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errBody(err))
 		return
 	}
 	s.App.Wake()
@@ -327,15 +329,15 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	it, rej, matched := s.App.SimulateChat(body.User, body.Message)
+	it, rej, kind := s.App.SimulateChat(body.User, body.Message)
 	s.Push()
 	switch {
-	case !matched:
+	case kind == app.SimIgnored:
 		writeJSON(w, map[string]any{"ok": false, "code": "ignored", "error": "not a request: real chat would ignore this message"})
+	case kind != app.SimRequest: // a chat command: say whether it ran
+		writeJSON(w, map[string]any{"ok": kind == app.SimCmdDone, "command": string(kind)})
 	case rej != nil:
 		writeJSON(w, map[string]any{"ok": false, "code": rej.Code, "short": rej.Short, "error": rej.Detail})
-	case it == nil:
-		writeJSON(w, map[string]any{"ok": true, "command": true}) // a chat command, not a request
 	default:
 		writeJSON(w, map[string]any{"ok": true, "item": it})
 	}
@@ -395,10 +397,29 @@ func (s *Server) simulateGift(w http.ResponseWriter, r *http.Request) {
 
 func result(w http.ResponseWriter, err error) {
 	if err != nil {
-		writeJSON(w, map[string]any{"ok": false, "error": err.Error()})
+		writeJSON(w, errBody(err))
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true})
+}
+
+// errBody is an error response; errors with a code (app.UserError,
+// config.ValidationError and a few known ones) can be translated by the
+// dashboard as T["e_"+code] with vars, falling back to the English error.
+func errBody(err error) map[string]any {
+	body := map[string]any{"ok": false, "error": err.Error()}
+	var coded interface {
+		ErrCode() (string, map[string]string)
+	}
+	switch {
+	case errors.As(err, &coded):
+		body["code"], body["vars"] = coded.ErrCode()
+	case errors.Is(err, tikfinity.ErrNotInstalled):
+		body["code"] = "tikfinity_missing"
+	case errors.Is(err, tosu.ErrNoPath):
+		body["code"] = "tosu_no_path"
+	}
+	return body
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

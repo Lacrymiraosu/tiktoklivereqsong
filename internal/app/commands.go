@@ -19,14 +19,24 @@ func (a *App) IsMod(ch tikfinity.Chat) bool {
 	return c.TrustTikTokMods && ch.Moderator == tikfinity.Yes
 }
 
-// command handles the chat commands other than requests. It reports whether
-// the message was one of them (even when the sender was not allowed), so
-// it is never also parsed as a request. test marks results as test data.
-func (a *App) command(ch tikfinity.Chat, test bool) bool {
+// Outcomes of a chat command.
+const (
+	cmdNone    = ""        // not a command: parse it as a request
+	cmdDone    = "done"    // carried out
+	cmdNotMod  = "not_mod" // a mod command from someone who is not a mod
+	cmdNothing = "nothing" // nothing to do (no request to remove, nothing playing)
+)
+
+// command handles the chat commands other than requests and says what
+// happened. Anything but cmdNone means the message was a command (even one
+// the sender may not use), so it is never also parsed as a request. Real chat
+// ignores the refusals silently; the test panel shows them. test marks
+// results as test data.
+func (a *App) command(ch tikfinity.Chat, test bool) string {
 	c := a.Cfg.Get().Command
 	f := strings.Fields(ch.Comment)
 	if len(f) == 0 {
-		return false
+		return cmdNone
 	}
 	is := func(name string) bool { return name != "" && strings.EqualFold(f[0], name) }
 	ev := FeedEvent{Kind: "command", User: ch.User, Nick: ch.Nick, Test: test}
@@ -40,7 +50,7 @@ func (a *App) command(ch tikfinity.Chat, test bool) bool {
 		}
 		it, ok := a.Queue.RemoveLatestBy(owner)
 		if !ok {
-			return true
+			return cmdNothing
 		}
 		a.Cancel(it.ID)
 		ev.Code, ev.Title, ev.Artist, ev.Version = "remove", it.Title, it.Artist, it.Version
@@ -51,11 +61,11 @@ func (a *App) command(ch tikfinity.Chat, test bool) bool {
 
 	case is(c.SkipCmd):
 		if !a.IsMod(ch) {
-			return true
+			return cmdNotMod
 		}
 		now, playing := a.Queue.Now()
 		if !playing {
-			return true
+			return cmdNothing
 		}
 		go func() {
 			if err := a.Skip(""); err != nil {
@@ -67,7 +77,7 @@ func (a *App) command(ch tikfinity.Chat, test bool) bool {
 
 	case is(c.OpenCmd), is(c.CloseCmd):
 		if !a.IsMod(ch) {
-			return true
+			return cmdNotMod
 		}
 		on := is(c.OpenCmd)
 		cfg := a.Cfg.Get()
@@ -82,9 +92,9 @@ func (a *App) command(ch tikfinity.Chat, test bool) bool {
 		log.Printf("chat: @%s turned requests %s", ch.User, ev.Code)
 
 	default:
-		return false
+		return cmdNone
 	}
 	a.emit(ev)
 	a.Say("info", "usedCmd", map[string]string{"u": ch.User, "cmd": f[0]}, "@%s used %s", ch.User, f[0])
-	return true
+	return cmdDone
 }

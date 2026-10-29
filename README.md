@@ -438,6 +438,7 @@ nerinyan is deliberately not used (it was not working). Allowed hosts: `catboy.b
 
 Server: `http://127.0.0.1:<dashboardPort>` (default 21280). Requests must have `Host` = `127.0.0.1:<port>` or `localhost:<port>`.
 Every non-GET request must send the header `X-Osureq: 1`. Responses are JSON; actions return `{"ok": true}` or `{"ok": false, "error": "…"}`.
+Errors meant for the streamer also carry `code` and `vars` (from `app.UserError` or `config.ValidationError`); the dashboard shows `T["e_" + code]` in its language and falls back to `error`.
 
 | Method & path | Purpose |
 |---|---|
@@ -451,7 +452,7 @@ Every non-GET request must send the header `X-Osureq: 1`. Responses are JSON; ac
 | `POST /api/action/{name}` | `next`, `skip`, `removeLast`, `toggleRequests`, `clear`, `cleanup`, `toggleDryRun`, `clearTest`, `launchTikfinity`, `reconnect`, `openTikfinityDownload`, `launchTosu`, `reconnectTosu`, `openTosuDownload`, `quit` |
 | `POST /api/queue/{id}/{op}` | `remove`, `skip`, `play`, `retry`, `move` (body `{"to": <index>}`) |
 | `POST /api/test` | quick add: `{"input": "<id or link>", "user": "<name>"}` → `{ok, item}` or `{ok:false, code, error}` |
-| `POST /api/simulate` | simulated chat: `{"message": "!req …", "user": "<name>"}`; `code: "ignored"` when it is not a request; `{ok, command: true}` for a chat command |
+| `POST /api/simulate` | simulated chat: `{"message": "!req …", "user": "<name>"}`; `code: "ignored"` when it is not a request; for a chat command `{ok, command: "cmd_done" \| "cmd_not_mod" \| "cmd_nothing"}` |
 | `POST /api/simulateGift` | `{"user": "<name>", "coins": 30}` → `{ok, earned}` (priorities earned) |
 | `POST /api/volume` | `{"volume": 0-100}` sets the master volume |
 | `POST /api/ban` | `{"kind": "user" \| "set" \| "mapper", "value": "…"}` → `{ok, removed}` |
@@ -702,6 +703,7 @@ Read this before changing anything.
 | | `bb8e34f` | Audio preview and "open in beatmap viewer" links |
 | | `02449a6` | One-click bans from queue cards and the rejection log |
 | | `eb4b13b` | Followers-only and per-subscriber limits |
+| 1.3.5 | | Click-through audit fixes: card ⋯ menu stays on screen (opens upward, never wider than the screen); card status shown first; overlay never cuts the reason; truthful test-panel feedback for commands and gifts; translated errors and settings validation; side-log titles on their own line; buttons and settings fit narrow screens |
 | 1.3.4 | | Settings open as a centred dialog; master volume (default 10%) with a speaker button in the top bar |
 | 1.3.3 | | Windows resources (icon, name, description, version, `asInvoker` manifest) and no symbol stripping, so Windows treats the exe as a normal app |
 | 1.3.2 | `f5298cf`, `a2e703d` | UX/UI audit fixes: narrow layout, Info box, set mode order, now-playing reason, Thai text; compact status, folded test panel, card "⋯" menu, calmer overlay |

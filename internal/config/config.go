@@ -200,73 +200,99 @@ func Default() Config {
 // AllowedHosts are the only hosts the downloader may fetch from.
 var AllowedHosts = []string{"catboy.best", "osu.direct", "osu.ppy.sh"}
 
+// Problem is one invalid setting. Code and Vars let the dashboard say it in
+// the viewer's language (T["e_"+code]); Msg is the English text.
+type Problem struct {
+	Code string            `json:"code"`
+	Vars map[string]string `json:"vars,omitempty"`
+	Msg  string            `json:"msg"`
+}
+
+// ValidationError lists every invalid setting.
+type ValidationError struct{ Problems []Problem }
+
+func (e *ValidationError) Error() string {
+	msgs := make([]string, len(e.Problems))
+	for i, p := range e.Problems {
+		msgs[i] = p.Msg
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// ErrCode returns the first problem's code and variables for translation.
+func (e *ValidationError) ErrCode() (string, map[string]string) {
+	return e.Problems[0].Code, e.Problems[0].Vars
+}
+
 func (c *Config) Validate() error {
-	var errs []string
-	add := func(f string, a ...any) { errs = append(errs, fmt.Sprintf(f, a...)) }
+	var probs []Problem
+	add := func(code string, vars map[string]string, f string, a ...any) {
+		probs = append(probs, Problem{Code: code, Vars: vars, Msg: fmt.Sprintf(f, a...)})
+	}
 	if c.MasterVolume < 0 || c.MasterVolume > 100 {
-		add("master volume must be 0-100")
+		add("vol_range", nil, "master volume must be 0-100")
 	}
 	if p := c.Connection.DashboardPort; p < 1024 || p > 65535 {
-		add("dashboard port must be 1024-65535")
+		add("port_range", nil, "dashboard port must be 1024-65535")
 	}
 	if !strings.HasPrefix(c.Connection.TikFinityURL, "ws://127.0.0.1") && !strings.HasPrefix(c.Connection.TikFinityURL, "ws://localhost") {
-		add("TikFinity URL must be ws://127.0.0.1:<port> or ws://localhost:<port>")
+		add("tikfinity_url", nil, "TikFinity URL must be ws://127.0.0.1:<port> or ws://localhost:<port>")
 	}
 	if !strings.HasPrefix(c.Connection.TosuURL, "ws://127.0.0.1") && !strings.HasPrefix(c.Connection.TosuURL, "ws://localhost") {
-		add("tosu URL must be ws://127.0.0.1:<port>/websocket/v2 or ws://localhost:<port>/websocket/v2")
+		add("tosu_url", nil, "tosu URL must be ws://127.0.0.1:<port>/websocket/v2 or ws://localhost:<port>/websocket/v2")
 	}
 	if c.Connection.ReconnectSec < 1 {
 		c.Connection.ReconnectSec = 1
 	}
 	if v := c.Osu.ViewerURL; v != "" && !strings.HasPrefix(v, "https://") && !strings.HasPrefix(v, "http://localhost") && !strings.HasPrefix(v, "http://127.0.0.1") {
-		add("viewer URL must start with https:// (or http://localhost for a local copy)")
+		add("viewer_url", nil, "viewer URL must start with https:// (or http://localhost for a local copy)")
 	}
 	if c.Osu.Game != "stable" && c.Osu.Game != "lazer" {
-		add("game must be stable or lazer")
+		add("game", nil, "game must be stable or lazer")
 	}
 	if !strings.HasPrefix(c.Command.Name, "!") || len(c.Command.Name) < 2 || strings.ContainsAny(c.Command.Name, " \t") {
-		add("command must start with ! and contain no spaces")
+		add("command_name", nil, "command must start with ! and contain no spaces")
 	}
 	for _, mc := range []string{c.Command.SkipCmd, c.Command.RemoveCmd, c.Command.OpenCmd, c.Command.CloseCmd} {
 		if mc != "" && (!strings.HasPrefix(mc, "!") || len(mc) < 2 || strings.ContainsAny(mc, " \t")) {
-			add("mod command %q must start with ! and contain no spaces", mc)
+			add("mod_cmd", map[string]string{"cmd": mc}, "mod command %q must start with ! and contain no spaces", mc)
 		}
 	}
 	if c.Command.BareNumberAs != "beatmap" && c.Command.BareNumberAs != "set" {
-		add("bare number must be beatmap or set")
+		add("bare_number", nil, "bare number must be beatmap or set")
 	}
 	if c.Rules.MaxStars > 0 && c.Rules.MinStars > c.Rules.MaxStars {
-		add("min stars is above max stars")
+		add("stars_order", nil, "min stars is above max stars")
 	}
 	if c.Queue.PlayMode != "manual" && c.Queue.PlayMode != "auto" {
-		add("play mode must be manual or auto")
+		add("play_mode", nil, "play mode must be manual or auto")
 	}
 	if c.MD5.Level != "strict" && c.MD5.Level != "requested" {
-		add("MD5 level must be strict or requested")
+		add("md5_level", nil, "MD5 level must be strict or requested")
 	}
 	if c.MD5.OnAllFail != "skip" && c.MD5.OnAllFail != "warn" {
-		add("all-fail behaviour must be skip or warn")
+		add("all_fail", nil, "all-fail behaviour must be skip or warn")
 	}
 	switch c.Import.Mode {
 	case "open", "copy-to-songs", "extract-to-songs":
 	default:
-		add("import mode must be open, copy-to-songs or extract-to-songs")
+		add("import_mode", nil, "import mode must be open, copy-to-songs or extract-to-songs")
 	}
 	if c.Import.PreloadCount < 0 || c.Import.PreloadCount > 10 {
-		add("preload count must be 0-10")
+		add("preload_count", nil, "preload count must be 0-10")
 	}
 	for _, s := range c.Download.Sources {
 		for _, u := range []string{s.URL, s.NoVideoURL} {
 			if u != "" && !HostAllowed(u) {
-				add("source %q uses a host that is not whitelisted", s.Name)
+				add("source_host", map[string]string{"name": s.Name}, "source %q uses a host that is not whitelisted", s.Name)
 			}
 		}
 		if s.TimeoutSec < 5 {
-			add("source %q timeout must be at least 5 seconds", s.Name)
+			add("source_timeout", map[string]string{"name": s.Name}, "source %q timeout must be at least 5 seconds", s.Name)
 		}
 	}
-	if len(errs) > 0 {
-		return errors.New(strings.Join(errs, "; "))
+	if len(probs) > 0 {
+		return &ValidationError{Problems: probs}
 	}
 	return nil
 }

@@ -15,7 +15,7 @@ import (
 func (a *App) Ban(kind, value string) (int, error) {
 	value = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(value), "@"))
 	if value == "" {
-		return 0, fmt.Errorf("nothing to ban")
+		return 0, uerr("ban_empty", "nothing to ban", nil)
 	}
 	cfg := a.Cfg.Get()
 	var match func(queue.Item) bool
@@ -28,7 +28,7 @@ func (a *App) Ban(kind, value string) (int, error) {
 	case "set":
 		id, err := strconv.Atoi(value)
 		if err != nil || id <= 0 {
-			return 0, fmt.Errorf("not a beatmapset id: %q", value)
+			return 0, uerr("ban_set_id", fmt.Sprintf("not a beatmapset id: %q", value), map[string]string{"v": value})
 		}
 		if !slices.Contains(cfg.Rules.BlacklistSets, id) {
 			cfg.Rules.BlacklistSets = append(cfg.Rules.BlacklistSets, id)
@@ -40,7 +40,7 @@ func (a *App) Ban(kind, value string) (int, error) {
 		}
 		match = func(it queue.Item) bool { return strings.EqualFold(it.Creator, value) }
 	default:
-		return 0, fmt.Errorf("unknown ban kind %q", kind)
+		return 0, uerr("ban_kind", fmt.Sprintf("unknown ban kind %q", kind), nil)
 	}
 	if err := a.Cfg.Set(cfg); err != nil {
 		return 0, err

@@ -74,7 +74,35 @@ const T = {
   confirmQuit: ["Stop osureq? Requests will not be taken until you start it again.", "ปิด osureq? จะไม่รับคำขอจนกว่าจะเปิดใหม่"],
   quitDone: ["osureq stopped. You can close this tab.", "ปิด osureq แล้ว ปิดแท็บนี้ได้เลย"],
   trayHint: ["osureq runs in its CMD window, which shows the log. Closing that window also stops osureq.", "osureq ทำงานอยู่ในหน้าต่าง CMD ซึ่งแสดง log ด้วย ปิดหน้าต่างนั้นก็เป็นการปิด osureq"],
-  cmdSent: ["Command sent (see Activity)", "ส่งคำสั่งแล้ว (ดูที่ กิจกรรม)"],
+  cmd_cmd_done: ["Command done (see Activity)", "ทำตามคำสั่งแล้ว (ดูที่ กิจกรรม)"],
+  cmd_cmd_not_mod: ["@{u} is not a mod, so the command was ignored (as in real chat). Add mods in Settings → Command.", "@{u} ไม่ใช่ม็อด คำสั่งจึงไม่ทำงาน (เหมือนในแชทจริง) เพิ่มม็อดได้ใน ตั้งค่า → คำสั่ง"],
+  cmd_cmd_nothing: ["Nothing to do: no matching request, or nothing is playing", "ไม่มีอะไรให้ทำ: ไม่มีคำขอที่ตรงกัน หรือไม่มีเพลงที่กำลังเล่น"],
+  giftNum: ["Enter the number of coins, e.g. 30", "ใส่จำนวนเหรียญเป็นตัวเลข เช่น 30"],
+  e_busy: ["Already opening a map, try again in a moment", "กำลังเปิดแมพอยู่ ลองใหม่อีกครู่"],
+  e_queue_empty: ["The queue is empty", "คิวว่างอยู่"],
+  e_not_found: ["That request is no longer in the queue", "คำขอนี้ไม่อยู่ในคิวแล้ว"],
+  e_get_failed: ["Could not get {title}: {msg}", "โหลด {title} ไม่ได้: {msg}"],
+  e_ban_empty: ["Nothing to ban", "ไม่มีอะไรให้แบน"], e_ban_set_id: ["{v} is not a beatmapset ID", "{v} ไม่ใช่ ID เซ็ต"], e_ban_kind: ["Unknown ban type", "ไม่รู้จักประเภทการแบน"],
+  e_gifts_off: ["Gift priority is off (Settings → Queue)", "ปิดคิวพิเศษจากของขวัญอยู่ (ตั้งค่า → คิว)"],
+  e_tikfinity_missing: ["TikFinity is not installed", "ยังไม่ได้ติดตั้ง TikFinity"],
+  e_tosu_no_path: ["Where tosu.exe is is not known yet: set it in Settings → Connection, or start tosu once", "ยังไม่รู้ที่อยู่ tosu.exe: ใส่ใน ตั้งค่า → การเชื่อมต่อ หรือเปิด tosu สักครั้ง"],
+  e_vol_range: ["Master volume must be 0-100", "ระดับเสียงต้องอยู่ระหว่าง 0-100"],
+  e_port_range: ["Dashboard port must be 1024-65535", "พอร์ตแดชบอร์ดต้องอยู่ระหว่าง 1024-65535"],
+  e_tikfinity_url: ["TikFinity URL must be ws://127.0.0.1:<port>", "URL ของ TikFinity ต้องเป็น ws://127.0.0.1:<พอร์ต>"],
+  e_tosu_url: ["tosu URL must be ws://127.0.0.1:<port>/websocket/v2", "URL ของ tosu ต้องเป็น ws://127.0.0.1:<พอร์ต>/websocket/v2"],
+  e_viewer_url: ["Viewer URL must start with https://", "URL ของ viewer ต้องขึ้นต้นด้วย https://"],
+  e_game: ["Game must be stable or lazer", "เกมต้องเป็น stable หรือ lazer"],
+  e_command_name: ["The command must start with ! and have no spaces", "คำสั่งต้องขึ้นต้นด้วย ! และไม่มีช่องว่าง"],
+  e_mod_cmd: ["Mod command {cmd} must start with ! and have no spaces", "คำสั่งม็อด {cmd} ต้องขึ้นต้นด้วย ! และไม่มีช่องว่าง"],
+  e_bare_number: ["A bare number must mean beatmap or set", "ตัวเลขเปล่าต้องเป็น beatmap หรือ set"],
+  e_stars_order: ["Min stars is above max stars", "ดาวขั้นต่ำมากกว่าดาวสูงสุด"],
+  e_play_mode: ["Play mode must be manual or auto", "โหมดเล่นต้องเป็น manual หรือ auto"],
+  e_md5_level: ["MD5 level must be strict or requested", "ระดับ MD5 ต้องเป็น strict หรือ requested"],
+  e_all_fail: ["\"If every source fails\" must be skip or warn", "\"ถ้าทุกแหล่งล้มเหลว\" ต้องเป็น skip หรือ warn"],
+  e_import_mode: ["Unknown import mode", "ไม่รู้จักวิธีนำเข้านี้"],
+  e_preload_count: ["Preload count must be 0-10", "จำนวนโหลดล่วงหน้าต้องอยู่ระหว่าง 0-10"],
+  e_source_host: ["Source {name} uses a host that is not allowed", "แหล่ง {name} ใช้โดเมนที่ไม่อนุญาต"],
+  e_source_timeout: ["Source {name}: timeout must be at least 5 seconds", "แหล่ง {name}: เวลาหมดต้องอย่างน้อย 5 วินาที"],
   ignored: ["Ignored: real chat would not treat this as a request", "ไม่ใช่คำขอ: แชทจริงจะไม่นับข้อความนี้"],
   confirmClearTest: ["Remove all test requests, their history, rejections and cooldowns?", "ลบคำขอทดสอบทั้งหมด รวมประวัติ การปฏิเสธ และคูลดาวน์ที่เกิดจากการทดสอบ?"],
   nowPlaying: ["Now playing", "กำลังเล่น"],
@@ -197,9 +225,11 @@ function toast(msg, bad) {
   e.textContent = msg; e.classList.toggle("bad", !!bad); e.classList.add("on");
   clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove("on"), bad ? 4200 : 2400);
 }
+// errText shows a coded error in the dashboard's language, else the English text.
+const errText = j => j.code && T["e_" + j.code] ? t("e_" + j.code, j.vars || {}) : (j.error || "error");
 async function act(path, body) {
   const j = await api("POST", path, body);
-  if (j.ok === false) toast(j.error || "error", true);
+  if (j.ok === false) toast(errText(j), true);
   return j;
 }
 // Star colour ramp, same as the beatmap viewer.
@@ -458,9 +488,9 @@ function buildCard(it, i, total) {
   const card = h("div", { class: "card" + (it.state === "failed" ? " failed" : "") + (seen.has(it.id) ? " seen" : ""), style: `--i:${i};background-image:url("${coverOf(it)}")`, draggable: "true", "data-id": it.id, "data-set": it.setId },
     h("span", { class: "pos", title: "drag" }, i + 1),
     h("div", { class: "ci" },
-      h("b", {}, it.title),
-      h("span", {}, `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}`),
-      h("small", {}, h("span", { class: "req" }, "@" + it.user), " · " + ago(it.addedAt) + " · ", h("span", { class: "s-" + it.state }, t("st_" + it.state))),
+      h("b", { title: it.title }, it.title),
+      h("span", { title: `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}` }, `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}`),
+      h("small", { title: "@" + it.user }, h("span", { class: "s-" + it.state }, t("st_" + it.state)), " · " + ago(it.addedAt) + " · ", h("span", { class: "req" }, "@" + it.user)),
       tagsFor(it)),
     h("div", { class: "cact" },
       it.state === "failed" ? btn(ICON.retry, L("Retry", "ลองใหม่"), () => q("retry")) : btn(ICON.play, L("Play now", "เล่นเลย"), () => q("play"), "go"),
@@ -526,10 +556,16 @@ function cardMenu(it) {
       e.stopPropagation(); closeBanMenus(pop);
       // fixed position next to the button: cards clip anything that overflows them
       const r = e.currentTarget.getBoundingClientRect();
-      pop.style.top = r.bottom + 6 + "px";
-      pop.style.right = Math.max(8, innerWidth - r.right) + "px";
       pop.hidden = !pop.hidden;
       syncPreview();
+      if (pop.hidden) return;
+      // below the button, or above it when there is no room; never off-screen
+      pop.style.right = "auto";
+      const w = pop.offsetWidth, ht = pop.offsetHeight;
+      let top = r.bottom + 6;
+      if (top + ht > innerHeight - 8) top = Math.max(8, r.top - 6 - ht);
+      pop.style.top = top + "px";
+      pop.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + "px";
     } }, "⋯");
   return h("span", { class: "banwrap" }, b, pop);
 }
@@ -541,7 +577,7 @@ async function ban(kind, value) {
   if (!confirm(t("confirmBan_" + kind, { v: value }))) return;
   const j = await api("POST", "/api/ban", { kind, value });
   if (j.ok) toast(t("banned", { v: kind === "user" ? "@" + value : value, n: j.removed }));
-  else toast(j.error, true);
+  else toast(errText(j), true);
 }
 
 function attempts(list) {
@@ -558,7 +594,8 @@ function attempts(list) {
 
 function logItem(cls, head, who, at, body, code) {
   return h("div", { class: "tp " + cls },
-    h("div", { class: "h" }, h("b", {}, head), who ? h("span", {}, who) : null, h("time", { datetime: at, title: new Date(at).toLocaleString() }, timeOf(at))),
+    h("b", { class: "th", title: head }, head),
+    h("div", { class: "h" }, who ? h("span", { class: "who", title: who }, who) : null, h("time", { datetime: at, title: new Date(at).toLocaleString() }, timeOf(at))),
     body ? h("p", {}, body) : null, code ? h("code", {}, code) : null);
 }
 function fill(sel, items, key) {
@@ -705,8 +742,10 @@ $("#testForm").addEventListener("submit", async e => {
   try {
     let j;
     if (testMode === "gift") {
-      j = await api("POST", "/api/simulateGift", { user, coins: parseInt(input, 10) || 0 });
-      if (j.ok) { toast(t("giftDone", { n: j.earned })); $("#testIn").value = ""; } else toast(j.error, true);
+      const coins = Number(input);
+      if (!Number.isInteger(coins) || coins <= 0) { toast(t("giftNum"), true); return; }
+      j = await api("POST", "/api/simulateGift", { user, coins });
+      if (j.ok) { toast(t("giftDone", { n: j.earned })); $("#testIn").value = ""; } else toast(errText(j), true);
       return;
     }
     if (testMode === "chat") {
@@ -715,7 +754,7 @@ $("#testForm").addEventListener("submit", async e => {
     } else {
       j = await api("POST", "/api/test", { input, user });
     }
-    if (j.ok && j.command) { toast(t("cmdSent")); $("#testIn").value = ""; }
+    if (j.command) { toast(t("cmd_" + j.command, { u: user || "viewer" }), !j.ok); if (j.ok) $("#testIn").value = ""; }
     else if (j.ok) { toast(t("added", { t: `${j.item.artist} - ${j.item.title} [${j.item.version}]` })); $("#testIn").value = ""; }
     else if (j.code === "ignored") toast(t("ignored"), true);
     else toast(j.code && T["r_" + j.code] ? t("r_" + j.code) + (j.short ? " · " + j.short : "") : j.error, true);
@@ -857,8 +896,8 @@ function field(f) {
       return h("label", { class: "row", style: "cursor:pointer" }, text, i);
     }
     case "text": case "hotkey": {
-      const i = h("input", { type: "text", value: v ?? "", "aria-label": lbl(f.label), spellcheck: "false" });
-      i.addEventListener("input", () => set(i.value));
+      const i = h("input", { type: "text", value: v ?? "", title: v ?? "", "aria-label": lbl(f.label), spellcheck: "false" });
+      i.addEventListener("input", () => { set(i.value); i.title = i.value; });
       const err = f.type === "hotkey" && S && S.extra && S.extra.hotkeyErrors && S.extra.hotkeyErrors[f.path.split(".")[1]];
       if (err) text.append(h("small", { style: "color:#ff9aa6" }, err));
       return h("div", { class: f.type === "text" && String(v || "").length > 30 ? "row stack" : "row" }, text, i);
@@ -947,7 +986,7 @@ $("#setSave").addEventListener("click", async e => {
   try {
     const j = await api("PUT", "/api/config", draft);
     if (j.ok) { toast(j.restartNeeded ? t("restart") : t("saved")); closeSettings(); }
-    else toast(j.error, true);
+    else toast(errText(j), true);
   } finally { btn.disabled = false; }
 });
 

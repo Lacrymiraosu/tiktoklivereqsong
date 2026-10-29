@@ -16,7 +16,7 @@ func (a *App) HandleGift(g tikfinity.Gift) { a.gift(g, false) }
 // SimulateGift is the test panel's version of HandleGift.
 func (a *App) SimulateGift(user string, coins int) (tokens int, err error) {
 	if !a.Cfg.Get().Gifts.Enabled {
-		return 0, fmt.Errorf("gift priority is off (Settings → Queue)")
+		return 0, uerr("gifts_off", "gift priority is off (Settings → Queue)", nil)
 	}
 	user = testUser(user, "viewer")
 	return a.gift(tikfinity.Gift{User: user, Nick: user, Name: "test gift", Coins: coins}, true), nil
