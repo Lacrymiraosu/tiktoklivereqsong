@@ -60,7 +60,9 @@ const T = {
   hintQuick: ["Adds a map straight to the queue. Only map rules apply (no per-user limit or cooldown).", "เพิ่มแมพเข้าคิวทันที ใช้แค่กฎแมพ (ไม่นับจำนวนต่อคนและคูลดาวน์)"],
   hintDry: [" Dry run is on: Next and Play move the queue but never open osu! or copy into Songs.", " เปิดโหมดทดลองอยู่: กด ถัดไป/เล่น จะเลื่อนคิวแต่ไม่เปิด osu! และไม่คัดลอกเข้า Songs"],
   quit: ["Quit osureq", "ออกจาก osureq"],
-  ban: ["Ban…", "แบน…"], banUser: ["Ban @{u}", "แบน @{u}"], banMap: ["Ban this map", "แบนแมพนี้"], banMapper: ["Ban mapper {m}", "แบนแมพเปอร์ {m}"],
+  required: ["required", "จำเป็น"],
+  ban: ["Ban…", "แบน…"], more: ["More…", "เพิ่มเติม…"],
+  setupTitle: ["Before you go live", "ก่อนเริ่มไลฟ์"], hideDetails: ["hide details", "ซ่อนรายละเอียด"], showDetails: ["show details", "แสดงรายละเอียด"], banUser: ["Ban @{u}", "แบน @{u}"], banMap: ["Ban this map", "แบนแมพนี้"], banMapper: ["Ban mapper {m}", "แบนแมพเปอร์ {m}"],
   confirmBan_user: ["Ban @{v}? Their waiting requests are removed and new ones are rejected.", "แบน @{v}? คำขอที่รออยู่จะถูกลบ และคำขอใหม่จะถูกปฏิเสธ"],
   confirmBan_set: ["Ban beatmapset {v}? Waiting requests for it are removed.", "แบนเซ็ต {v}? คำขอที่รออยู่ของแมพนี้จะถูกลบ"],
   confirmBan_mapper: ["Ban maps by {v}? Waiting requests for their maps are removed.", "แบนแมพของ {v}? คำขอที่รออยู่ของแมพเหล่านี้จะถูกลบ"],
@@ -233,12 +235,11 @@ function render() {
   $("#dryRunSw").checked = S.dryRun;
   $("#dryPill").hidden = !S.dryRun;
   renderTestHint();
-  renderBanner(tf);
   const ts = S.tosu;
   $("#tosuDot").className = "dot " + ts.level;
   $("#tosuText").textContent = t("tosu_" + ts.code);
   $("#tosuPill").title = ts.error || (ts.game && ts.game.state ? `${ts.game.client} · ${ts.game.state}` : "");
-  renderTosuBanner(ts);
+  renderStatus(tf, ts);
   renderNow(S.queue.now);
   updatePhase();
   renderQueue(S.queue.items || []);
@@ -253,25 +254,49 @@ function same(el, key) {
   return false;
 }
 
-function renderBanner(tf) {
+// renderStatus shows TikFinity and tosu problems as compact rows in one box
+// (nothing when both are green). Details (hint, checklist, error) fold away.
+let statusOpen = true;
+try { statusOpen = localStorage.getItem("osureq.statusOpen") !== "0"; } catch {}
+function renderStatus(tf, ts) {
   const b = $("#banner");
-  const { lastEvent, ...shown } = tf;
-  if (same(b, JSON.stringify([shown, LANG]))) return;
+  const { lastEvent, ...shownTf } = tf;
+  if (same(b, JSON.stringify([shownTf, ts.level, ts.code, ts.running, ts.connected, !!ts.path, ts.error, LANG, statusOpen]))) return;
   b.replaceChildren();
-  if (tf.level === "green") return;
   const chk = (ok, k) => h("em", { class: ok ? "ok" : "no" }, (ok ? "✓ " : "✕ ") + t(k));
-  const acts = h("div", { class: "npa" });
-  if (!tf.installed) acts.append(h("button", { class: "btn main", onclick: () => act("/api/action/openTikfinityDownload") }, t("getTikfinity")));
-  else if (!tf.running) acts.append(h("button", { class: "btn main", onclick: () => act("/api/action/launchTikfinity").then(j => j.ok && toast("…")) }, t("launch")));
-  if (tf.installed) acts.append(h("button", { class: "btn", onclick: () => act("/api/action/reconnect") }, t("reconnect")));
-  b.append(h("div", { class: "banner " + tf.level },
-    h("i", { class: "dot " + tf.level }),
-    h("div", { class: "bt" },
-      h("b", {}, t("tf_" + tf.code)),
-      h("small", {}, t("b_" + tf.code) + " " + t("b_note")),
-      tf.error ? h("small", { style: "display:block;color:#ff9aa6" }, tf.error) : null,
-      h("div", { class: "steps" }, chk(tf.installed, "chk_installed"), chk(tf.running, "chk_running"), chk(tf.connected, "chk_ws"), chk(tf.handshake, "chk_hs"), chk(tf.live, "chk_live"))),
-    acts));
+  const button = (main, label, path) => h("button", { class: "btn sm" + (main ? " main" : ""), type: "button", onclick: () => act(path) }, label);
+  const row = (level, title, hint, error, chips, acts) => h("div", { class: "srow" },
+    h("i", { class: "dot " + level }),
+    h("div", { class: "stext" }, h("b", {}, title),
+      statusOpen ? [h("small", { class: "shint" }, hint), error ? h("small", { class: "serr", title: error }, error) : null, h("div", { class: "steps" }, chips)] : []),
+    h("div", { class: "sacts" }, acts));
+  const rows = [];
+  if (tf.level !== "green") {
+    const acts = [];
+    if (!tf.installed) acts.push(button(true, t("getTikfinity"), "/api/action/openTikfinityDownload"));
+    else if (!tf.running) acts.push(button(true, t("launch"), "/api/action/launchTikfinity"));
+    if (tf.installed) acts.push(button(false, t("reconnect"), "/api/action/reconnect"));
+    rows.push(row(tf.level, t("tf_" + tf.code), t("b_" + tf.code) + " " + t("b_note"), tf.error,
+      [chk(tf.installed, "chk_installed"), chk(tf.running, "chk_running"), chk(tf.connected, "chk_ws"), chk(tf.handshake, "chk_hs"), chk(tf.live, "chk_live")], acts));
+  }
+  if (ts.level !== "green") {
+    const acts = [];
+    if (!ts.running && !ts.path) acts.push(button(true, t("getTosu"), "/api/action/openTosuDownload"));
+    if (!ts.running && ts.path) acts.push(button(true, t("launchTosu"), "/api/action/launchTosu"));
+    acts.push(button(false, t("reconnect"), "/api/action/reconnectTosu"));
+    rows.push(row(ts.level, t("tosu_" + ts.code) + " · " + t("required"), t("tb_" + ts.code) + " " + t("tb_note"), ts.error,
+      [chk(ts.running, "chk_running"), chk(ts.connected, "chk_ws"), chk(ts.code === "ok", "chk_osu")], acts));
+  }
+  if (!rows.length) return;
+  const red = tf.level === "red" || ts.level === "red";
+  b.append(h("section", { class: "status " + (red ? "red" : "yellow"), "aria-label": t("setupTitle") },
+    h("div", { class: "status-h" }, h("span", {}, t("setupTitle")),
+      h("button", { class: "mlink", type: "button", "aria-expanded": String(statusOpen), onclick: () => {
+        statusOpen = !statusOpen;
+        try { localStorage.setItem("osureq.statusOpen", statusOpen ? "1" : "0"); } catch {}
+        render();
+      } }, statusOpen ? t("hideDetails") + " ▴" : t("showDetails") + " ▾")),
+    rows));
 }
 
 function tagsFor(it) {
@@ -287,25 +312,7 @@ function tagsFor(it) {
     it.test ? h("em", {}, t("test")) : null);
 }
 
-function renderTosuBanner(ts) {
-  const b = $("#tosuBanner");
-  if (same(b, JSON.stringify([ts.level, ts.code, ts.running, ts.connected, !!ts.path, ts.error, LANG]))) return;
-  b.replaceChildren();
-  if (ts.level === "green") return;
-  const chk = (ok, k) => h("em", { class: ok ? "ok" : "no" }, (ok ? "✓ " : "✕ ") + t(k));
-  const acts = h("div", { class: "npa" });
-  if (!ts.running && !ts.path) acts.append(h("button", { class: "btn main", onclick: () => act("/api/action/openTosuDownload") }, t("getTosu")));
-  if (!ts.running && ts.path) acts.append(h("button", { class: "btn main", onclick: () => act("/api/action/launchTosu") }, t("launchTosu")));
-  acts.append(h("button", { class: "btn", onclick: () => act("/api/action/reconnectTosu") }, t("reconnect")));
-  b.append(h("div", { class: "banner " + ts.level },
-    h("i", { class: "dot " + ts.level }),
-    h("div", { class: "bt" },
-      h("b", {}, t("tb_title") + " · " + t("tosu_" + ts.code)),
-      h("small", {}, t("tb_" + ts.code) + " " + t("tb_note")),
-      ts.error ? h("small", { style: "display:block;color:#ff9aa6" }, ts.error) : null,
-      h("div", { class: "steps" }, chk(ts.running, "chk_running"), chk(ts.connected, "chk_ws"), chk(ts.code === "ok", "chk_osu"))),
-    acts));
-}
+
 
 /* ---------- audio preview & beatmap viewer ---------- */
 const preview = new Audio();
@@ -317,6 +324,7 @@ function syncPreview() {
     b.textContent = on ? "❚❚ " + t("pvStop") : "♪ " + t("pvPlay");
     b.classList.toggle("on", on);
   });
+  document.querySelectorAll(".card[data-set]").forEach(c => c.classList.toggle("pv-on", +c.dataset.set === previewSet && !preview.paused));
 }
 ["play", "pause", "ended"].forEach(ev => preview.addEventListener(ev, syncPreview));
 function togglePreview(setId) {
@@ -336,6 +344,14 @@ function mapLinks(it) {
   }
   queueMicrotask(syncPreview);
   return out;
+}
+
+function viewerHref(it) {
+  if (!S || !S.viewerUrl) return "";
+  const u = new URL(S.viewerUrl);
+  u.searchParams.set("s", it.setId);
+  if (it.beatmapId) u.searchParams.set("b", it.beatmapId);
+  return u.toString();
 }
 
 // resultShort mirrors app.ResultShort: "98.52% S · 812x · 2 miss · 301pp · HDHR".
@@ -436,13 +452,12 @@ function renderQueue(items) {
 function buildCard(it, i, total) {
   const q = (op, body) => act(`/api/queue/${it.id}/${op}`, body);
   const btn = (ico, title, f, cls, dis) => h("button", { class: "cbtn " + (cls || ""), title, "aria-label": title, disabled: dis, onclick: e => busy(e.currentTarget, f) }, svg(ico));
-  const card = h("div", { class: "card" + (it.state === "failed" ? " failed" : "") + (seen.has(it.id) ? " seen" : ""), style: `--i:${i};background-image:url("${coverOf(it)}")`, draggable: "true", "data-id": it.id },
+  const card = h("div", { class: "card" + (it.state === "failed" ? " failed" : "") + (seen.has(it.id) ? " seen" : ""), style: `--i:${i};background-image:url("${coverOf(it)}")`, draggable: "true", "data-id": it.id, "data-set": it.setId },
     h("span", { class: "pos", title: "drag" }, i + 1),
     h("div", { class: "ci" },
       h("b", {}, it.title),
       h("span", {}, `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}`),
-      h("small", {}, h("span", { class: "req" }, "@" + it.user), " · " + ago(it.addedAt) + " · ", h("span", { class: "s-" + it.state }, t("st_" + it.state)), " · ",
-        h("a", { class: "mlink", href: setLink(it), target: "_blank", rel: "noopener" }, it.setId), mapLinks(it)),
+      h("small", {}, h("span", { class: "req" }, "@" + it.user), " · " + ago(it.addedAt) + " · ", h("span", { class: "s-" + it.state }, t("st_" + it.state))),
       tagsFor(it)),
     h("div", { class: "cact" },
       it.state === "failed" ? btn(ICON.retry, L("Retry", "ลองใหม่"), () => q("retry")) : btn(ICON.play, L("Play now", "เล่นเลย"), () => q("play"), "go"),
@@ -450,7 +465,7 @@ function buildCard(it, i, total) {
       btn(ICON.down, L("Move down", "เลื่อนลง"), () => q("move", { to: i + 1 }), "", i === total - 1),
       btn(ICON.skip, t("skip"), () => q("skip")),
       btn(ICON.x, L("Remove", "ลบ"), () => q("remove")),
-      banMenu(it)));
+      cardMenu(it)));
   if (it.warning) card.append(h("div", { class: "warnline" }, "⚠ " + it.warning));
   if (it.error) card.append(h("div", { class: "errline" }, it.error));
   card.addEventListener("dragstart", e => { dragId = it.id; card.classList.add("drag"); e.dataTransfer.effectAllowed = "move"; });
@@ -491,13 +506,19 @@ function attemptView(a) {
   return { pct, text: a.message ? `${right} · ${a.message}` : right };
 }
 
-// banMenu is the ⛔ button on a card: ban the requester, the map or its mapper.
-function banMenu(it) {
-  const pop = h("div", { class: "banpop", hidden: true },
-    h("button", { type: "button", onclick: () => ban("user", it.user) }, t("banUser", { u: it.user })),
-    h("button", { type: "button", onclick: () => ban("set", String(it.setId)) }, t("banMap")),
-    it.creator ? h("button", { type: "button", onclick: () => ban("mapper", it.creator) }, t("banMapper", { m: it.creator })) : null);
-  const b = h("button", { class: "cbtn", type: "button", title: t("ban"), "aria-label": t("ban"), "aria-haspopup": "menu",
+// cardMenu is the "⋯" button on a card: preview, open the map elsewhere, ban.
+function cardMenu(it) {
+  const close = () => closeBanMenus();
+  const viewer = viewerHref(it);
+  const pop = h("div", { class: "banpop", hidden: true, role: "menu" },
+    h("button", { type: "button", role: "menuitem", "data-pv": it.setId, onclick: e => { e.stopPropagation(); togglePreview(it.setId); } }),
+    viewer ? h("a", { role: "menuitem", href: viewer, target: "_blank", rel: "noopener", onclick: close }, t("viewerTitle") + " ↗") : null,
+    h("a", { role: "menuitem", href: setLink(it), target: "_blank", rel: "noopener", onclick: close }, "osu.ppy.sh · " + it.setId + " ↗"),
+    h("hr"),
+    h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("user", it.user) }, "⛔ " + t("banUser", { u: it.user })),
+    h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("set", String(it.setId)) }, "⛔ " + t("banMap")),
+    it.creator ? h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("mapper", it.creator) }, "⛔ " + t("banMapper", { m: it.creator })) : null);
+  const b = h("button", { class: "cbtn more", type: "button", title: t("more"), "aria-label": t("more"), "aria-haspopup": "menu",
     onclick: e => {
       e.stopPropagation(); closeBanMenus(pop);
       // fixed position next to the button: cards clip anything that overflows them
@@ -505,7 +526,8 @@ function banMenu(it) {
       pop.style.top = r.bottom + 6 + "px";
       pop.style.right = Math.max(8, innerWidth - r.right) + "px";
       pop.hidden = !pop.hidden;
-    } }, "⛔");
+      syncPreview();
+    } }, "⋯");
   return h("span", { class: "banwrap" }, b, pop);
 }
 function closeBanMenus(except) { document.querySelectorAll(".banpop").forEach(p => { if (p !== except) p.hidden = true; }); }
@@ -620,6 +642,14 @@ $("#testMode").addEventListener("click", e => {
   renderTestHint();
 });
 $("#dryRunSw").addEventListener("change", () => act("/api/action/toggleDryRun"));
+// The test panel is folded away by default: it is rarely needed during a stream.
+function setTestOpen(open) {
+  $("#testBody").hidden = !open;
+  $("#testToggle").setAttribute("aria-expanded", String(open));
+  try { localStorage.setItem("osureq.testOpen", open ? "1" : "0"); } catch {}
+}
+$("#testToggle").addEventListener("click", () => setTestOpen($("#testBody").hidden));
+try { setTestOpen(localStorage.getItem("osureq.testOpen") === "1"); } catch { setTestOpen(false); }
 $("#clearTestBtn").addEventListener("click", () => { if (confirm(t("confirmClearTest"))) act("/api/action/clearTest"); });
 $("#testForm").addEventListener("submit", async e => {
   e.preventDefault();

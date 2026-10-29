@@ -41,6 +41,8 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 
 /* pop-ups: what happened to a request, mod commands, gifts, results */
 #toasts{display:flex;flex-direction:inherit;gap:6px}
+.seen{animation:none!important} /* already shown once: never replay the entrance */
+#main>div:empty{display:none}
 .toast{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-radius:14px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--c);box-shadow:0 8px 24px rgba(0,0,0,.35);animation:pop .45s cubic-bezier(.2,.8,.2,1);transition:opacity .4s,transform .4s}
 .toast.out{opacity:0;transform:translateX(-14px)}
 .toast .ic{flex:0 0 auto;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--c);color:#1c1726}
@@ -57,7 +59,8 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 </style>
 </head>
 <body>
-<div id="wrap"><div id="toasts"></div><div id="main"></div></div>
+<!-- pop-ups come after the list, so they never push the now-playing card around -->
+<div id="wrap"><div id="main"></div><div id="toasts"></div></div>
 <script>
 "use strict";
 const wrap = document.getElementById("wrap"), main = document.getElementById("main"), toasts = document.getElementById("toasts");
@@ -126,7 +129,25 @@ function showToasts(feed, o) {
   }
 }
 
-let last = "";
+// Each part is kept and only rewritten when its own content changes; an
+// element's entrance animation plays once (then it gets "seen"), so queue
+// changes do not make the whole overlay fade in again on stream.
+const npSlot = document.createElement("div"), upSlot = document.createElement("div"), cmdSlot = document.createElement("div");
+upSlot.className = "up";
+main.append(npSlot, upSlot, cmdSlot);
+const rows = new Map(); // item id -> row element
+const markSeen = el => {
+  const done = () => el.classList.add("seen");
+  el.addEventListener("animationend", done, { once: true });
+  setTimeout(done, 1500); // also when the page is not painting (hidden source): never replay later
+};
+function setHTML(el, html) {
+  if (el._html === html) return false;
+  el.innerHTML = html;
+  el._html = html;
+  return true;
+}
+let npID = "";
 function render(S) {
   const o = S.overlay, n = S.queue.now, items = (S.queue.items || []).slice(0, o.visible);
   LANG = o.lang === "th" || o.lang === "en" ? o.lang : ((navigator.language || "").startsWith("th") ? "th" : "en");
@@ -134,18 +155,41 @@ function render(S) {
   wrap.className = o.position;
   wrap.style.transform = `scale(${(o.scale || 100) / 100})`;
   showToasts(S.feed || [], o);
-  let html = "";
+
+  let np = "";
   if (n) {
     const cover = esc(n.cover || `https://assets.ppy.sh/beatmaps/${n.setId}/covers/cover.jpg`);
-    html += `<div class="np" style="background-image:url('${cover}')"><div class="npi">
+    np = `<div class="np" style="background-image:url('${cover}')"><div class="npi">
       <div class="lab"><i></i>${tx("nowPlaying")}</div>
       <b>${esc(n.title)}</b><span>${star(n)}${esc(n.artist)} · [${esc(n.version)}] · ${esc(n.creator)}</span>
       ${o.showRequester ? `<div class="who">${tx("reqBy")} <em>@${esc(n.user)}</em></div>` : ""}</div></div>`;
   }
-  if (items.length) html += `<div class="up">` + items.map((it, i) =>
-    `<div class="row" style="--i:${i}"><span class="n"${it.priority ? ' style="background:var(--gold);color:#1c1726"' : ""}>${it.priority ? "★" : i + 1}</span><span class="t">${star(it)}${esc(it.artist)} - ${esc(it.title)}</span>${o.showRequester ? `<span class="r">@${esc(it.user)}</span>` : ""}</div>`).join("") + `</div>`;
-  if (S.requests && S.tikfinity.level === "green") html += `<div class="cmd">${tx("request")}: <b>${esc(S.command)}</b> &lt;ID / link&gt;</div>`;
-  if (html !== last) { main.innerHTML = html; last = html; }
+  if (setHTML(npSlot, np) && npSlot.firstElementChild) {
+    const card = npSlot.firstElementChild;
+    if (n.id === npID) card.classList.add("seen"); // same song, a detail changed: no entrance
+    else markSeen(card);
+  }
+  npID = n ? n.id : "";
+
+  const next = items.map((it, i) => {
+    const html = `<span class="n"${it.priority ? ' style="background:var(--gold);color:#1c1726"' : ""}>${it.priority ? "★" : i + 1}</span><span class="t">${star(it)}${esc(it.artist)} - ${esc(it.title)}</span>${o.showRequester ? `<span class="r">@${esc(it.user)}</span>` : ""}`;
+    let row = rows.get(it.id);
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "row";
+      row.style.setProperty("--i", Math.min(i, 5));
+      markSeen(row);
+      rows.set(it.id, row);
+    }
+    setHTML(row, html);
+    return row;
+  });
+  const keep = new Set(items.map(it => it.id));
+  for (const id of rows.keys()) if (!keep.has(id)) rows.delete(id);
+  const cur = [...upSlot.children];
+  if (cur.length !== next.length || cur.some((c, i) => c !== next[i])) upSlot.replaceChildren(...next);
+
+  setHTML(cmdSlot, S.requests && S.tikfinity.level === "green" ? `<div class="cmd">${tx("request")}: <b>${esc(S.command)}</b> &lt;ID / link&gt;</div>` : "");
 }
 let retry = 0;
 (function connect() {

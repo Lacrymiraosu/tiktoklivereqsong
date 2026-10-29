@@ -30,7 +30,6 @@
   </header>
 
   <div id="banner"></div>
-  <div id="tosuBanner"></div>
 
   <div class="cols">
     <main>
@@ -38,14 +37,19 @@
 
       <section class="testbox" aria-labelledby="testTitle">
         <div class="testh">
-          <b id="testTitle" data-t="testPanel">Test</b>
+          <button type="button" class="testtoggle" id="testToggle" aria-expanded="false" aria-controls="testBody">
+            <span class="chev" aria-hidden="true">▸</span><b id="testTitle" data-t="testPanel">Test</b></button>
+          <span class="sp"></span>
+          <label class="reqtog"><span data-t="dryRun">Dry run</span><input type="checkbox" class="switch" id="dryRunSw"></label>
+        </div>
+        <div id="testBody" hidden>
+        <div class="testh testh2">
           <div class="seg" id="testMode" role="tablist">
             <button type="button" data-mode="chat" data-t="modeChat">Simulate chat</button>
             <button type="button" data-mode="quick" data-t="modeQuick">Quick add</button>
             <button type="button" data-mode="gift" data-t="modeGift">Gift</button>
           </div>
           <span class="sp"></span>
-          <label class="reqtog"><span data-t="dryRun">Dry run</span><input type="checkbox" class="switch" id="dryRunSw"></label>
           <button class="btn sm ghost" type="button" id="clearTestBtn" data-t="clearTest">Clear test data</button>
         </div>
         <form class="searchrow" id="testForm" autocomplete="off">
@@ -54,6 +58,7 @@
           <button class="btn sky" type="submit"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span data-t="testBtn">Send</span></button>
         </form>
         <p class="hint" id="testHint"></p>
+        </div>
       </section>
 
       <div class="subh"><span data-t="queue">Queue</span><span id="qCount"></span><span class="sp"></span>
