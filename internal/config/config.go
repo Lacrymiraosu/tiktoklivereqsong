@@ -235,7 +235,8 @@ func Default() Config {
 }
 
 // AllowedHosts are the only hosts the downloader may fetch from.
-var AllowedHosts = []string{"catboy.best", "osu.direct", "osu.ppy.sh"}
+// storage.osu.direct is where osu.direct redirects every download.
+var AllowedHosts = []string{"catboy.best", "osu.direct", "storage.osu.direct", "osu.ppy.sh"}
 
 // Problem is one invalid setting. Code and Vars let the dashboard say it in
 // the viewer's language (T["e_"+code]); Msg is the English text.
