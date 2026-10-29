@@ -57,9 +57,9 @@ A local dashboard (English/Thai) and a transparent OBS overlay run inside the sa
 
 | | |
 |---|---|
-| Version | **1.3.0** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.3.6** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
-| Tests | `go test ./...`: 11 packages with tests, all passing |
+| Tests | `go test ./...`: 12 packages with tests, all passing |
 | Repository | local git repo, branch `main`, no remote yet |
 
 **Verified for real on the developer's PC:** TikFinity detection, WebSocket connection and `config` handshake;
@@ -590,15 +590,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.3.1          # vet + test + build → dist\osureq.exe
+.\build.ps1 -Version 1.3.6          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.3.3      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.3.3" -o dist\osureq.exe .
+go run ./tools/winres -version 1.3.6      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.3.6" -o dist\osureq.exe .
 ```
 
 * `main.version` is set at build time (`dev` otherwise).
@@ -711,12 +711,12 @@ Read this before changing anything.
 | | `bb8e34f` | Audio preview and "open in beatmap viewer" links |
 | | `02449a6` | One-click bans from queue cards and the rejection log |
 | | `eb4b13b` | Followers-only and per-subscriber limits |
-| 1.3.6 | | All four modes: convert stars from osu!, mania key counts, per-mode star limits, mode tags, mode-mismatch warning |
-| 1.3.5 | | Click-through audit fixes: card ⋯ menu stays on screen (opens upward, never wider than the screen); card status shown first; overlay never cuts the reason; truthful test-panel feedback for commands and gifts; translated errors and settings validation; side-log titles on their own line; buttons and settings fit narrow screens |
-| 1.3.4 | | Settings open as a centred dialog; master volume (default 10%) with a speaker button in the top bar |
-| 1.3.3 | | Windows resources (icon, name, description, version, `asInvoker` manifest) and no symbol stripping, so Windows treats the exe as a normal app |
+| 1.3.6 | `e91601d` | All four modes: convert stars from osu!, mania key counts, per-mode star limits, mode tags, mode-mismatch warning |
+| 1.3.5 | `1c2531b` | Click-through audit fixes: card ⋯ menu stays on screen (opens upward, never wider than the screen); card status shown first; overlay never cuts the reason; truthful test-panel feedback for commands and gifts; translated errors and settings validation; side-log titles on their own line; buttons and settings fit narrow screens |
+| 1.3.4 | `7db350f`, `b4c0208` | Settings open as a centred dialog; master volume (default 10%) with a speaker button in the top bar |
+| 1.3.3 | `91f72f6` | Windows resources (icon, name, description, version, `asInvoker` manifest) and no symbol stripping, so Windows treats the exe as a normal app |
 | 1.3.2 | `f5298cf`, `a2e703d` | UX/UI audit fixes: narrow layout, Info box, set mode order, now-playing reason, Thai text; compact status, folded test panel, card "⋯" menu, calmer overlay |
-| 1.3.1 | | Back to a console app: the CMD window shows the log (titled `osureq <version>`); no tray icon. Closing the window stops cleanly |
+| 1.3.1 | `83025ac` | Back to a console app: the CMD window shows the log (titled `osureq <version>`); no tray icon. Closing the window stops cleanly |
 
 ---
 
