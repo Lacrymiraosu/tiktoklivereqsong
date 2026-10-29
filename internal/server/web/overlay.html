@@ -60,11 +60,21 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 .toast.gift{--c:var(--gold)}
 .toast.result{--c:var(--acc)}
 @keyframes pop{from{opacity:0;transform:scale(.92) translateY(8px)}}
+
+/* end-of-stream summary, shown for a while when the streamer asks */
+.sum{border-radius:18px;padding:12px 14px;background:var(--card);border:2px solid var(--acc);box-shadow:0 10px 30px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:6px;animation:pop .5s cubic-bezier(.2,.8,.2,1);transition:opacity .5s}
+.sum.out{opacity:0}
+.sum .nums{display:flex;gap:8px}
+.sum .nums div{flex:1;text-align:center;padding:6px 4px;border-radius:12px;background:rgba(255,255,255,.07)}
+.sum .nums b{display:block;font-size:20px;color:var(--acc)}
+.sum .nums small{font-size:11px;color:var(--dim)}
+.sum p{margin:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sum p em{font-style:normal;color:var(--dim)}
 </style>
 </head>
 <body>
 <!-- pop-ups come after the list, so they never push the now-playing card around -->
-<div id="wrap"><div id="main"></div><div id="toasts"></div></div>
+<div id="wrap"><div id="sum"></div><div id="main"></div><div id="toasts"></div></div>
 <script>
 "use strict";
 const wrap = document.getElementById("wrap"), main = document.getElementById("main"), toasts = document.getElementById("toasts");
@@ -103,6 +113,8 @@ const TX = {
   c_np: ["asked what's playing", "ถามว่าเพลงอะไร"], c_np_none: ["nothing is playing yet", "ยังไม่มีเพลงที่เล่นอยู่"],
   c_vote: ["voted to skip ({n})", "โหวตข้ามเพลง ({n})"], c_voteskip: ["vote passed, skipping", "โหวตครบ ข้ามเพลงนี้"],
   gift: ["priority request!", "ได้คิวพิเศษ!"], giftCredit: ["next request gets priority", "คำขอถัดไปจะได้คิวพิเศษ"],
+  sumTitle: ["Stream summary", "สรุปไลฟ์นี้"], sumPlayed: ["played", "เล่นแล้ว"], sumPassed: ["cleared", "ผ่าน"], sumViewers: ["viewers", "ผู้ชมที่ขอ"],
+  sumBest: ["Best", "ดีที่สุด"], sumTop: ["Most requests", "ขอมากที่สุด"], sumThanks: ["Thanks for the requests!", "ขอบคุณที่ขอเพลงกันนะ!"],
   res_passed: ["cleared", "ผ่าน"], res_failed: ["failed", "ตาย"], res_quit: ["quit", "ออกกลางเพลง"], resOf: ["{u}'s request", "เพลงที่ @{u} ขอ"],
 };
 let LANG = "en";
@@ -119,7 +131,7 @@ function toastHTML(e) {
     case "command":
       switch (e.code) {
         case "pos": return ["#", who, tx("c_pos", { n: e.pos }), [map, esc(e.short || "")].filter(Boolean).join(" · ")];
-        case "np": return ["♪", who, tx("c_np"), `${e.stars ? star(e) : ""}${map} · ${tx("reqBy")} @${esc(e.target)}`];
+        case "np": return ["♪", who, tx("c_np"), `${tx("reqBy")} @${esc(e.target)} · ${e.stars ? star(e) : ""}${map}`];
         case "vote": return ["!", who, tx("c_vote", { n: esc(e.short) }), map];
         case "pos_none": case "np_none": return ["!", who, tx("c_" + e.code), ""];
       }
@@ -128,6 +140,25 @@ function toastHTML(e) {
     case "result": return ["♪", esc(e.title), tx("res_" + e.code), `${esc(e.short || "")} · ${tx("resOf", { u: esc(e.user) })}`];
   }
   return null;
+}
+
+// The summary card appears when the streamer presses "Show on overlay"
+// (summaryShown changes), never on load, and fades after 20 s.
+const sumEl = document.getElementById("sum");
+let sumSeen = -1, sumT;
+function showSummary(S) {
+  if (sumSeen < 0 || S.summaryShown < sumSeen) { sumSeen = S.summaryShown; return; }
+  if (S.summaryShown === sumSeen) return;
+  sumSeen = S.summaryShown;
+  const s = S.summary, best = s.best, top = (s.top || []).map(u => "@" + esc(u.user) + " ×" + u.count).join(" · ");
+  const r = best && best.play;
+  sumEl.innerHTML = `<div class="sum"><div class="lab"><i></i>${tx("sumTitle")}</div>
+    <div class="nums"><div><b>${s.played}</b><small>${tx("sumPlayed")}</small></div><div><b>${s.passed}</b><small>${tx("sumPassed")}</small></div><div><b>${s.viewers}</b><small>${tx("sumViewers")}</small></div></div>
+    ${r ? `<p><em>${tx("sumBest")}:</em> ${esc(best.title)} · ${r.accuracy.toFixed(2)}%${r.rank ? " " + esc(r.rank) : ""}${r.pp >= 1 ? " · " + Math.round(r.pp) + "pp" : ""} · @${esc(best.user)}</p>` : ""}
+    ${top ? `<p><em>${tx("sumTop")}:</em> ${top}</p>` : ""}
+    <p>${tx("sumThanks")}</p></div>`;
+  clearTimeout(sumT);
+  sumT = setTimeout(() => { const c = sumEl.firstElementChild; if (c) c.classList.add("out"); sumT = setTimeout(() => sumEl.replaceChildren(), 500); }, 20000);
 }
 
 let lastID = -1, cfgO = null;
@@ -174,6 +205,7 @@ function render(S) {
   wrap.className = o.position;
   wrap.style.transform = `scale(${(o.scale || 100) / 100})`;
   showToasts(S.feed || [], o);
+  showSummary(S);
 
   let np = "";
   if (n) {
