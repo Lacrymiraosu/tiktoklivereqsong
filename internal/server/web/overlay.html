@@ -244,7 +244,7 @@ function render(S) {
 }
 let retry = 0;
 (function connect() {
-  const ws = new WebSocket("ws://" + location.host + "/ws");
+  const ws = new WebSocket("ws://" + location.host + "/ws?client=overlay"); // counted by the pre-stream check
   ws.onopen = () => retry = 0;
   ws.onmessage = e => render(JSON.parse(e.data));
   ws.onclose = () => setTimeout(connect, Math.min(5000, 500 * 2 ** retry++));

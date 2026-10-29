@@ -186,6 +186,29 @@ const T = {
   sumShown: ["The summary is on the overlay for 20 s", "แสดงสรุปบน overlay 20 วินาที"],
   confirmNewSession: ["Start a new session? The summary starts counting from zero (history is kept).", "เริ่มรอบใหม่? สรุปจะเริ่มนับจากศูนย์ (ประวัติยังอยู่)"],
   n_newSession: ["Started a new stream session", "เริ่มรอบไลฟ์ใหม่แล้ว"],
+  pfRun: ["Pre-stream check", "เช็กก่อนไลฟ์"], pfRunning: ["Checking…", "กำลังเช็ก…"], pfAllOk: ["All set. Have a good stream!", "พร้อมแล้ว ไลฟ์ให้สนุกนะ!"],
+  pfIssues: ["{n} thing(s) to look at", "มี {n} เรื่องที่ควรดู"], pfFailed: ["The check could not run", "เช็กไม่สำเร็จ"],
+  pf_tf_live: ["TikFinity: connected and live", "TikFinity: เชื่อมต่อแล้วและกำลังไลฟ์"],
+  pf_tf_ready: ["TikFinity: connected, waiting for the stream to start", "TikFinity: เชื่อมต่อแล้ว รอเริ่มไลฟ์"],
+  pf_tf_not_installed: ["TikFinity is not installed", "ยังไม่ได้ติดตั้ง TikFinity"], pf_tf_not_running: ["TikFinity is not running", "TikFinity ไม่ได้เปิดอยู่"],
+  pf_tf_connecting: ["TikFinity is running but its WebSocket does not answer (Settings → Connection)", "TikFinity เปิดอยู่แต่ WebSocket ไม่ตอบ (ตั้งค่า → การเชื่อมต่อ)"],
+  pf_tosu_ok: ["tosu: sees osu! {client}", "tosu: เห็น osu! {client}"], pf_tosu_no_game: ["tosu is running, but osu! is not open", "tosu เปิดอยู่ แต่ยังไม่ได้เปิด osu!"],
+  pf_tosu_not_running: ["tosu is not running: auto mode and results need it", "tosu ไม่ได้เปิดอยู่: โหมดอัตโนมัติและผลการเล่นต้องใช้"],
+  pf_tosu_connecting: ["tosu is running but its WebSocket does not answer (Settings → Connection)", "tosu เปิดอยู่แต่ WebSocket ไม่ตอบ (ตั้งค่า → การเชื่อมต่อ)"],
+  pf_game_lazer: ["osu! lazer: maps are opened directly, no Songs folder needed", "osu! lazer: เปิดแมพโดยตรง ไม่ต้องใช้โฟลเดอร์ Songs"],
+  pf_songs_ok: ["Songs folder: {dir}", "โฟลเดอร์ Songs: {dir}"],
+  pf_songs_fail: ["No Songs folder in {dir}: set Settings → osu! → osu! folder", "ไม่พบโฟลเดอร์ Songs ใน {dir}: ตั้งที่ ตั้งค่า → osu! → โฟลเดอร์ osu!"],
+  pf_hotkeys_off: ["Global hotkeys are off", "ปิดปุ่มลัดทั้งระบบอยู่"], pf_hotkeys_ok: ["Global hotkeys are registered", "ลงทะเบียนปุ่มลัดแล้ว"],
+  pf_hotkeys_fail: ["Hotkeys could not be registered: {keys} (another app may use them)", "ลงทะเบียนปุ่มลัดไม่ได้: {keys} (อาจมีโปรแกรมอื่นใช้อยู่)"],
+  pf_overlay_ok: ["Overlay is open ({n})", "เปิด overlay อยู่ ({n})"],
+  pf_overlay_none: ["No overlay connected: add the Browser Source in OBS or LIVE Studio", "ยังไม่มี overlay เชื่อมต่อ: เพิ่ม Browser Source ใน OBS หรือ LIVE Studio"],
+  pf_requests_off: ["Requests are off", "ปิดรับคำขออยู่"], pf_dryrun_on: ["Dry run is on: Next will not open osu!", "เปิดโหมดทดลองอยู่: กด ถัดไป จะไม่เปิด osu!"],
+  pf_testdata: ["{n} test request(s) still in the queue: Clear test data", "ยังมีคำขอทดสอบ {n} รายการในคิว: กด ล้างข้อมูลทดสอบ"],
+  pf_update: ["osureq {v} is available", "มี osureq {v} แล้ว"],
+  pf_osuweb_ok: ["osu! website answers (map info and MD5)", "เว็บ osu! ตอบปกติ (ข้อมูลแมพและ MD5)"],
+  pf_osuweb_fail: ["osu! website did not answer: requests cannot be checked", "เว็บ osu! ไม่ตอบ: ตรวจคำขอไม่ได้"],
+  pf_mirror_ok: ["Mirror {src} answers ({ms} ms)", "mirror {src} ตอบปกติ ({ms} ms)"], pf_mirror_fail: ["Mirror {src} failed", "mirror {src} ใช้ไม่ได้"],
+  pf_mirror_none: ["No download mirror is enabled (Settings → Download)", "ไม่ได้เปิด mirror สำหรับดาวน์โหลดเลย (ตั้งค่า → ดาวน์โหลด)"],
   n_gameDetected: ["tosu sees osu! {game} running, so Settings → osu! → Game is now {game}", "tosu เห็นว่าเปิด osu! {game} อยู่ จึงเปลี่ยน ตั้งค่า → osu! → เกม เป็น {game} ให้"],
   n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
   e_vote_skip: ["Votes to skip cannot be negative", "จำนวนโหวตข้ามเพลงติดลบไม่ได้"],
@@ -811,6 +834,34 @@ $("#testMode").addEventListener("click", e => {
   renderTestHint();
 });
 $("#dryRunSw").addEventListener("change", () => act("/api/action/toggleDryRun"));
+/* ---------- pre-stream check ---------- */
+// Runs app.Preflight and lists the result; problems first. Stays until closed.
+let pfChecks = null;
+function renderPreflight() {
+  const out = $("#pfOut");
+  out.hidden = !pfChecks;
+  if (!pfChecks) return;
+  const rank = { fail: 0, warn: 1, ok: 2, off: 3 };
+  const list = [...pfChecks].sort((a, b) => rank[a.status] - rank[b.status]);
+  const bad = list.filter(c => c.status === "fail" || c.status === "warn").length;
+  const worst = list.some(c => c.status === "fail") ? "fail" : bad ? "warn" : "ok";
+  out.replaceChildren(
+    h("div", { class: "pfh " + worst }, bad ? t("pfIssues", { n: bad }) : t("pfAllOk"), h("span", { class: "sp" }),
+      h("button", { class: "icon", type: "button", "aria-label": "Close", style: "width:32px;height:32px", onclick: () => { pfChecks = null; renderPreflight(); } }, svg(ICON.x))),
+    ...list.map(c => h("div", { class: "pfr " + c.status, title: c.detail || "" },
+      h("i", {}, { ok: "✓", warn: "!", fail: "✕", off: "–" }[c.status]),
+      h("span", {}, T["pf_" + c.key] ? t("pf_" + c.key, c.vars || {}) : c.key),
+      c.detail && c.status !== "ok" ? h("small", {}, c.detail) : null)));
+}
+$("#pfBtn").addEventListener("click", async e => {
+  const btn = e.currentTarget;
+  btn.disabled = true; btn.textContent = t("pfRunning");
+  try {
+    const j = await api("POST", "/api/preflight");
+    if (j.ok) { pfChecks = j.checks; renderPreflight(); } else toast(t("pfFailed") + ": " + errText(j), true);
+  } finally { btn.disabled = false; btn.textContent = t("pfRun"); }
+});
+$("#langSel").addEventListener("change", () => renderPreflight());
 // The test panel is folded away by default: it is rarely needed during a stream.
 function setTestOpen(open) {
   $("#testBody").hidden = !open;
