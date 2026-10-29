@@ -43,6 +43,8 @@ type App struct {
 	pending  int // requests being resolved
 	track    tosu.Tracker
 	trackID  string // queue item the tracker follows
+	feed     []FeedEvent
+	feedSeq  int64
 }
 
 type Notice struct {
@@ -101,6 +103,7 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 	}
 	if !cfg.Command.Enabled {
 		a.Queue.Reject(queue.Rejected{At: time.Now(), User: ch.User, Input: ch.Comment, Code: "requests_off", Detail: "requests are turned off"})
+		a.emit(FeedEvent{Kind: "rejected", User: ch.User, Nick: ch.Nick, Code: "requests_off"})
 		return
 	}
 	if !a.TF.Accepting() {
@@ -183,10 +186,13 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin) (*q
 		rr := queue.RejectedFrom(user, input, rej)
 		rr.Test = o != fromChat
 		a.Queue.Reject(rr)
+		a.emit(FeedEvent{Kind: "rejected", User: user, Nick: nick, Code: rej.Code, Short: rej.Short, Test: o != fromChat})
 		log.Printf("rejected @%s %q: %s", user, input, rej.Detail)
 		return nil, rej
 	}
 	a.Queue.Add(it)
+	a.emit(FeedEvent{Kind: "added", User: user, Nick: nick, Title: it.Title, Artist: it.Artist, Version: it.Version,
+		Stars: it.Stars, Pos: a.Queue.Position(it.ID), Test: o != fromChat})
 	log.Printf("queued @%s: %s - %s [%s] (%d)", user, it.Artist, it.Title, it.Version, it.SetID)
 	return it, nil
 }

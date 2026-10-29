@@ -92,11 +92,14 @@ type Import struct {
 }
 
 type Overlay struct {
-	Visible   int    `json:"visible"`
-	Requester bool   `json:"showRequester"`
-	Theme     string `json:"theme"`    // pink | sky | mono
-	Scale     int    `json:"scale"`    // percent
-	Position  string `json:"position"` // top-left | top-right | bottom-left | bottom-right
+	Visible     int    `json:"visible"`
+	Requester   bool   `json:"showRequester"`
+	Theme       string `json:"theme"`       // pink | sky | mono
+	Scale       int    `json:"scale"`       // percent
+	Position    string `json:"position"`    // top-left | top-right | bottom-left | bottom-right
+	Feedback    bool   `json:"feedback"`    // pop-ups for added/rejected requests, mod commands, gifts, results
+	FeedbackSec int    `json:"feedbackSec"` // how long each pop-up stays
+	Lang        string `json:"lang"`        // auto | en | th
 }
 
 type Hotkeys struct {
@@ -164,7 +167,7 @@ func Default() Config {
 		},
 		MD5:     MD5{Enabled: true, Level: "requested", VerifyCache: true, OnAllFail: "skip", MetaTimeoutSec: 15},
 		Import:  Import{Mode: "open", Preload: true, PreloadCount: 2},
-		Overlay: Overlay{Visible: 5, Requester: true, Theme: "pink", Scale: 100, Position: "top-left"},
+		Overlay: Overlay{Visible: 5, Requester: true, Theme: "pink", Scale: 100, Position: "top-left", Feedback: true, FeedbackSec: 7, Lang: "auto"},
 		Hotkeys: Hotkeys{Enabled: false, Next: "Ctrl+Alt+N", Skip: "Ctrl+Alt+S", Remove: "Ctrl+Alt+Backspace", Toggle: "Ctrl+Alt+R"},
 	}
 }

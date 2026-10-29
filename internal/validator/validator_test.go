@@ -141,3 +141,35 @@ func TestExemptUsersSkipLimitsButNotQueueSize(t *testing.T) {
 		t.Errorf("exempt user still respects queue size: got %q", got)
 	}
 }
+
+func TestShortReasonsAreLanguageNeutral(t *testing.T) {
+	r := rules()
+	r.MaxStars, r.MaxLengthSec = 5, 90
+	_, rej := CheckMap(Input{Set: set(), BeatmapID: 3}, empty(), r, config.Queue{}, now)
+	if rej == nil || rej.Short != "5.20★ > 5.00★" {
+		t.Errorf("stars_high short = %+v", rej)
+	}
+	r.MaxStars = 0
+	_, rej = CheckMap(Input{Set: set(), BeatmapID: 2}, empty(), r, config.Queue{}, now)
+	if rej == nil || rej.Short != "2:00 > 1:30" {
+		t.Errorf("too_long short = %+v", rej)
+	}
+	got := CheckUser("viewer", State{LastRequest: now.Add(-50 * time.Second)}, rules(), config.Queue{CooldownSec: 60}, now)
+	if got == nil || got.Short != "10s" {
+		t.Errorf("cooldown short = %+v", got)
+	}
+}
+
+func TestWholeSetPrefersMainMode(t *testing.T) {
+	s := set() // 3 osu! diffs (max 5.2★) and one 2.5★ mania diff
+	s.Diffs = append(s.Diffs, osumeta.Diff{ID: 5, Version: "Taiko Oni", Mode: "taiko", Stars: 6.0, Length: 120})
+	d, rej := CheckMap(Input{Set: s}, empty(), rules(), config.Queue{}, now)
+	if rej != nil || d.ID != 3 {
+		t.Fatalf("want the hardest osu! diff (3), got %+v %v", d, rej)
+	}
+	r := rules()
+	r.Modes = []string{"taiko"} // main mode not allowed: fall back to the other modes
+	if d, rej := CheckMap(Input{Set: s}, empty(), r, config.Queue{}, now); rej != nil || d.ID != 5 {
+		t.Fatalf("want the taiko diff when only taiko is allowed, got %+v %v", d, rej)
+	}
+}

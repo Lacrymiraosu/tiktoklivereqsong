@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600&family=Varela+Round&display=swap" rel="stylesheet">
 <style>
 /* Transparent OBS browser source, same palette as the dashboard / beatmap viewer. */
-:root{--ink:#f3eefb;--dim:#cfc4e3;--acc:#ff66aa;--accdk:#2a0f1f;--card:rgba(28,23,38,.86);--line:rgba(255,255,255,.14);font-family:"Varela Round","IBM Plex Sans Thai",system-ui,sans-serif}
+:root{--ink:#f3eefb;--dim:#cfc4e3;--acc:#ff66aa;--accdk:#2a0f1f;--card:rgba(28,23,38,.86);--line:rgba(255,255,255,.14);--ok:#57d68d;--err:#ff5a6e;--sky:#66ccff;--gold:#ffcf6b;font-family:"Varela Round","IBM Plex Sans Thai",system-ui,sans-serif}
 body.sky{--acc:#66ccff;--accdk:#0d2233}
 body.mono{--acc:#ffffff;--accdk:#1c1726;--card:rgba(0,0,0,.72)}
 html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hidden}
@@ -18,6 +18,7 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 #wrap.bottom-left{left:0;bottom:0;transform-origin:bottom left;flex-direction:column-reverse}
 #wrap.bottom-right{right:0;bottom:0;transform-origin:bottom right;flex-direction:column-reverse}
 #wrap.top-left{left:0;top:0}
+#main{display:flex;flex-direction:inherit;gap:8px}
 .np{position:relative;border-radius:18px;overflow:hidden;background:#120e19 center/cover no-repeat;border:2px solid var(--acc);box-shadow:0 10px 30px rgba(0,0,0,.45);animation:in .5s cubic-bezier(.2,.8,.2,1)}
 .np::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(28,23,38,.95) 30%,rgba(28,23,38,.55))}
 .npi{position:relative;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
@@ -37,13 +38,29 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 .cmd{font-size:12px;color:var(--dim);padding:6px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);align-self:flex-start}
 .cmd b{color:var(--acc)}
 @keyframes in{from{opacity:0;transform:translateY(10px)}}
+
+/* pop-ups: what happened to a request, mod commands, gifts, results */
+#toasts{display:flex;flex-direction:inherit;gap:6px}
+.toast{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-radius:14px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--c);box-shadow:0 8px 24px rgba(0,0,0,.35);animation:pop .45s cubic-bezier(.2,.8,.2,1);transition:opacity .4s,transform .4s}
+.toast.out{opacity:0;transform:translateX(-14px)}
+.toast .ic{flex:0 0 auto;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--c);color:#1c1726}
+.toast .tx{display:flex;flex-direction:column;gap:1px;min-width:0}
+.toast b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast span{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast em{font-style:normal;color:var(--c);font-weight:600}
+.toast.added{--c:var(--ok)}
+.toast.rejected{--c:var(--err)}
+.toast.command{--c:var(--sky)}
+.toast.gift{--c:var(--gold)}
+.toast.result{--c:var(--acc)}
+@keyframes pop{from{opacity:0;transform:scale(.92) translateY(8px)}}
 </style>
 </head>
 <body>
-<div id="wrap"></div>
+<div id="wrap"><div id="toasts"></div><div id="main"></div></div>
 <script>
 "use strict";
-const wrap = document.getElementById("wrap");
+const wrap = document.getElementById("wrap"), main = document.getElementById("main"), toasts = document.getElementById("toasts");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 function starColor(s) {
   if (s == null || s < 0) return "#8a7fa3";
@@ -57,26 +74,78 @@ function starColor(s) {
   }
   return "#18158e";
 }
-const th = () => (navigator.language || "").startsWith("th");
+const star = it => `<span class="star" style="background:${starColor(it.stars)};color:${it.stars >= 6.7 ? "#fff" : "#1c1726"}">${it.stars >= 0 ? it.stars.toFixed(2) : "?"}★</span>`;
+
+// Viewer-facing text. Reasons are phrased for the person who asked.
+const TX = {
+  nowPlaying: ["Now playing", "กำลังเล่น"], reqBy: ["requested by", "ขอโดย"], request: ["Request", "ขอเพลง"],
+  added: ["added to the queue", "เพิ่มเข้าคิวแล้ว"], pos: ["#{n} in queue", "คิวที่ {n}"], next: ["up next", "เพลงถัดไป"],
+  r_user_blacklisted: ["can't request right now", "ขอเพลงไม่ได้ในตอนนี้"], r_queue_full: ["the queue is full", "คิวเต็มแล้ว"],
+  r_user_limit: ["you already have requests waiting", "คุณมีคำขอรออยู่แล้ว"], r_cooldown: ["please wait before the next request", "รอสักครู่ก่อนขอใหม่"],
+  r_set_blacklisted: ["this map is blocked", "แมพนี้ถูกบล็อก"], r_mapper_blacklisted: ["this mapper is blocked", "แมพเปอร์นี้ถูกบล็อก"],
+  r_status: ["map status not allowed", "สถานะแมพนี้ไม่รับ"], r_duplicate: ["already in the queue", "อยู่ในคิวแล้ว"],
+  r_recently_played: ["played recently", "เพิ่งเล่นไป"], r_not_found: ["map not found", "ไม่พบแมพ"], r_mode: ["this mode isn't accepted", "ไม่รับโหมดนี้"],
+  r_stars_low: ["too easy", "ง่ายเกินไป"], r_stars_high: ["too hard", "ยากเกินไป"], r_too_long: ["too long", "ยาวเกินไป"],
+  r_meta_error: ["couldn't check the map, try again", "ตรวจแมพไม่ได้ ลองใหม่อีกครั้ง"], r_bad_input: ["not a map ID or link", "ไม่ใช่ ID หรือลิงก์แมพ"],
+  r_requests_off: ["requests are closed", "ปิดรับคำขออยู่"], r_followers_only: ["follow the stream to request", "ต้องกดติดตามก่อนถึงขอเพลงได้"],
+  c_skip: ["skipped the song", "ข้ามเพลงนี้"], c_remove: ["removed a request", "ลบคำขอ"], c_on: ["opened requests", "เปิดรับคำขอแล้ว"], c_off: ["closed requests", "ปิดรับคำขอแล้ว"],
+  gift: ["priority request!", "ได้คิวพิเศษ!"], giftCredit: ["next request gets priority", "คำขอถัดไปจะได้คิวพิเศษ"],
+  res_passed: ["cleared", "ผ่าน"], res_failed: ["failed", "ตาย"], res_quit: ["quit", "ออกกลางเพลง"], resOf: ["{u}'s request", "เพลงที่ @{u} ขอ"],
+};
+let LANG = "en";
+const tx = (k, v) => { let s = (TX[k] || [k, k])[LANG === "th" ? 1 : 0]; for (const a in v || {}) s = s.replace("{" + a + "}", v[a]); return s; };
+
+function toastHTML(e) {
+  const who = `<em>@${esc(e.user)}</em>`;
+  const map = e.title ? `${esc(e.artist)} - ${esc(e.title)}${e.version ? " [" + esc(e.version) + "]" : ""}` : "";
+  switch (e.kind) {
+    case "added": return ["✓", `${who} ${tx("added")}`, `${e.stars ? star(e) : ""}${map} · ${e.pos === 1 ? tx("next") : tx("pos", { n: e.pos })}`];
+    case "rejected": return ["✕", `${who} ${tx("r_" + e.code)}`, esc(e.short || "")];
+    case "command": return ["!", `${who} ${tx("c_" + e.code)}`, e.target ? "@" + esc(e.target) : map];
+    case "gift": return ["★", `${who} ${tx(e.code === "credit" ? "giftCredit" : "gift")}`, [esc(e.short || ""), map].filter(Boolean).join(" · ")];
+    case "result": return ["♪", `${esc(e.title)} · ${tx("res_" + e.code)}`, `${esc(e.short || "")} · ${tx("resOf", { u: esc(e.user) })}`];
+  }
+  return null;
+}
+
+let lastID = -1, cfgO = null;
+function showToasts(feed, o) {
+  if (lastID < 0 || (feed.length && feed[0].id < lastID)) { lastID = feed.length ? feed[0].id : 0; return; } // first load or helper restarted: don't replay history
+  const fresh = feed.filter(e => e.id > lastID).reverse();
+  if (fresh.length) lastID = fresh[fresh.length - 1].id;
+  if (!o.feedback) return;
+  for (const e of fresh) {
+    const parts = toastHTML(e);
+    if (!parts) continue;
+    const el = document.createElement("div");
+    el.className = "toast " + e.kind;
+    el.innerHTML = `<span class="ic">${parts[0]}</span><span class="tx"><b>${parts[1]}</b>${parts[2] ? `<span>${parts[2]}</span>` : ""}</span>`;
+    toasts.prepend(el);
+    while (toasts.children.length > 3) toasts.lastChild.remove();
+    setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 450); }, Math.max(2, o.feedbackSec || 7) * 1000);
+  }
+}
+
 let last = "";
 function render(S) {
   const o = S.overlay, n = S.queue.now, items = (S.queue.items || []).slice(0, o.visible);
+  LANG = o.lang === "th" || o.lang === "en" ? o.lang : ((navigator.language || "").startsWith("th") ? "th" : "en");
   document.body.className = o.theme;
   wrap.className = o.position;
   wrap.style.transform = `scale(${(o.scale || 100) / 100})`;
-  const star = it => `<span class="star" style="background:${starColor(it.stars)};color:${it.stars >= 6.7 ? "#fff" : "#1c1726"}">${it.stars >= 0 ? it.stars.toFixed(2) : "?"}★</span>`;
+  showToasts(S.feed || [], o);
   let html = "";
   if (n) {
     const cover = esc(n.cover || `https://assets.ppy.sh/beatmaps/${n.setId}/covers/cover.jpg`);
     html += `<div class="np" style="background-image:url('${cover}')"><div class="npi">
-      <div class="lab"><i></i>${th() ? "กำลังเล่น" : "Now playing"}</div>
+      <div class="lab"><i></i>${tx("nowPlaying")}</div>
       <b>${esc(n.title)}</b><span>${star(n)}${esc(n.artist)} · [${esc(n.version)}] · ${esc(n.creator)}</span>
-      ${o.showRequester ? `<div class="who">${th() ? "ขอโดย" : "requested by"} <em>@${esc(n.user)}</em></div>` : ""}</div></div>`;
+      ${o.showRequester ? `<div class="who">${tx("reqBy")} <em>@${esc(n.user)}</em></div>` : ""}</div></div>`;
   }
   if (items.length) html += `<div class="up">` + items.map((it, i) =>
     `<div class="row" style="--i:${i}"><span class="n">${i + 1}</span><span class="t">${star(it)}${esc(it.artist)} - ${esc(it.title)}</span>${o.showRequester ? `<span class="r">@${esc(it.user)}</span>` : ""}</div>`).join("") + `</div>`;
-  if (S.requests && S.tikfinity.level === "green") html += `<div class="cmd">${th() ? "ขอเพลง" : "Request"}: <b>${esc(S.command)}</b> &lt;ID / link&gt;</div>`;
-  if (html !== last) { wrap.innerHTML = html; last = html; }
+  if (S.requests && S.tikfinity.level === "green") html += `<div class="cmd">${tx("request")}: <b>${esc(S.command)}</b> &lt;ID / link&gt;</div>`;
+  if (html !== last) { main.innerHTML = html; last = html; }
 }
 let retry = 0;
 (function connect() {

@@ -49,6 +49,7 @@ type State struct {
 	Queue     queue.Snapshot                `json:"queue"`
 	Requests  bool                          `json:"requests"`
 	Resolving int                           `json:"resolving"`
+	Feed      []app.FeedEvent               `json:"feed"`
 	Notices   []app.Notice                  `json:"notices"`
 	CacheMB   float64                       `json:"cacheMb"`
 	Overlay   config.Overlay                `json:"overlay"`
@@ -66,7 +67,7 @@ func (s *Server) state() State {
 	raw, first := s.App.TF.Raw()
 	st := State{
 		Version: s.Version, TikFinity: s.App.TF.Status(), Tosu: s.App.Tosu.Status(), AutoGap: cfg.Queue.AutoGapSec, Queue: s.App.Queue.Snapshot(),
-		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(),
+		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(), Feed: s.App.Feed(),
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name,
 		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
 	}

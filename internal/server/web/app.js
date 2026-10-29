@@ -588,6 +588,9 @@ const SCHEMA = {
   ],
   overlay: [
     F("", "overlaylink", "OBS Browser Source URL", "URL สำหรับ Browser Source ใน OBS", "Add a Browser Source in OBS or TikTok LIVE Studio with this URL. The background is transparent.", "เพิ่ม Browser Source ใน OBS หรือ TikTok LIVE Studio ด้วย URL นี้ พื้นหลังโปร่งใส"),
+    F("overlay.feedback", "switch", "Pop-ups for viewers", "ป๊อปอัปแจ้งผู้ชม", "Shows on the overlay when a request is added or rejected (with the reason), mod commands, gifts and play results. The helper cannot reply in TikTok chat, so this is how viewers find out.", "แสดงบน overlay เมื่อคำขอถูกเพิ่มหรือถูกปฏิเสธ (พร้อมเหตุผล) คำสั่งม็อด ของขวัญ และผลการเล่น เพราะโปรแกรมตอบในแชท TikTok ไม่ได้"),
+    F("overlay.feedbackSec", "number", "Pop-up time (s)", "เวลาแสดงป๊อปอัป (วินาที)", null, null, { min: 2, max: 30 }),
+    F("overlay.lang", "seg", "Overlay language", "ภาษาของ overlay", "auto follows the browser of OBS, which is usually English.", "auto จะตามภาษาของเบราว์เซอร์ใน OBS ซึ่งมักเป็นอังกฤษ", { options: [["auto", "auto"], ["en", "English"], ["th", "ไทย"]] }),
     F("overlay.visible", "number", "Upcoming maps shown", "จำนวนแมพถัดไปที่แสดง", null, null, { min: 0, max: 20 }),
     F("overlay.showRequester", "switch", "Show requester", "แสดงผู้ขอ"),
     F("overlay.theme", "seg", "Theme", "ธีม", null, null, { options: [["pink", "pink"], ["sky", "sky"], ["mono", "mono"]] }),

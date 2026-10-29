@@ -82,6 +82,7 @@ type Rejected struct {
 	Input  string    `json:"input"`
 	Code   string    `json:"code"`
 	Detail string    `json:"detail"`
+	Short  string    `json:"short,omitempty"`
 	Test   bool      `json:"test,omitempty"`
 }
 
@@ -272,7 +273,7 @@ func (q *Queue) Reject(r Rejected) {
 }
 
 func RejectedFrom(user, input string, r *validator.Rejection) Rejected {
-	return Rejected{At: time.Now(), User: user, Input: input, Code: r.Code, Detail: r.Detail}
+	return Rejected{At: time.Now(), User: user, Input: input, Code: r.Code, Detail: r.Detail, Short: r.Short}
 }
 
 // Update runs f on the item (queued or now playing) with the lock held.
@@ -426,6 +427,18 @@ func (q *Queue) Promote(id, result string) (Item, bool) {
 		}
 	}
 	return Item{}, false
+}
+
+// Position returns the 1-based place of a waiting item (0 if not queued).
+func (q *Queue) Position(id string) int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for i, it := range q.d.Items {
+		if it.ID == id {
+			return i + 1
+		}
+	}
+	return 0
 }
 
 // Head returns the first item, if any.
