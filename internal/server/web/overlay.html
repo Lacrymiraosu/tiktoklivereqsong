@@ -99,6 +99,9 @@ const TX = {
   r_meta_error: ["couldn't check the map, try again", "ตรวจแมพไม่ได้ ลองใหม่อีกครั้ง"], r_bad_input: ["not a map ID or link", "ไม่ใช่ ID หรือลิงก์แมพ"],
   r_requests_off: ["requests are closed", "ปิดรับคำขออยู่"], r_followers_only: ["follow the stream to request", "ต้องกดติดตามก่อนถึงขอเพลงได้"],
   c_skip: ["skipped the song", "ข้ามเพลงนี้"], c_remove: ["removed a request", "ลบคำขอ"], c_on: ["opened requests", "เปิดรับคำขอแล้ว"], c_off: ["closed requests", "ปิดรับคำขอแล้ว"],
+  c_pos: ["is #{n} in the queue", "อยู่คิวที่ {n}"], c_pos_none: ["has no request in the queue", "ยังไม่มีคำขอในคิว"],
+  c_np: ["asked what's playing", "ถามว่าเพลงอะไร"], c_np_none: ["nothing is playing yet", "ยังไม่มีเพลงที่เล่นอยู่"],
+  c_vote: ["voted to skip ({n})", "โหวตข้ามเพลง ({n})"], c_voteskip: ["vote passed, skipping", "โหวตครบ ข้ามเพลงนี้"],
   gift: ["priority request!", "ได้คิวพิเศษ!"], giftCredit: ["next request gets priority", "คำขอถัดไปจะได้คิวพิเศษ"],
   res_passed: ["cleared", "ผ่าน"], res_failed: ["failed", "ตาย"], res_quit: ["quit", "ออกกลางเพลง"], resOf: ["{u}'s request", "เพลงที่ @{u} ขอ"],
 };
@@ -113,7 +116,14 @@ function toastHTML(e) {
   switch (e.kind) {
     case "added": return ["✓", who, tx("added"), `${e.stars ? star(e) : ""}${map} · ${e.pos === 1 ? tx("next") : tx("pos", { n: e.pos })}`];
     case "rejected": return ["✕", who, tx("r_" + e.code), esc(e.short || "")];
-    case "command": return ["!", who, tx("c_" + e.code), e.target ? "@" + esc(e.target) : map];
+    case "command":
+      switch (e.code) {
+        case "pos": return ["#", who, tx("c_pos", { n: e.pos }), [map, esc(e.short || "")].filter(Boolean).join(" · ")];
+        case "np": return ["♪", who, tx("c_np"), `${e.stars ? star(e) : ""}${map} · ${tx("reqBy")} @${esc(e.target)}`];
+        case "vote": return ["!", who, tx("c_vote", { n: esc(e.short) }), map];
+        case "pos_none": case "np_none": return ["!", who, tx("c_" + e.code), ""];
+      }
+      return ["!", who, tx("c_" + e.code), e.target ? "@" + esc(e.target) : map];
     case "gift": return ["★", who, tx(e.code === "credit" ? "giftCredit" : "gift"), [esc(e.short || ""), map].filter(Boolean).join(" · ")];
     case "result": return ["♪", esc(e.title), tx("res_" + e.code), `${esc(e.short || "")} · ${tx("resOf", { u: esc(e.user) })}`];
   }
