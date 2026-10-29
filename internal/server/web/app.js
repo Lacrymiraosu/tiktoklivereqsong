@@ -178,6 +178,7 @@ const T = {
   n_banned_mapper: ["Banned mapper {v} (removed {n})", "แบนแมพเปอร์ {v} แล้ว (ลบ {n} รายการ)"],
   n_skipErr: ["!skip by @{u}: {msg}", "!skip โดย @{u}: {msg}"],
   n_usedCmd: ["@{u} used {cmd}", "@{u} ใช้คำสั่ง {cmd}"],
+  n_gameDetected: ["tosu sees osu! {game} running, so Settings → osu! → Game is now {game}", "tosu เห็นว่าเปิด osu! {game} อยู่ จึงเปลี่ยน ตั้งค่า → osu! → เกม เป็น {game} ให้"],
   n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
   e_vote_skip: ["Votes to skip cannot be negative", "จำนวนโหวตข้ามเพลงติดลบไม่ได้"],
   ph_votes: ["skip votes {v}/{n}", "โหวตข้าม {v}/{n}"],
@@ -838,6 +839,7 @@ const SCHEMA = {
   ],
   osu: [
     F("osu.game", "seg", "Game", "เกม", "lazer has no Songs folder, so maps are always opened.", "lazer ไม่มีโฟลเดอร์ Songs จะใช้วิธีเปิดไฟล์เสมอ", { options: [["stable", "stable"], ["lazer", "lazer"]] }),
+    F("osu.detectGameTosu", "switch", "Detect the game with tosu", "ให้ tosu ตรวจว่าเป็นเกมไหน", "Switches between stable and lazer to match the osu! that tosu sees running.", "สลับ stable / lazer ให้ตรงกับ osu! ที่ tosu เห็นว่าเปิดอยู่"),
     F("osu.folder", "text", "osu! folder", "โฟลเดอร์ osu!", "stable: the folder with osu!.exe and Songs.", "stable: โฟลเดอร์ที่มี osu!.exe และ Songs"),
     F("osu.cacheFolder", "text", "Cache folder", "โฟลเดอร์แคช", "Relative paths are next to the exe.", "ถ้าเป็นพาธสัมพัทธ์จะอยู่ข้าง exe"),
     F("osu.downloadsFolder", "text", "Browser Downloads folder", "โฟลเดอร์ดาวน์โหลดของเบราว์เซอร์", "Watched for official osu! downloads.", "ใช้รอไฟล์ที่ดาวน์โหลดจาก osu! โดยตรง"),

@@ -373,6 +373,7 @@ func (a *App) tick(ctx context.Context) {
 // OnGame follows tosu's game state to see when the now-playing map has been
 // played through (see tosu.Tracker), and records it on the item.
 func (a *App) OnGame(g tosu.Game) {
+	a.detectGame(g.Client)
 	now, ok := a.Queue.Now()
 	a.mu.Lock()
 	if !ok {
@@ -429,6 +430,21 @@ func (a *App) OnGame(g tosu.Game) {
 		a.Say("info", "finished", map[string]string{"title": now.Artist + " - " + now.Title, "u": now.User}, "finished: %s - %s (@%s)", now.Artist, now.Title, now.User)
 	}
 	a.Wake()
+}
+
+// detectGame switches osu.game to the client tosu sees running (tosu's
+// ClientType names: stable | lazer), so the streamer does not have to.
+func (a *App) detectGame(client string) {
+	cfg := a.Cfg.Get()
+	if !cfg.Osu.DetectGame || (client != "stable" && client != "lazer") || client == cfg.Osu.Game {
+		return
+	}
+	cfg.Osu.Game = client
+	if err := a.Cfg.Set(cfg); err != nil {
+		log.Printf("switching osu! game to %s: %v", client, err)
+		return
+	}
+	a.Say("info", "gameDetected", map[string]string{"game": client}, "tosu sees osu! %s running; switched Settings → osu! → Game to %s", client, client)
 }
 
 func toResult(outcome string, s tosu.Score) *queue.Result {
