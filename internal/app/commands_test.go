@@ -207,3 +207,20 @@ func TestVoteSkip(t *testing.T) {
 		t.Errorf("votes must reset with the song: %+v", v)
 	}
 }
+
+func TestAvatarsReachFeedAndQueue(t *testing.T) {
+	a := newTestApp(t, func(c *config.Config) { c.Gifts.RequestCoins = 10 })
+	const pic = "https://p16-sign-va.tiktokcdn.com/a.jpeg"
+	a.HandleGift(tikfinity.Gift{User: "Fan", Coins: 10, Avatar: pic})
+	if f := a.Feed()[0]; f.Avatar != pic {
+		t.Errorf("gift pop-up should carry the picture: %+v", f)
+	}
+	a.command(tikfinity.Chat{User: "fan", Comment: "!pos"}, false)
+	if f := a.Feed()[0]; f.Code != "pos_none" || f.Avatar != pic {
+		t.Errorf("later pop-ups for the same viewer reuse it: %+v", f)
+	}
+	a.command(tikfinity.Chat{User: "stranger", Comment: "!pos"}, false)
+	if f := a.Feed()[0]; f.Avatar != "" {
+		t.Errorf("unknown viewers have no picture: %+v", f)
+	}
+}
