@@ -453,6 +453,7 @@ Every non-GET request must send the header `X-Osureq: 1`. Responses are JSON; ac
 | `POST /api/test` | quick add: `{"input": "<id or link>", "user": "<name>"}` → `{ok, item}` or `{ok:false, code, error}` |
 | `POST /api/simulate` | simulated chat: `{"message": "!req …", "user": "<name>"}`; `code: "ignored"` when it is not a request; `{ok, command: true}` for a chat command |
 | `POST /api/simulateGift` | `{"user": "<name>", "coins": 30}` → `{ok, earned}` (priorities earned) |
+| `POST /api/volume` | `{"volume": 0-100}` sets the master volume |
 | `POST /api/ban` | `{"kind": "user" \| "set" \| "mapper", "value": "…"}` → `{ok, removed}` |
 
 `State` fields: `version`, `tikfinity` (status), `tosu` (status incl. `game`), `autoGap`, `queue` (`items`, `now`, `history`, `rejected`),
@@ -491,6 +492,7 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | Section | Key | Default | Meaning |
 |---|---|---|---|
 | (root) | `language` | `en` | saved by the settings sheet; the dashboard language itself is per browser |
+| | `masterVolume` | `10` | Master volume (0-100 %) for every sound the dashboard plays (map previews); also the speaker button in the top bar |
 | connection | `tikfinityUrl` | `ws://127.0.0.1:21213/` | TikFinity WebSocket API (must be on this PC) |
 | | `dashboardPort` | `21280` | Dashboard/overlay port (applies after restart) |
 | | `reconnectSec` | `5` | Retry interval for TikFinity and tosu |
@@ -700,6 +702,7 @@ Read this before changing anything.
 | | `bb8e34f` | Audio preview and "open in beatmap viewer" links |
 | | `02449a6` | One-click bans from queue cards and the rejection log |
 | | `eb4b13b` | Followers-only and per-subscriber limits |
+| 1.3.4 | | Settings open as a centred dialog; master volume (default 10%) with a speaker button in the top bar |
 | 1.3.3 | | Windows resources (icon, name, description, version, `asInvoker` manifest) and no symbol stripping, so Windows treats the exe as a normal app |
 | 1.3.2 | `f5298cf`, `a2e703d` | UX/UI audit fixes: narrow layout, Info box, set mode order, now-playing reason, Thai text; compact status, folded test panel, card "⋯" menu, calmer overlay |
 | 1.3.1 | | Back to a console app: the CMD window shows the log (titled `osureq <version>`); no tray icon. Closing the window stops cleanly |

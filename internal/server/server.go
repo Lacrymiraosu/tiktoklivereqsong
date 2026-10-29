@@ -58,6 +58,7 @@ type State struct {
 	Lang           string                        `json:"lang"`
 	PlayMode       string                        `json:"playMode"`
 	ViewerURL      string                        `json:"viewerUrl"`
+	Volume         int                           `json:"masterVolume"`
 	BlacklistUsers []string                      `json:"blacklistUsers"`
 	DryRun         bool                          `json:"dryRun"`
 	Raw            []tikfinity.RawEvent          `json:"raw,omitempty"`
@@ -72,7 +73,7 @@ func (s *Server) state() State {
 		Version: s.Version, TikFinity: s.App.TF.Status(), Tosu: s.App.Tosu.Status(), AutoGap: cfg.Queue.AutoGapSec, Queue: s.App.Queue.Snapshot(),
 		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(), Feed: s.App.Feed(),
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name,
-		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
+		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, Volume: cfg.MasterVolume, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
 	}
 	if s.Extra != nil {
 		st.Extra = s.Extra()
@@ -122,6 +123,7 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/simulate", s.simulate)
 	mux.HandleFunc("POST /api/simulateGift", s.simulateGift)
 	mux.HandleFunc("POST /api/ban", s.ban)
+	mux.HandleFunc("POST /api/volume", s.volume)
 	return guard(port, mux)
 }
 
@@ -337,6 +339,20 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(w, map[string]any{"ok": true, "item": it})
 	}
+}
+
+// volume sets the master volume: {"volume": 0-100}.
+func (s *Server) volume(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Volume int `json:"volume"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 256)).Decode(&body) != nil {
+		httpErr(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	err := s.App.SetVolume(body.Volume)
+	s.Push()
+	result(w, err)
 }
 
 // ban blacklists a user, beatmapset or mapper and drops matching requests.

@@ -60,6 +60,8 @@ const T = {
   hintQuick: ["Adds a map straight to the queue. Only map rules apply (no per-user limit or cooldown).", "เพิ่มแมพเข้าคิวทันที ใช้แค่กฎแมพ (ไม่นับจำนวนต่อคนและคูลดาวน์)"],
   hintDry: [" Dry run is on: Next and Play move the queue but never open osu! or copy into Songs.", " เปิดโหมดทดลองอยู่: กด ถัดไป/เล่น จะเลื่อนคิวแต่ไม่เปิด osu! และไม่คัดลอกเข้า Songs"],
   quit: ["Quit osureq", "ออกจาก osureq"],
+  masterVolume: ["Master volume", "ระดับเสียงหลัก"], mute: ["Mute", "ปิดเสียง"], unmute: ["Unmute", "เปิดเสียง"],
+  volHint: ["Master volume for every sound the dashboard plays (map previews). Saved for all browsers.", "ระดับเสียงหลักของทุกเสียงที่แดชบอร์ดเล่น (ตัวอย่างเพลง) บันทึกไว้ใช้ทุกเบราว์เซอร์"],
   required: ["required", "จำเป็น"],
   ban: ["Ban…", "แบน…"], more: ["More…", "เพิ่มเติม…"],
   setupTitle: ["Before you go live", "ก่อนเริ่มไลฟ์"], hideDetails: ["hide details", "ซ่อนรายละเอียด"], showDetails: ["show details", "แสดงรายละเอียด"], banUser: ["Ban @{u}", "แบน @{u}"], banMap: ["Ban this map", "แบนแมพนี้"], banMapper: ["Ban mapper {m}", "แบนแมพเปอร์ {m}"],
@@ -232,6 +234,7 @@ function render() {
   $("#tfPill").title = tf.error || "";
   $("#logo").classList.toggle("beat", tf.level === "green" && S.requests);
   $("#reqSw").checked = S.requests;
+  if (!volEditing) showVolume(S.masterVolume ?? 10);
   $("#dryRunSw").checked = S.dryRun;
   $("#dryPill").hidden = !S.dryRun;
   renderTestHint();
@@ -317,7 +320,7 @@ function tagsFor(it) {
 /* ---------- audio preview & beatmap viewer ---------- */
 const preview = new Audio();
 let previewSet = 0;
-try { preview.volume = Math.min(1, Math.max(0, +(localStorage.getItem("osureq.pvVol") || 0.5))); } catch { preview.volume = 0.5; }
+preview.volume = 0.1; // replaced by the master volume (default 10%) on the first state push
 function syncPreview() {
   document.querySelectorAll("[data-pv]").forEach(b => {
     const on = +b.dataset.pv === previewSet && !preview.paused;
@@ -625,6 +628,48 @@ $("#quitBtn").addEventListener("click", async () => {
 });
 $("#rmLastBtn").addEventListener("click", () => act("/api/action/removeLast"));
 $("#clearBtn").addEventListener("click", () => { if (confirm(t("confirmClear"))) act("/api/action/clear"); });
+/* ---------- master volume ---------- */
+// One volume (0-100, default 10%) for every sound the dashboard plays. It is
+// stored in config.json; the slider applies it at once and saves shortly after.
+const VOL_ON = '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/>';
+const VOL_LOW = '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6"/>';
+const VOL_OFF = '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l5 6M22 9l-5 6"/>';
+let volEditing = false, volSaveT, volBeforeMute = 10;
+function showVolume(v) {
+  v = Math.max(0, Math.min(100, Math.round(v)));
+  preview.volume = v / 100;
+  $("#volTxt").textContent = v + "%";
+  $("#volOut").textContent = v + "%";
+  $("#volRange").value = v;
+  const ico = v === 0 ? VOL_OFF : v < 50 ? VOL_LOW : VOL_ON;
+  $("#volIco").innerHTML = ico;
+  $("#volIco2").innerHTML = ico;
+  $("#volMute").setAttribute("aria-label", t(v === 0 ? "unmute" : "mute"));
+  $("#volBtn").title = t("masterVolume") + " " + v + "%";
+}
+function setVolume(v) {
+  showVolume(v);
+  volEditing = true;
+  clearTimeout(volSaveT);
+  volSaveT = setTimeout(async () => {
+    await api("POST", "/api/volume", { volume: +$("#volRange").value });
+    volEditing = false;
+  }, 300);
+}
+$("#volBtn").addEventListener("click", e => {
+  e.stopPropagation();
+  const pop = $("#volPop");
+  pop.hidden = !pop.hidden;
+  $("#volBtn").setAttribute("aria-expanded", String(!pop.hidden));
+});
+$("#volRange").addEventListener("input", e => setVolume(+e.target.value));
+$("#volMute").addEventListener("click", () => {
+  const v = +$("#volRange").value;
+  if (v > 0) { volBeforeMute = v; setVolume(0); } else setVolume(volBeforeMute || 10);
+});
+document.addEventListener("click", e => { if (!e.target.closest(".volwrap")) { $("#volPop").hidden = true; $("#volBtn").setAttribute("aria-expanded", "false"); } });
+showVolume(10);
+
 /* ---------- test panel ---------- */
 let testMode = "chat";
 try { testMode = localStorage.getItem("osureq.testMode") || "chat"; } catch {}
@@ -700,6 +745,7 @@ const SCHEMA = {
     F("osu.folder", "text", "osu! folder", "โฟลเดอร์ osu!", "stable: the folder with osu!.exe and Songs.", "stable: โฟลเดอร์ที่มี osu!.exe และ Songs"),
     F("osu.cacheFolder", "text", "Cache folder", "โฟลเดอร์แคช", "Relative paths are next to the exe.", "ถ้าเป็นพาธสัมพัทธ์จะอยู่ข้าง exe"),
     F("osu.downloadsFolder", "text", "Browser Downloads folder", "โฟลเดอร์ดาวน์โหลดของเบราว์เซอร์", "Watched for official osu! downloads.", "ใช้รอไฟล์ที่ดาวน์โหลดจาก osu! โดยตรง"),
+    F("masterVolume", "number", "Master volume (%)", "ระดับเสียงหลัก (%)", "Every sound the dashboard plays (map previews). Default 10%. Also on the speaker button at the top.", "ทุกเสียงที่แดชบอร์ดเล่น (ตัวอย่างเพลง) ค่าเริ่มต้น 10% ปรับได้ที่ปุ่มลำโพงด้านบนด้วย", { min: 0, max: 100 }),
     F("osu.viewerUrl", "text", "Beatmap viewer URL", "URL ของ beatmap viewer", "Queue cards get a \"viewer ↗\" link to ?s={set}&b={map} on this site. Empty hides it.", "การ์ดในคิวจะมีลิงก์ \"viewer ↗\" ไปที่ ?s={set}&b={map} ของเว็บนี้ เว้นว่างเพื่อซ่อน"),
     F("osu.useOsuDb", "switch", "Skip maps already in osu!", "ข้ามแมพที่มีใน osu! แล้ว", "stable only: reads osu!.db and opens osu://b/{id} instead of downloading. Best effort.", "เฉพาะ stable: อ่าน osu!.db แล้วเปิด osu://b/{id} แทนการดาวน์โหลด"),
   ],

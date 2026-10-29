@@ -134,26 +134,29 @@ type Test struct {
 }
 
 type Config struct {
-	Language   string     `json:"language"` // en | th
-	Connection Connection `json:"connection"`
-	Osu        Osu        `json:"osu"`
-	Command    Command    `json:"command"`
-	Rules      Rules      `json:"rules"`
-	Queue      Queue      `json:"queue"`
-	Download   Download   `json:"download"`
-	MD5        MD5        `json:"md5"`
-	Import     Import     `json:"import"`
-	Overlay    Overlay    `json:"overlay"`
-	Hotkeys    Hotkeys    `json:"hotkeys"`
-	Test       Test       `json:"test"`
-	Gifts      Gifts      `json:"gifts"`
+	Language string `json:"language"` // en | th
+	// MasterVolume (0-100) scales every sound the dashboard plays (map previews).
+	MasterVolume int        `json:"masterVolume"`
+	Connection   Connection `json:"connection"`
+	Osu          Osu        `json:"osu"`
+	Command      Command    `json:"command"`
+	Rules        Rules      `json:"rules"`
+	Queue        Queue      `json:"queue"`
+	Download     Download   `json:"download"`
+	MD5          MD5        `json:"md5"`
+	Import       Import     `json:"import"`
+	Overlay      Overlay    `json:"overlay"`
+	Hotkeys      Hotkeys    `json:"hotkeys"`
+	Test         Test       `json:"test"`
+	Gifts        Gifts      `json:"gifts"`
 }
 
 func Default() Config {
 	home, _ := os.UserHomeDir()
 	local := os.Getenv("LOCALAPPDATA")
 	return Config{
-		Language: "en",
+		Language:     "en",
+		MasterVolume: 10,
 		Connection: Connection{
 			TikFinityURL:  "ws://127.0.0.1:21213/",
 			DashboardPort: 21280,
@@ -200,6 +203,9 @@ var AllowedHosts = []string{"catboy.best", "osu.direct", "osu.ppy.sh"}
 func (c *Config) Validate() error {
 	var errs []string
 	add := func(f string, a ...any) { errs = append(errs, fmt.Sprintf(f, a...)) }
+	if c.MasterVolume < 0 || c.MasterVolume > 100 {
+		add("master volume must be 0-100")
+	}
 	if p := c.Connection.DashboardPort; p < 1024 || p > 65535 {
 		add("dashboard port must be 1024-65535")
 	}

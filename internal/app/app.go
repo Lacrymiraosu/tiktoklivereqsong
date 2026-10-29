@@ -719,6 +719,13 @@ func (a *App) ClearTest() int {
 	return len(ids)
 }
 
+// SetVolume stores the dashboard's master volume (0-100).
+func (a *App) SetVolume(v int) error {
+	c := a.Cfg.Get()
+	c.MasterVolume = max(0, min(100, v))
+	return a.Cfg.Set(c)
+}
+
 func (a *App) ToggleDryRun() bool {
 	c := a.Cfg.Get()
 	c.Test.DryRun = !c.Test.DryRun
