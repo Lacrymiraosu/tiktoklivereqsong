@@ -21,8 +21,13 @@ if (-not $SkipTests) {
 
 $env:GOOS = "windows"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"
 New-Item -ItemType Directory -Force dist | Out-Null
+# Windows resources (icon, version info, manifest) so Windows sees a named,
+# described app instead of an anonymous binary.
+go run ./tools/winres -version $Version
+if ($LASTEXITCODE) { exit $LASTEXITCODE }
 # A console app on purpose: its CMD window shows the log while streaming.
-go build -trimpath -ldflags "-s -w -X main.version=$Version" -o dist\osureq.exe .
+# No -s -w: stripped Go binaries are flagged by antivirus heuristics more often.
+go build -trimpath -ldflags "-X main.version=$Version" -o dist\osureq.exe .
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
 $size = (Get-Item dist\osureq.exe).Length / 1MB
