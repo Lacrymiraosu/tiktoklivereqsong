@@ -1,7 +1,8 @@
 # Every push and pull request: vet, test and build osureq.exe (kept as a
 # workflow artifact for 14 days).
 # A tag v1.2.3: the same build with version 1.2.3, published as a GitHub
-# release with osureq-1.2.3-windows-x64.zip and its SHA-256.
+# release with osureq-1.2.3-windows-x64.zip (exe, LICENSE and third-party
+# licenses) and its SHA-256.
 name: build
 
 on:
@@ -54,7 +55,7 @@ jobs:
         id: pkg
         run: |
           $name = "osureq-${{ steps.ver.outputs.version }}-windows-x64".Replace("+", "-")
-          Compress-Archive -Path dist\osureq.exe -DestinationPath "$name.zip"
+          Compress-Archive -Path dist\osureq.exe, LICENSE, THIRD_PARTY_LICENSES.txt -DestinationPath "$name.zip"
           $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
           "$hash  $name.zip" | Out-File -Encoding ascii "$name.zip.sha256"
           "name=$name" >> $env:GITHUB_OUTPUT

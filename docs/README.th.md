@@ -115,7 +115,7 @@ go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
   git push origin v1.3.7
   ```
 
-  GitHub จะ build ด้วยเลขเวอร์ชันจาก tag แล้วสร้าง Release พร้อม `osureq-<เวอร์ชัน>-windows-x64.zip` และไฟล์ `.sha256`
+  GitHub จะ build ด้วยเลขเวอร์ชันจาก tag แล้วสร้าง Release พร้อม `osureq-<เวอร์ชัน>-windows-x64.zip` (มี exe, `LICENSE` และ `THIRD_PARTY_LICENSES.txt`) และไฟล์ `.sha256`
 
 ## เครดิต
 
@@ -128,3 +128,8 @@ go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
 * ฟอนต์: [Varela Round](https://fonts.google.com/specimen/Varela+Round) และ [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) จาก Google Fonts
 
 osureq เป็นโปรเจกต์ของแฟนเกม ไม่มีส่วนเกี่ยวข้องกับ ppy, TikTok, TikFinity หรือ tosu
+
+## License
+
+[MIT](../LICENSE) © 2026 kikinomae ส่วน license ของโค้ดภายนอกที่ถูก build รวมไว้ใน `osureq.exe` (Go standard library,
+`golang.org/x/sys` และ `coder/websocket`) อยู่ใน [THIRD_PARTY_LICENSES.txt](../THIRD_PARTY_LICENSES.txt)

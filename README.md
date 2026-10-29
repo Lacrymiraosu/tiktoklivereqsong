@@ -109,7 +109,7 @@ go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
   git push origin v1.3.7
   ```
 
-  GitHub builds with the tag's version and publishes a release with `osureq-<version>-windows-x64.zip` and its `.sha256`.
+  GitHub builds with the tag's version and publishes a release with `osureq-<version>-windows-x64.zip` (the exe, `LICENSE` and `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
 
 ## Credits
 
@@ -122,3 +122,8 @@ go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
 * Fonts: [Varela Round](https://fonts.google.com/specimen/Varela+Round) and [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) from Google Fonts
 
 osureq is a fan project and is not affiliated with ppy, TikTok, TikFinity or tosu.
+
+## License
+
+[MIT](LICENSE) © 2026 kikinomae. The licenses of the third-party code built into `osureq.exe` (the Go standard library,
+`golang.org/x/sys` and `coder/websocket`) are in [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt).
