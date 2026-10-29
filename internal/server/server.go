@@ -31,6 +31,7 @@ type Server struct {
 	App     *app.App
 	Version string
 	Extra   func() map[string]any // platform info (hotkey errors, paths)
+	Quit    func()                // stops the helper (dashboard's Quit button)
 
 	mu      sync.Mutex
 	clients map[chan []byte]bool
@@ -242,6 +243,11 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 		cfg := a.Cfg.Get()
 		n := a.DL.Cleanup(cfg.Download.CacheLimitMB, a.Queue.Files())
 		a.Notify("info", "cache cleanup removed %d file(s)", n)
+	case "quit":
+		if s.Quit != nil {
+			a.Notify("info", "quit from the dashboard")
+			go func() { time.Sleep(300 * time.Millisecond); s.Quit() }()
+		}
 	case "toggleDryRun":
 		a.ToggleDryRun()
 	case "clearTest":

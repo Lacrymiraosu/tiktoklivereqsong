@@ -59,6 +59,10 @@ const T = {
   hintChat: ["Sends the message as if @user typed it in TikTok chat: command, requests on/off, per-user limit, cooldown and every map rule apply. Works offline. A bare ID or link gets {cmd} added.", "ส่งข้อความเหมือน @ผู้ใช้ พิมพ์ในแชท TikTok ใช้กฎทั้งหมด (คำสั่ง เปิด/ปิดรับ จำนวนต่อคน คูลดาวน์ กฎแมพ) ใช้ได้แม้ไม่ได้ไลฟ์ ถ้าพิมพ์แค่ ID หรือลิงก์จะเติม {cmd} ให้"],
   hintQuick: ["Adds a map straight to the queue. Only map rules apply (no per-user limit or cooldown).", "เพิ่มแมพเข้าคิวทันที ใช้แค่กฎแมพ (ไม่นับจำนวนต่อคนและคูลดาวน์)"],
   hintDry: [" Dry run is on: Next and Play move the queue but never open osu! or copy into Songs.", " เปิดโหมดทดลองอยู่: กด ถัดไป/เล่น จะเลื่อนคิวแต่ไม่เปิด osu! และไม่คัดลอกเข้า Songs"],
+  quit: ["Quit osureq", "ออกจาก osureq"],
+  confirmQuit: ["Stop osureq? Requests will not be taken until you start it again.", "ปิด osureq? จะไม่รับคำขอจนกว่าจะเปิดใหม่"],
+  quitDone: ["osureq stopped. You can close this tab.", "ปิด osureq แล้ว ปิดแท็บนี้ได้เลย"],
+  trayHint: ["osureq runs in the system tray (bottom-right, next to the clock). Right-click the pink icon for options.", "osureq ทำงานอยู่ที่ถาดระบบ (มุมขวาล่างข้างนาฬิกา) คลิกขวาที่ไอคอนสีชมพูเพื่อดูเมนู"],
   cmdSent: ["Command sent (see Activity)", "ส่งคำสั่งแล้ว (ดูที่ กิจกรรม)"],
   ignored: ["Ignored: real chat would not treat this as a request", "ไม่ใช่คำขอ: แชทจริงจะไม่นับข้อความนี้"],
   confirmClearTest: ["Remove all test requests, their history, rejections and cooldowns?", "ลบคำขอทดสอบทั้งหมด รวมประวัติ การปฏิเสธ และคูลดาวน์ที่เกิดจากการทดสอบ?"],
@@ -476,7 +480,7 @@ function copy(text) {
 }
 
 /* ---------- live connection ---------- */
-let ws, wsRetry = 0, offlineT;
+let ws, wsRetry = 0, offlineT, quitting = false;
 function connect() {
   ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
   ws.onopen = () => { wsRetry = 0; clearTimeout(offlineT); };
@@ -489,7 +493,7 @@ function connect() {
     render();
   };
   ws.onclose = () => {
-    offlineT = setTimeout(() => toast(t("offline"), true), 3000);
+    if (!quitting) offlineT = setTimeout(() => toast(t("offline"), true), 3000);
     setTimeout(connect, Math.min(5000, 500 * 2 ** wsRetry++));
   };
 }
@@ -497,6 +501,12 @@ function connect() {
 /* ---------- top bar & forms ---------- */
 $("#reqSw").addEventListener("change", () => act("/api/action/toggleRequests"));
 $("#langSel").addEventListener("change", e => { LANG = e.target.value; langPicked = true; try { localStorage.setItem("osureq.lang", LANG); } catch {} applyLang(); render(); });
+$("#quitBtn").addEventListener("click", async () => {
+  if (!confirm(t("confirmQuit"))) return;
+  quitting = true;
+  await act("/api/action/quit");
+  toast(t("quitDone"));
+});
 $("#rmLastBtn").addEventListener("click", () => act("/api/action/removeLast"));
 $("#clearBtn").addEventListener("click", () => { if (confirm(t("confirmClear"))) act("/api/action/clear"); });
 /* ---------- test panel ---------- */
