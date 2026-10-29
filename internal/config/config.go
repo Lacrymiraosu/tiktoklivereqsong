@@ -40,6 +40,7 @@ type Command struct {
 	Aliases      []string `json:"aliases"`
 	Enabled      bool     `json:"enabled"`
 	BareNumberAs string   `json:"bareNumberAs"` // beatmap | set
+	Search       bool     `json:"searchByName"` // "!req <song name>" searches catboy.best
 
 	// Mod commands. An empty name turns that command off.
 	Mods            []string `json:"mods"`            // TikTok users who may use mod commands
@@ -209,7 +210,7 @@ func Default() Config {
 			UseOsuDB:     false,
 			ViewerURL:    "https://osu-beatmap-viewer.vercel.app/",
 		},
-		Command: Command{Name: "!req", Aliases: []string{"!request", "!r"}, Enabled: true, BareNumberAs: "beatmap",
+		Command: Command{Name: "!req", Aliases: []string{"!request", "!r"}, Enabled: true, BareNumberAs: "beatmap", Search: true,
 			TrustTikTokMods: true, SkipCmd: "!skip", RemoveCmd: "!remove", OpenCmd: "!reqon", CloseCmd: "!reqoff",
 			PosCmd: "!pos", NowCmd: "!np", VoteSkipCmd: "!voteskip"},
 		Rules: Rules{

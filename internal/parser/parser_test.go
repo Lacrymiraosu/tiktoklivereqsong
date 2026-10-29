@@ -1,6 +1,9 @@
 package parser
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 var opts = Options{Command: "!req", Aliases: []string{"!r", "!request"}, BareNumberAs: "beatmap"}
 
@@ -85,5 +88,46 @@ func TestCustomCommand(t *testing.T) {
 	}
 	if _, ok := Parse("!osu 1", o); !ok {
 		t.Error("custom command should match")
+	}
+}
+
+func TestSearchQueries(t *testing.T) {
+	o := Options{Command: "!req", BareNumberAs: "beatmap", Search: true}
+	cases := []struct {
+		in    string
+		kind  Kind
+		query string
+	}{
+		{"!req freedom dive", KindSearch, "freedom dive"},
+		{"!req   Blue  Zenith  ", KindSearch, "Blue Zenith"},
+		{"!req u's Snow Halation", KindSearch, "u's Snow Halation"},
+		{"!req รักแรกพบ", KindSearch, "รักแรกพบ"},
+		{"!req 2096297 please", KindBeatmap, ""}, // an ID first still wins
+		{"!req osu.ppy.sh/b/123 thanks", KindBeatmap, ""},
+	}
+	for _, c := range cases {
+		r, ok := Parse(c.in, o)
+		if !ok || r.Kind != c.kind || r.Query != c.query {
+			t.Errorf("%q: got %+v ok=%v, want %v %q", c.in, r, ok, c.kind, c.query)
+		}
+	}
+	for _, in := range []string{
+		"!req ab",                         // too short
+		"!req https://youtube.com/watch",  // other site
+		"!req youtube.com/watch?v=x",      // other site without scheme
+		"!req www.example.com",            // a web address
+		"!req osu.ppy.sh/users/2 my page", // osu! link that is not a map
+		"!req",
+	} {
+		if r, ok := Parse(in, o); ok {
+			t.Errorf("%q should not be a request: %+v", in, r)
+		}
+	}
+	if _, ok := Parse("!req freedom dive", Options{Command: "!req"}); ok {
+		t.Error("with search off, names are ignored as before")
+	}
+	long := "!req " + strings.Repeat("a", 200)
+	if r, _ := Parse(long, o); len(r.Query) != MaxQuery {
+		t.Errorf("long query should be cut to %d, got %d", MaxQuery, len(r.Query))
 	}
 }

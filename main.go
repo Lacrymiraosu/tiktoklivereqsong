@@ -24,6 +24,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/platform"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/search"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/server"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
@@ -89,6 +90,7 @@ func main() {
 		})
 
 	a := app.New(store, q, osumeta.New(), dl, im, tf, platform.ShellOpen)
+	a.Search = search.New()
 	tf.OnChat = a.HandleChat
 	tf.OnGift = a.HandleGift
 	srv := server.New(a, version)
