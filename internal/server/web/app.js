@@ -1001,6 +1001,7 @@ const SCHEMA = {
     F("overlay.lang", "seg", "Overlay language", "ภาษาของ overlay", "auto follows the browser of OBS, which is usually English.", "auto จะตามภาษาของเบราว์เซอร์ใน OBS ซึ่งมักเป็นอังกฤษ", { options: [["auto", "auto"], ["en", "English"], ["th", "ไทย"]] }),
     F("overlay.visible", "number", "Upcoming maps shown", "จำนวนแมพถัดไปที่แสดง", null, null, { min: 0, max: 20 }),
     F("overlay.showRequester", "switch", "Show requester", "แสดงผู้ขอ"),
+    F("overlay.avatars", "switch", "Viewers' pictures", "รูปโปรไฟล์ผู้ชม", "Shows the TikTok profile picture next to the name in pop-ups and now playing, when TikFinity sends it.", "แสดงรูปโปรไฟล์ TikTok ข้างชื่อในป๊อปอัปและเพลงที่กำลังเล่น ถ้า TikFinity ส่งมา"),
     F("overlay.theme", "seg", "Theme", "ธีม", null, null, { options: [["pink", "pink"], ["sky", "sky"], ["mono", "mono"]] }),
     F("overlay.scale", "number", "Size (%)", "ขนาด (%)", null, null, { min: 50, max: 250 }),
     F("overlay.position", "select", "Position", "ตำแหน่ง", null, null, { options: [["top-left", "top left"], ["top-right", "top right"], ["bottom-left", "bottom left"], ["bottom-right", "bottom right"]] }),

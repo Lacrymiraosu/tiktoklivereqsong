@@ -27,6 +27,7 @@ func (a *App) SimulateGift(user string, coins int) (tokens, requests int, err er
 // gift counts the coins toward paid requests (gifts.requestCoins) and toward
 // priority (gifts.enabled), each on its own.
 func (a *App) gift(g tikfinity.Gift, test bool) (earned, requests int) {
+	a.rememberAvatar(g.User, g.Avatar)
 	cfg := a.Cfg.Get().Gifts
 	now := time.Now()
 	ttl := time.Duration(cfg.CreditMinutes) * time.Minute
