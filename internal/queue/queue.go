@@ -484,6 +484,20 @@ func (q *Queue) Position(id string) int {
 	return 0
 }
 
+// ByUser returns copies of user's waiting requests with their 1-based
+// positions, nearest first.
+func (q *Queue) ByUser(user string) (items []Item, pos []int) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for i, it := range q.d.Items {
+		if strings.EqualFold(it.User, user) {
+			items = append(items, copyItem(it))
+			pos = append(pos, i+1)
+		}
+	}
+	return items, pos
+}
+
 // Head returns the first item, if any.
 func (q *Queue) Head() (Item, bool) {
 	q.mu.Lock()
