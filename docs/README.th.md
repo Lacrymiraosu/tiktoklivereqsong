@@ -119,15 +119,18 @@ go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
 
 ## เครดิต
 
-* [osu!](https://osu.ppy.sh) โดย ppy: เกม และข้อมูลแมพจาก osu.ppy.sh
+ข้อมูลแมพ ภาพปก และตัวอย่างเพลงมาจาก osu! (ppy Pty Ltd) แมพเป็นของผู้สร้างแมพ (mapper) และเพลงเป็นของศิลปินเจ้าของเพลง
+
+* [osu!](https://osu.ppy.sh) โดย ppy Pty Ltd: ตัวเกม
 * [TikFinity](https://tikfinity.zerody.one/) โดย zerody: ส่งแชทและของขวัญจาก TikTok LIVE
 * [tosu](https://github.com/tosuapp/tosu): อ่านสถานะเกม osu! แบบสด
-* Mirror ดาวน์โหลดแมพ: [catboy.best](https://catboy.best) และ [osu.direct](https://osu.direct)
+* Mirror ดาวน์โหลดแมพ: [catboy.best](https://catboy.best) และ [osu.direct](https://osu.direct) ใช้ดาวน์โหลดไฟล์ `.osz`
 * ไลบรารี Go: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys),
   [tc-hib/winres](https://github.com/tc-hib/winres), [nfnt/resize](https://github.com/nfnt/resize), [golang.org/x/image](https://pkg.go.dev/golang.org/x/image)
 * ฟอนต์: [Varela Round](https://fonts.google.com/specimen/Varela+Round) และ [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) จาก Google Fonts
 
-osureq เป็นโปรเจกต์ของแฟนเกม ไม่มีส่วนเกี่ยวข้องกับ ppy, TikTok, TikFinity หรือ tosu
+osureq เป็นโปรเจกต์ของแฟนเกม ไม่มีส่วนเกี่ยวข้องและไม่ได้รับการรับรองจาก ppy Pty Ltd, TikTok, TikFinity หรือ tosu
+osu! เป็นเครื่องหมายการค้าของ ppy Pty Ltd และ TikTok เป็นเครื่องหมายการค้าของเจ้าของ
 
 ## License
 

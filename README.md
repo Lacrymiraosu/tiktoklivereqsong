@@ -113,15 +113,18 @@ go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
 
 ## Credits
 
-* [osu!](https://osu.ppy.sh) by ppy: the game, and beatmap data from osu.ppy.sh
+Beatmap data, covers and audio previews come from osu! (ppy Pty Ltd). Beatmaps belong to their mappers, music to its artists.
+
+* [osu!](https://osu.ppy.sh) by ppy Pty Ltd: the game
 * [TikFinity](https://tikfinity.zerody.one/) by zerody: chat and gifts from TikTok LIVE
 * [tosu](https://github.com/tosuapp/tosu): live osu! game state
-* Beatmap mirrors: [catboy.best](https://catboy.best) and [osu.direct](https://osu.direct)
+* Beatmap mirrors: [catboy.best](https://catboy.best) and [osu.direct](https://osu.direct), where the `.osz` files are downloaded from
 * Go libraries: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys),
   [tc-hib/winres](https://github.com/tc-hib/winres), [nfnt/resize](https://github.com/nfnt/resize), [golang.org/x/image](https://pkg.go.dev/golang.org/x/image)
 * Fonts: [Varela Round](https://fonts.google.com/specimen/Varela+Round) and [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) from Google Fonts
 
-osureq is a fan project and is not affiliated with ppy, TikTok, TikFinity or tosu.
+osureq is a fan project and is not affiliated with or endorsed by ppy Pty Ltd, TikTok, TikFinity or tosu.
+osu! is a trademark of ppy Pty Ltd. TikTok is a trademark of its respective owner.
 
 ## License
 
