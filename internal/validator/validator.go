@@ -44,6 +44,7 @@ type State struct {
 	UserActive  int               // requests by this user still waiting (not the one playing)
 	LastRequest time.Time         // last accepted request by this user
 	QueuedSets  map[int]bool      // sets waiting or playing
+	PlayingSet  int               // set being played right now (0 = none)
 	PlayedAt    map[int]time.Time // set id -> last time it was played
 }
 
@@ -111,6 +112,9 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 	if !s.Partial && len(rules.Statuses) > 0 && !contains(rules.Statuses, s.Status) {
 		return nil, reject("status", "status %q is not allowed", s.Status).with("%s", s.Status)
 	}
+	if st.PlayingSet == s.ID {
+		return nil, reject("now_playing", "%s - %s is being played right now", s.Artist, s.Title)
+	}
 	if st.QueuedSets[s.ID] {
 		return nil, reject("duplicate", "%s - %s is already in the queue", s.Artist, s.Title)
 	}
@@ -135,24 +139,20 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 		return d, nil
 	}
 
-	// Whole set: prefer the set's main mode (the one most of its diffs use),
-	// so an osu! set with one guest taiko diff does not pick the taiko one.
-	count := map[string]int{}
-	for _, d := range s.Diffs {
-		count[d.Mode]++
-	}
-	mainMode := ""
-	for m, n := range count {
-		if n > count[mainMode] || n == count[mainMode] && m == "osu" {
-			mainMode = m
-		}
+	// Whole set: try the modes in the order of the allowed-modes setting
+	// (osu! first by default) and take the hardest fitting diff of the first
+	// mode that has one. Counting diffs per mode is not enough: FREEDOM DiVE
+	// has more taiko guest diffs than osu! ones.
+	order := rules.Modes
+	if len(order) == 0 {
+		order = []string{"osu", "taiko", "fruits", "mania"}
 	}
 	var best *osumeta.Diff
 	var first *Rejection
-	for _, onlyMain := range []bool{true, false} {
+	for _, mode := range order {
 		for i := range s.Diffs {
 			d := &s.Diffs[i]
-			if onlyMain && d.Mode != mainMode {
+			if !strings.EqualFold(d.Mode, mode) {
 				continue
 			}
 			if r := checkDiff(d, d.Mode, rules); r != nil {
@@ -167,6 +167,14 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 		}
 		if best != nil {
 			break
+		}
+	}
+	if first == nil && best == nil {
+		for i := range s.Diffs { // only modes that are not allowed: report why
+			if r := checkDiff(&s.Diffs[i], s.Diffs[i].Mode, rules); r != nil {
+				first = r
+				break
+			}
 		}
 	}
 	if best == nil {

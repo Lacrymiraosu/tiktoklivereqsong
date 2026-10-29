@@ -245,10 +245,10 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 	case "cleanup":
 		cfg := a.Cfg.Get()
 		n := a.DL.Cleanup(cfg.Download.CacheLimitMB, a.Queue.Files())
-		a.Notify("info", "cache cleanup removed %d file(s)", n)
+		a.Say("info", "cacheCleanup", map[string]string{"n": strconv.Itoa(n)}, "cache cleanup removed %d file(s)", n)
 	case "quit":
 		if s.Quit != nil {
-			a.Notify("info", "quit from the dashboard")
+			a.Say("info", "quit", nil, "quit from the dashboard")
 			go func() { time.Sleep(300 * time.Millisecond); s.Quit() }()
 		}
 	case "toggleDryRun":
@@ -309,7 +309,7 @@ func (s *Server) test(w http.ResponseWriter, r *http.Request) {
 	it, rej := s.App.TestRequest(body.User, body.Input)
 	s.Push()
 	if rej != nil {
-		writeJSON(w, map[string]any{"ok": false, "code": rej.Code, "error": rej.Detail})
+		writeJSON(w, map[string]any{"ok": false, "code": rej.Code, "short": rej.Short, "error": rej.Detail})
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "item": it})
@@ -331,7 +331,7 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 	case !matched:
 		writeJSON(w, map[string]any{"ok": false, "code": "ignored", "error": "not a request: real chat would ignore this message"})
 	case rej != nil:
-		writeJSON(w, map[string]any{"ok": false, "code": rej.Code, "error": rej.Detail})
+		writeJSON(w, map[string]any{"ok": false, "code": rej.Code, "short": rej.Short, "error": rej.Detail})
 	case it == nil:
 		writeJSON(w, map[string]any{"ok": true, "command": true}) // a chat command, not a request
 	default:

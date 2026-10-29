@@ -59,7 +59,7 @@ func (a *App) command(ch tikfinity.Chat, test bool) bool {
 		}
 		go func() {
 			if err := a.Skip(""); err != nil {
-				a.Notify("warn", "!skip by @%s: %v", ch.User, err)
+				a.Say("warn", "skipErr", map[string]string{"u": ch.User, "msg": err.Error()}, "!skip by @%s: %v", ch.User, err)
 			}
 		}()
 		ev.Code, ev.Title, ev.Artist, ev.Version = "skip", now.Title, now.Artist, now.Version
@@ -85,6 +85,6 @@ func (a *App) command(ch tikfinity.Chat, test bool) bool {
 		return false
 	}
 	a.emit(ev)
-	a.Notify("info", "@%s used %s", ch.User, f[0])
+	a.Say("info", "usedCmd", map[string]string{"u": ch.User, "cmd": f[0]}, "@%s used %s", ch.User, f[0])
 	return true
 }

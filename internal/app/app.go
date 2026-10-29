@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -53,7 +54,11 @@ type App struct {
 type Notice struct {
 	At   time.Time `json:"at"`
 	Kind string    `json:"kind"` // info | warn | error
-	Text string    `json:"text"`
+	Text string    `json:"text"` // English, also written to the log
+	// Key and Vars let the dashboard show the notice in its own language
+	// (T["n_"+key] with {var} placeholders); Text is the fallback.
+	Key  string            `json:"key,omitempty"`
+	Vars map[string]string `json:"vars,omitempty"`
 }
 
 func New(cfg *config.Store, q *queue.Queue, meta *osumeta.Client, dl *downloader.Downloader, im *importer.Importer, tf *tikfinity.Client, openURL func(string) error) *App {
@@ -79,8 +84,11 @@ func (a *App) Wake() {
 	}
 }
 
-func (a *App) Notify(kind, f string, args ...any) {
-	n := Notice{At: time.Now(), Kind: kind, Text: fmt.Sprintf(f, args...)}
+func (a *App) Notify(kind, f string, args ...any) { a.Say(kind, "", nil, f, args...) }
+
+// Say is Notify with a translation key and its variables for the dashboard.
+func (a *App) Say(kind, key string, vars map[string]string, f string, args ...any) {
+	n := Notice{At: time.Now(), Kind: kind, Text: fmt.Sprintf(f, args...), Key: key, Vars: vars}
 	log.Printf("[%s] %s", kind, n.Text)
 	a.mu.Lock()
 	a.notices = append([]Notice{n}, a.notices...)
@@ -92,7 +100,7 @@ func (a *App) Notify(kind, f string, args ...any) {
 }
 
 // warnOnce adds an activity warning once per run for each key.
-func (a *App) warnOnce(key, f string, args ...any) {
+func (a *App) warnOnce(key string, vars map[string]string, f string, args ...any) {
 	a.mu.Lock()
 	if a.warned == nil {
 		a.warned = map[string]bool{}
@@ -101,7 +109,7 @@ func (a *App) warnOnce(key, f string, args ...any) {
 	a.warned[key] = true
 	a.mu.Unlock()
 	if !seen {
-		a.Notify("warn", f, args...)
+		a.Say("warn", key, vars, f, args...)
 	}
 }
 
@@ -130,7 +138,7 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 		return
 	}
 	if cfg.Rules.FollowersOnly && ch.Follower == tikfinity.Unknown {
-		a.warnOnce("follow", "followers-only is on, but TikFinity did not say whether @%s follows; letting the request through", ch.User)
+		a.warnOnce("followUnknown", map[string]string{"u": ch.User}, "followers-only is on, but TikFinity did not say whether @%s follows; letting the request through", ch.User)
 	}
 	go a.submit(ch.User, ch.Nick, ch.Comment, req, fromChat, validator.Roles{Follower: int8(ch.Follower), Subscriber: int8(ch.Subscriber)})
 }
@@ -400,7 +408,7 @@ func (a *App) OnGame(g tosu.Game) {
 			Title: now.Title, Artist: now.Artist, Version: now.Version, Test: now.Test})
 	}
 	if phase == tosu.Ended {
-		a.Notify("info", "finished: %s - %s (@%s)", now.Artist, now.Title, now.User)
+		a.Say("info", "finished", map[string]string{"title": now.Artist + " - " + now.Title, "u": now.User}, "finished: %s - %s (@%s)", now.Artist, now.Title, now.User)
 	}
 	a.Wake()
 }
@@ -512,7 +520,7 @@ func (a *App) download(ctx context.Context, id string) error {
 		}
 	})
 	if out.Warning != "" {
-		a.Notify("warn", "%s - %s: %s", it.Artist, it.Title, out.Warning)
+		a.Say("warn", "mismatchUsed", map[string]string{"title": it.Artist + " - " + it.Title, "src": out.Source}, "%s - %s: %s", it.Artist, it.Title, out.Warning)
 	}
 	if cfg.Download.AutoCleanup {
 		if n := a.DL.Cleanup(cfg.Download.CacheLimitMB, a.Queue.Files()); n > 0 {
@@ -525,7 +533,7 @@ func (a *App) download(ctx context.Context, id string) error {
 func (a *App) fail(id, msg string) {
 	a.Queue.Update(id, func(x *queue.Item) { x.State, x.Error = queue.Failed, msg })
 	it, _ := a.Queue.Get(id)
-	a.Notify("error", "%s - %s: %s", it.Artist, it.Title, msg)
+	a.Say("error", "failed", map[string]string{"title": it.Artist + " - " + it.Title, "msg": msg}, "%s - %s: %s", it.Artist, it.Title, msg)
 }
 
 func (a *App) preImport(id string) {
@@ -617,7 +625,7 @@ func (a *App) play(id, result string) error {
 	var err error
 	switch {
 	case cfg.Test.DryRun:
-		a.Notify("info", "dry run: would open %s - %s [%s] (%s)", it.Artist, it.Title, it.Version, cfg.Import.Mode)
+		a.Say("info", "dryOpen", map[string]string{"title": it.Artist + " - " + it.Title + " [" + it.Version + "]"}, "dry run: would open %s - %s [%s] (%s)", it.Artist, it.Title, it.Version, cfg.Import.Mode)
 	case it.MD5 == "installed":
 		err = a.OpenURL(fmt.Sprintf("osu://b/%d", it.BeatmapID))
 	case it.Imported || cfg.Osu.Game == "lazer":
@@ -661,7 +669,7 @@ func (a *App) RemoveLast() error {
 		return errors.New("the queue is empty")
 	}
 	a.Cancel(it.ID)
-	a.Notify("info", "removed %s - %s (@%s)", it.Artist, it.Title, it.User)
+	a.Say("info", "removedLast", map[string]string{"title": it.Artist + " - " + it.Title, "u": it.User}, "removed %s - %s (@%s)", it.Artist, it.Title, it.User)
 	return nil
 }
 
@@ -688,9 +696,9 @@ func (a *App) ToggleRequests() bool {
 	c.Command.Enabled = !c.Command.Enabled
 	a.Cfg.Set(c)
 	if c.Command.Enabled {
-		a.Notify("info", "requests ON")
+		a.Say("info", "reqOn", nil, "requests ON")
 	} else {
-		a.Notify("info", "requests OFF")
+		a.Say("info", "reqOff", nil, "requests OFF")
 	}
 	return c.Command.Enabled
 }
@@ -707,7 +715,7 @@ func (a *App) ClearTest() int {
 	for _, id := range ids {
 		a.Cancel(id)
 	}
-	a.Notify("info", "cleared %d test request(s)", len(ids))
+	a.Say("info", "clearedTest", map[string]string{"n": strconv.Itoa(len(ids))}, "cleared test data (%d request(s))", len(ids))
 	return len(ids)
 }
 
@@ -716,9 +724,9 @@ func (a *App) ToggleDryRun() bool {
 	c.Test.DryRun = !c.Test.DryRun
 	a.Cfg.Set(c)
 	if c.Test.DryRun {
-		a.Notify("info", "dry run ON: Next/Play will not open osu!")
+		a.Say("info", "dryOn", nil, "dry run ON: Next/Play will not open osu!")
 	} else {
-		a.Notify("info", "dry run OFF")
+		a.Say("info", "dryOff", nil, "dry run OFF")
 	}
 	return c.Test.DryRun
 }
@@ -737,6 +745,6 @@ func (a *App) Hotkey(name string) {
 		a.ToggleRequests()
 	}
 	if err != nil {
-		a.Notify("warn", "%s: %v", name, err)
+		a.Say("warn", "hotkeyErr", map[string]string{"key": name, "msg": err.Error()}, "%s: %v", name, err)
 	}
 }

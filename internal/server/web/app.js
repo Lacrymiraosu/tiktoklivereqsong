@@ -117,6 +117,26 @@ const T = {
   r_status: ["status not allowed", "สถานะไม่อนุญาต"], r_duplicate: ["already queued", "อยู่ในคิวแล้ว"], r_recently_played: ["played recently", "เพิ่งเล่นไป"],
   r_not_found: ["not found", "ไม่พบแมพ"], r_mode: ["mode not allowed", "โหมดไม่อนุญาต"], r_stars_low: ["too easy", "ดาวต่ำเกิน"], r_stars_high: ["too hard", "ดาวสูงเกิน"],
   rejectedToast: ["rejected", "ถูกปฏิเสธ"],
+  r_now_playing: ["playing right now", "กำลังเล่นอยู่ตอนนี้"],
+  k_info: ["info", "ข้อมูล"], k_warn: ["warning", "คำเตือน"], k_error: ["error", "ผิดพลาด"],
+  n_followUnknown: ["Followers-only is on, but TikFinity did not say whether @{u} follows; the request was let through.", "เปิดเฉพาะผู้ติดตามอยู่ แต่ TikFinity ไม่ได้บอกว่า @{u} ติดตามหรือไม่ จึงปล่อยคำขอผ่าน"],
+  n_finished: ["Finished: {title} (@{u})", "เล่นจบ: {title} (@{u})"],
+  n_mismatchUsed: ["{title}: no source matched osu!'s MD5; using the latest download from {src}", "{title}: ไม่มีแหล่งไหนตรงกับ MD5 ของ osu! ใช้ไฟล์ล่าสุดจาก {src}"],
+  n_failed: ["{title}: {msg}", "{title}: {msg}"],
+  n_dryOpen: ["Dry run: would open {title}", "ทดลอง: จะเปิด {title}"],
+  n_removedLast: ["Removed {title} (@{u})", "ลบ {title} (@{u}) แล้ว"],
+  n_reqOn: ["Requests are on", "เปิดรับคำขอแล้ว"], n_reqOff: ["Requests are off", "ปิดรับคำขอแล้ว"],
+  n_clearedTest: ["Test data cleared ({n} request(s))", "ล้างข้อมูลทดสอบแล้ว ({n} คำขอ)"],
+  n_dryOn: ["Dry run on: Next and Play will not open osu!", "เปิดโหมดทดลองแล้ว: ถัดไป/เล่น จะไม่เปิด osu!"], n_dryOff: ["Dry run off", "ปิดโหมดทดลองแล้ว"],
+  n_hotkeyErr: ["Hotkey {key}: {msg}", "ปุ่มลัด {key}: {msg}"],
+  n_banned_user: ["Banned @{v} (removed {n} waiting request(s))", "แบน @{v} แล้ว (ลบคำขอที่รอ {n} รายการ)"],
+  n_banned_set: ["Banned beatmapset {v} (removed {n})", "แบนเซ็ต {v} แล้ว (ลบ {n} รายการ)"],
+  n_banned_mapper: ["Banned mapper {v} (removed {n})", "แบนแมพเปอร์ {v} แล้ว (ลบ {n} รายการ)"],
+  n_skipErr: ["!skip by @{u}: {msg}", "!skip โดย @{u}: {msg}"],
+  n_usedCmd: ["@{u} used {cmd}", "@{u} ใช้คำสั่ง {cmd}"],
+  n_giftMoved: ["@{u}'s gift moved {title} up the queue", "ของขวัญจาก @{u} ทำให้ {title} ขึ้นคิวก่อน"],
+  n_cacheCleanup: ["Cache cleanup removed {n} file(s)", "ล้างแคชแล้ว ลบ {n} ไฟล์"],
+  n_quit: ["Quit from the dashboard", "สั่งปิดจากแดชบอร์ด"],
   tosu_not_running: ["tosu not running", "tosu ไม่ได้เปิดอยู่"],
   tosu_connecting: ["Connecting to tosu…", "กำลังเชื่อมต่อ tosu…"],
   tosu_no_game: ["tosu: osu! not detected", "tosu: ไม่พบ osu!"],
@@ -529,11 +549,13 @@ function renderSide() {
   const raw = (S.raw && S.raw.length ? S.raw : Object.values(S.firstRaw || {})).slice(0, 30);
   const banned = new Set((S.blacklistUsers || []).map(u => u.replace(/^@/, "").toLowerCase()));
   fill("#rejLog", rej.slice(0, 40).map(r => {
-    const li = logItem("err", t("r_" + r.code), "@" + r.user, r.at, r.detail, r.input);
+    const li = logItem("err", t("r_" + r.code), "@" + r.user, r.at, r.short || "", r.input);
+    li.title = r.detail; // the English detail stays available on hover
     if (!r.test && !banned.has(r.user.toLowerCase())) li.append(h("button", { class: "mlink banlink", type: "button", onclick: () => ban("user", r.user) }, "⛔ " + t("banUser", { u: r.user })));
     return li;
   }), [rej.slice(0, 40), [...banned]]);
-  fill("#noteLog", notes.map(n => logItem({ error: "err", warn: "warn" }[n.kind] || "info", n.kind, "", n.at, n.text)), notes);
+  fill("#noteLog", notes.map(n => logItem({ error: "err", warn: "warn" }[n.kind] || "info", t("k_" + n.kind), "", n.at,
+    n.key && T["n_" + n.key] ? t("n_" + n.key, n.vars || {}) : n.text)), notes);
   fill("#histLog", hist.map(p => logItem(p.result === "played" ? "ok" : "warn", p.title, "@" + p.user, p.at,
     t(p.result) + (p.play ? " · " + t("res_" + p.play.outcome) + " " + resultShort(p.play) : ""))), hist);
   fill("#rawLog", raw.map(r => logItem("info", r.event, "", r.at, "", r.raw)), raw.map(r => [r.at, r.event]));
@@ -544,7 +566,7 @@ function renderSide() {
     h("dt", {}, t("mode")), h("dd", {}, S.playMode),
     h("dt", {}, t("cache")), h("dd", {}, S.cacheMb.toFixed(1) + " MB"),
     h("dt", {}, t("overlayUrl")), h("dd", {}, h("button", { class: "mlink", onclick: () => copy(ov) }, ov)),
-    S.extra ? [h("dt", {}, t("folder")), h("dd", {}, S.extra.baseDir)] : []);
+    ...(S.extra ? [h("dt", {}, t("folder")), h("dd", {}, S.extra.baseDir)] : []));
 }
 
 function copy(text) {
@@ -561,7 +583,7 @@ function connect() {
     S = JSON.parse(e.data);
     // Chat rejections are easy to miss in the side panel; flash the newest one.
     const r = (S.queue.rejected || [])[0], p = prev && (prev.queue.rejected || [])[0];
-    if (prev && r && !r.test && (!p || r.at !== p.at)) toast(`@${r.user} ${t("rejectedToast")}: ${t("r_" + r.code)} (${r.detail})`, true);
+    if (prev && r && !r.test && (!p || r.at !== p.at)) toast(`@${r.user} ${t("rejectedToast")}: ${t("r_" + r.code)}${r.short ? " (" + r.short + ")" : ""}`, true);
     render();
   };
   ws.onclose = () => {
@@ -621,7 +643,7 @@ $("#testForm").addEventListener("submit", async e => {
     if (j.ok && j.command) { toast(t("cmdSent")); $("#testIn").value = ""; }
     else if (j.ok) { toast(t("added", { t: `${j.item.artist} - ${j.item.title} [${j.item.version}]` })); $("#testIn").value = ""; }
     else if (j.code === "ignored") toast(t("ignored"), true);
-    else toast((j.code ? t("r_" + j.code) + ": " : "") + j.error, true);
+    else toast(j.code && T["r_" + j.code] ? t("r_" + j.code) + (j.short ? " · " + j.short : "") : j.error, true);
   } finally { btn.disabled = false; }
 });
 setInterval(() => S && renderQueue(S.queue.items || []), 30000); // refresh "x min ago"

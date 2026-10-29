@@ -43,7 +43,8 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .langsel{height:40px;font-size:13px}
 
 .cols{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
-@media (max-width:980px){.cols{grid-template-columns:1fr}}
+@media (max-width:980px){.cols{grid-template-columns:minmax(0,1fr)}}
+.cols>main{min-width:0}
 .side{display:flex;flex-direction:column;gap:12px;position:sticky;top:12px}
 @media (max-width:980px){.side{position:static}}
 .subh{margin:18px 2px 8px;font-size:13px;color:var(--pink);font-weight:600;display:flex;align-items:center;gap:10px}
@@ -98,7 +99,7 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .testh{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .testh>b{font-size:14px;color:var(--sky)}
 .testh .seg{flex:0 1 auto}
-.testh .seg button{min-width:0;padding:0 14px;height:36px}
+.testh .seg button{min-width:0;padding:0 14px;height:36px;white-space:nowrap}
 .testh .sp{flex:1}
 .testh .reqtog{height:36px}
 .testbox .searchrow{margin-top:10px}
@@ -121,7 +122,7 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .card.drag{opacity:.4}
 .card.over{border-color:var(--sky);transform:translateY(2px)}
 .ci{position:relative;padding:11px 14px 11px 52px;display:flex;flex-direction:column;gap:2px;min-width:0;margin-right:290px}
-@media (max-width:560px){.ci{margin-right:0;padding-bottom:58px}}
+@media (max-width:560px){.ci{margin-right:0}}
 .pos{position:absolute;left:12px;top:12px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;background:rgba(255,255,255,.12);cursor:grab}
 .ci b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ci span{font-size:13px;color:#ddd3ee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -142,7 +143,8 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .s-ready{color:#8ee6a0}
 .s-failed{color:#ff9aa6}
 .cact{position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:2}
-@media (max-width:560px){.cact{top:auto;bottom:10px;left:52px;right:auto}}
+/* narrow: buttons sit in the flow under the text, so the download bar can never cover them */
+@media (max-width:560px){.cact{position:relative;top:auto;right:auto;flex-wrap:wrap;margin:2px 14px 10px 52px}}
 .cbtn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.18);color:#fff;cursor:pointer;transition:transform .12s,background .15s}
 .cbtn:hover{background:rgba(255,102,170,.35)}
 .cbtn.go{background:var(--pink);border-color:var(--pink);color:var(--pinkdk)}
@@ -182,8 +184,8 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .tp.info{border-left-color:var(--sky)}
 .tp.ok{border-left-color:var(--ok)}
 .tp code{display:block;max-height:92px;overflow:auto;font-size:11px;color:var(--dim);white-space:pre-wrap;word-break:break-all}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;margin:0}
-.kv dt{color:var(--dim)}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;font-size:13px;margin:0}
+.kv dt{color:var(--dim);white-space:nowrap}
 .kv dd{margin:0;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .hint{color:var(--dim);font-size:12px;line-height:1.5;margin:6px 0 0}
 .mlink{color:var(--sky);text-decoration:none;background:none;border:0;padding:0;font:inherit;cursor:pointer}
@@ -198,7 +200,7 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 @keyframes fadeIn{from{opacity:0}}
 .sheet-h{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 0}
 .sheet-h b{font-size:18px}
-.tabs{display:flex;gap:4px;padding:4px;border-radius:14px;background:rgba(255,255,255,.06);margin:12px 16px 4px;overflow-x:auto;scrollbar-width:none;flex:0 0 auto}
+.tabs{display:flex;gap:4px;padding:4px;border-radius:14px;background:rgba(255,255,255,.06);margin:12px 16px 4px;flex-wrap:wrap;flex:0 0 auto}
 .tabs::-webkit-scrollbar{display:none}
 .tab{flex:1 0 auto;height:38px;padding:0 12px;border:0;border-radius:10px;background:transparent;cursor:pointer;font-size:13px;color:var(--dim);white-space:nowrap}
 .tab.on{background:var(--pink);color:var(--pinkdk);font-weight:600}

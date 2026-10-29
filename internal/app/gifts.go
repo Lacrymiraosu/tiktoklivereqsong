@@ -34,7 +34,7 @@ func (a *App) gift(g tikfinity.Gift, test bool) int {
 		ev := FeedEvent{Kind: "gift", User: g.User, Nick: g.Nick, Short: fmt.Sprintf("%d coins", g.Coins), Test: test}
 		if it, ok := a.Queue.UseToken(g.User, now); ok {
 			ev.Code, ev.Title, ev.Artist, ev.Version = "priority", it.Title, it.Artist, it.Version
-			a.Notify("info", "@%s's gift moved %s - %s up", g.User, it.Artist, it.Title)
+			a.Say("info", "giftMoved", map[string]string{"u": g.User, "title": it.Artist + " - " + it.Title}, "@%s's gift moved %s - %s up", g.User, it.Artist, it.Title)
 		} else {
 			ev.Code = "credit" // no request waiting: applied to their next one
 		}

@@ -160,6 +160,37 @@ func TestShortReasonsAreLanguageNeutral(t *testing.T) {
 	}
 }
 
+func TestWholeSetFollowsModeOrder(t *testing.T) {
+	// Like FREEDOM DiVE: more taiko guest diffs than osu! diffs.
+	s := &osumeta.Set{ID: 39804, Status: "approved", Diffs: []osumeta.Diff{
+		{ID: 1, Mode: "osu", Stars: 7.8, Length: 258}, {ID: 2, Mode: "osu", Stars: 4.2, Length: 258},
+		{ID: 3, Mode: "taiko", Stars: 6.06, Length: 258}, {ID: 4, Mode: "taiko", Stars: 5.1, Length: 258}, {ID: 5, Mode: "taiko", Stars: 3.4, Length: 258},
+	}}
+	r := rules()
+	r.Statuses = append(r.Statuses, "approved")
+	r.MaxStars = 8
+	if d, rej := CheckMap(Input{Set: s}, empty(), r, config.Queue{}, now); rej != nil || d.ID != 1 {
+		t.Fatalf("want the 7.8★ osu! diff, got %+v %v", d, rej)
+	}
+	r.Modes = []string{"taiko", "osu"} // the setting decides
+	if d, rej := CheckMap(Input{Set: s}, empty(), r, config.Queue{}, now); rej != nil || d.ID != 3 {
+		t.Fatalf("taiko listed first should pick the taiko diff, got %+v %v", d, rej)
+	}
+	r.Modes = []string{"osu", "taiko"}
+	r.MaxStars = 3 // no osu! diff fits: the reason should be about osu!, not about modes
+	if _, rej := CheckMap(Input{Set: s}, empty(), r, config.Queue{}, now); rej == nil || rej.Code != "stars_high" {
+		t.Fatalf("want stars_high, got %v", rej)
+	}
+}
+
+func TestNowPlayingIsNotADuplicate(t *testing.T) {
+	st := empty()
+	st.QueuedSets[100], st.PlayingSet = true, 100
+	if _, rej := CheckMap(Input{Set: set(), BeatmapID: 2}, st, rules(), config.Queue{}, now); rej == nil || rej.Code != "now_playing" {
+		t.Fatalf("want now_playing, got %v", rej)
+	}
+}
+
 func TestWholeSetPrefersMainMode(t *testing.T) {
 	s := set() // 3 osu! diffs (max 5.2★) and one 2.5★ mania diff
 	s.Diffs = append(s.Diffs, osumeta.Diff{ID: 5, Version: "Taiko Oni", Mode: "taiko", Stars: 6.0, Length: 120})

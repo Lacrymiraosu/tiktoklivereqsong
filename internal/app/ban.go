@@ -54,7 +54,7 @@ func (a *App) Ban(kind, value string) (int, error) {
 			}
 		}
 	}
-	a.Notify("info", "banned %s %s (removed %d waiting request(s))", kind, value, removed)
+	a.Say("info", "banned_"+kind, map[string]string{"v": value, "n": strconv.Itoa(removed)}, "banned %s %s (removed %d waiting request(s))", kind, value, removed)
 	return removed, nil
 }
 

@@ -203,6 +203,7 @@ func (q *Queue) ValidationState(user string) validator.State {
 	// viewer can queue their next request while their current one plays.
 	if q.d.Now != nil {
 		st.QueuedSets[q.d.Now.SetID] = true
+		st.PlayingSet = q.d.Now.SetID
 	}
 	for _, it := range q.d.Items {
 		st.QueuedSets[it.SetID] = true
