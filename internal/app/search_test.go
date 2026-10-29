@@ -1,0 +1,109 @@
+package app
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/search"
+)
+
+// fakeWeb answers catboy's search and osu!'s beatmapset pages.
+type fakeWeb struct {
+	results string         // JSON array returned by the search
+	sets    map[int]string // set id -> beatmapset JSON
+	pages   []int          // osu! pages asked for
+}
+
+func (f *fakeWeb) RoundTrip(r *http.Request) (*http.Response, error) {
+	body, code := "", http.StatusOK
+	switch {
+	case r.URL.Host == "search.test":
+		body = f.results
+	case r.URL.Host == "osu.ppy.sh" && strings.HasPrefix(r.URL.Path, "/beatmapsets/"):
+		var id int
+		fmt.Sscanf(r.URL.Path, "/beatmapsets/%d", &id)
+		f.pages = append(f.pages, id)
+		if js, ok := f.sets[id]; ok {
+			body = `<html><script id="json-beatmapset" type="application/json">` + js + `</script></html>`
+		} else {
+			code = http.StatusNotFound
+		}
+	default:
+		code = http.StatusNotFound
+	}
+	return &http.Response{StatusCode: code, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{}, Request: r}, nil
+}
+
+func set(id int, title string, stars float64) string {
+	return fmt.Sprintf(`{"id":%d,"title":%q,"artist":"xi","creator":"m","status":"ranked",
+		"beatmaps":[{"id":%d,"version":"Hard","mode":"osu","difficulty_rating":%v,"total_length":200,"checksum":"aa","status":"ranked"}]}`, id, title, id*10, stars)
+}
+
+func searchApp(t *testing.T, web *fakeWeb, mutate func(*config.Config)) *App {
+	a := newTestApp(t, mutate)
+	a.Meta = osumeta.New()
+	a.Meta.MinGap = 0
+	a.Meta.HTTP = &http.Client{Transport: web}
+	a.Search = search.New()
+	a.Search.MinGap = 0
+	a.Search.URL = "https://search.test/api/v2/search"
+	a.Search.HTTP = &http.Client{Transport: web}
+	return a
+}
+
+func TestRequestBySongName(t *testing.T) {
+	web := &fakeWeb{
+		results: `[{"id":2,"artist":"V","title":"Stream Practice","status":"ranked","play_count":9000000,"beatmaps":[{"mode":"osu"}]},
+		           {"id":1,"artist":"xi","title":"FREEDOM DiVE","status":"ranked","play_count":20000000,"beatmaps":[{"mode":"osu"}]},
+		           {"id":3,"artist":"xi","title":"FREEDOM DiVE (easy)","status":"ranked","play_count":5000,"beatmaps":[{"mode":"osu"}]}]`,
+		sets: map[int]string{1: set(1, "FREEDOM DiVE", 7.4), 2: set(2, "Stream Practice", 5), 3: set(3, "FREEDOM DiVE (easy)", 3.1)},
+	}
+	a := searchApp(t, web, nil)
+	it, rej, kind := a.SimulateChat("fan", "!req freedom dive")
+	if kind != SimRequest || rej != nil || it == nil || it.SetID != 1 || !it.BySet {
+		t.Fatalf("got %+v %+v %v", it, rej, kind)
+	}
+
+	// too hard: the next title match that passes the rules is taken
+	c := a.Cfg.Get()
+	c.Rules.MaxStars = 6
+	c.Queue.CooldownSec, c.Queue.PerUserLimit = 0, 0
+	a.Cfg.Set(c)
+	web.pages = nil
+	it, rej, _ = a.SimulateChat("fan2", "!req FREEDOM DiVE")
+	if rej != nil || it.SetID != 3 {
+		t.Fatalf("should fall back to the easier set: %+v %+v", it, rej)
+	}
+	if fmt.Sprint(web.pages) != "[3]" {
+		t.Errorf("set 1 is cached and too hard; only set 3 should be fetched, got %v", web.pages)
+	}
+}
+
+func TestSongNameRejections(t *testing.T) {
+	web := &fakeWeb{results: `[]`, sets: map[int]string{1: set(1, "FREEDOM DiVE", 7.4)}}
+	a := searchApp(t, web, func(c *config.Config) { c.Rules.MaxStars = 5 })
+	if _, rej, _ := a.SimulateChat("fan", "!req nothing like this"); rej == nil || rej.Code != "search_none" {
+		t.Errorf("no result: %+v", rej)
+	}
+	web.results = `[{"id":1,"artist":"xi","title":"FREEDOM DiVE","status":"ranked","play_count":1,"beatmaps":[{"mode":"osu"}]}]`
+	_, rej, _ := a.SimulateChat("fan2", "!req freedom dive")
+	if rej == nil || rej.Code != "stars_high" || !strings.HasPrefix(rej.Short, "FREEDOM DiVE · ") {
+		t.Errorf("rejection should name the map that was found: %+v", rej)
+	}
+	web.results = `<html>`
+	if _, rej, _ := a.SimulateChat("fan3", "!req something else"); rej == nil || rej.Code != "search_error" {
+		t.Errorf("search failure: %+v", rej)
+	}
+
+	c := a.Cfg.Get()
+	c.Command.Search = false
+	a.Cfg.Set(c)
+	if _, _, kind := a.SimulateChat("fan4", "!req freedom dive"); kind != SimIgnored {
+		t.Errorf("with search off a name is not a request, got %v", kind)
+	}
+}

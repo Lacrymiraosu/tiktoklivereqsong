@@ -18,6 +18,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/parser"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/search"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/update"
@@ -34,6 +35,7 @@ type App struct {
 	TF      *tikfinity.Client
 	Tosu    *tosu.Client // song-end detection for auto mode (required)
 	OsuDB   *importer.OsuDB
+	Search  *search.Client // "!req <song name>"; nil turns names off
 	OpenURL func(string) error
 
 	changed    func()
@@ -134,7 +136,7 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 	if a.command(ch, false) != cmdNone {
 		return
 	}
-	req, ok := parser.Parse(ch.Comment, parser.Options{Command: cfg.Command.Name, Aliases: cfg.Command.Aliases, BareNumberAs: cfg.Command.BareNumberAs})
+	req, ok := parser.Parse(ch.Comment, a.parseOptions(cfg))
 	if !ok {
 		return
 	}
@@ -157,6 +159,11 @@ const (
 	fromSim                 // test panel: simulated chat, every rule applies
 	fromQuick               // test panel: quick add, map rules only
 )
+
+func (a *App) parseOptions(cfg config.Config) parser.Options {
+	return parser.Options{Command: cfg.Command.Name, Aliases: cfg.Command.Aliases, BareNumberAs: cfg.Command.BareNumberAs,
+		Search: cfg.Command.Search && a.Search != nil}
+}
 
 func testUser(user, def string) string {
 	if user = strings.TrimPrefix(strings.TrimSpace(user), "@"); user == "" {
@@ -190,7 +197,7 @@ func (a *App) SimulateChat(user, comment string) (it *queue.Item, rej *validator
 	case cmdNothing:
 		return nil, nil, SimCmdNoop
 	}
-	req, ok := parser.Parse(comment, parser.Options{Command: cfg.Command.Name, Aliases: cfg.Command.Aliases, BareNumberAs: cfg.Command.BareNumberAs})
+	req, ok := parser.Parse(comment, a.parseOptions(cfg))
 	if !ok {
 		return nil, nil, SimIgnored
 	}
@@ -211,13 +218,14 @@ func (a *App) TestRequest(user, input string) (*queue.Item, *validator.Rejection
 	cfg := a.Cfg.Get()
 	user = testUser(user, "dashboard")
 	input = strings.TrimSpace(input)
-	arg := input
-	if f := strings.Fields(input); len(f) >= 2 && strings.HasPrefix(f[0], "!") {
-		arg = f[1]
+	words := strings.Fields(input)
+	if len(words) >= 2 && strings.HasPrefix(words[0], "!") {
+		words = words[1:]
 	}
-	req, ok := parser.ParseArg(arg, cfg.Command.BareNumberAs)
+	o := a.parseOptions(cfg)
+	req, ok := parser.ParseInput(words, o.BareNumberAs, o.Search)
 	if !ok {
-		r := &validator.Rejection{Code: "bad_input", Detail: "not a beatmap ID or osu! link"}
+		r := &validator.Rejection{Code: "bad_input", Detail: "not a beatmap ID, osu! link or song name"}
 		rr := queue.RejectedFrom(user, input, r)
 		rr.Test = true
 		a.Queue.Reject(rr)
@@ -268,16 +276,26 @@ func (a *App) resolve(user, nick, input string, req parser.Request, o origin, ro
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(max(cfg.MD5.MetaTimeoutSec, 5))*time.Second)
 	defer cancel()
-	set, err := a.lookup(ctx, req)
-	if errors.Is(err, osumeta.ErrNotFound) && req.Bare {
-		// Viewers often paste a set ID where a beatmap ID is expected (or the
-		// reverse); try the other meaning before giving up.
-		if s, ferr := a.lookup(ctx, req.Flip()); ferr == nil {
-			set, err, req = s, nil, req.Flip()
+	var set *osumeta.Set
+	if req.Kind == parser.KindSearch {
+		var rej *validator.Rejection
+		if set, rej = a.find(ctx, req.Query, st, cfg, now); rej != nil {
+			return nil, rej
 		}
-	}
-	if err != nil {
-		return nil, metaErr(err)
+		req = parser.Request{Kind: parser.KindSet, SetID: set.ID}
+	} else {
+		var err error
+		set, err = a.lookup(ctx, req)
+		if errors.Is(err, osumeta.ErrNotFound) && req.Bare {
+			// Viewers often paste a set ID where a beatmap ID is expected (or the
+			// reverse); try the other meaning before giving up.
+			if s, ferr := a.lookup(ctx, req.Flip()); ferr == nil {
+				set, err, req = s, nil, req.Flip()
+			}
+		}
+		if err != nil {
+			return nil, metaErr(err)
+		}
 	}
 	beatmapID := 0
 	if req.Kind == parser.KindBeatmap {
@@ -300,6 +318,45 @@ func (a *App) resolve(user, nick, input string, req parser.Request, o origin, ro
 		it.Warning = "osu! page unavailable; star rating, length and status were not checked"
 	}
 	return it, nil
+}
+
+// searchTries is how many search results are checked against the rules
+// before giving up; each one is an osu! page lookup.
+const searchTries = 3
+
+// find turns a song name into the best matching set that passes the map
+// rules. If none of the first results passes, the first one's rejection is
+// returned with the map's title in front, so the viewer sees what was found.
+func (a *App) find(ctx context.Context, query string, st validator.State, cfg config.Config, now time.Time) (*osumeta.Set, *validator.Rejection) {
+	rs, err := a.Search.Find(ctx, query, cfg.Rules.Statuses, cfg.Rules.Modes)
+	if err != nil {
+		return nil, &validator.Rejection{Code: "search_error", Detail: "song search failed: " + err.Error()}
+	}
+	if len(rs) == 0 {
+		return nil, &validator.Rejection{Code: "search_none", Detail: fmt.Sprintf("no map found for %q", query)}
+	}
+	var first *validator.Rejection
+	for i, r := range rs {
+		if i == searchTries {
+			break
+		}
+		set, err := a.Meta.Get(ctx, r.SetID, 0)
+		if err != nil {
+			if first == nil {
+				first = metaErr(err)
+			}
+			continue
+		}
+		if _, rej := validator.CheckMap(validator.Input{Set: set}, st, cfg.Rules, cfg.Queue, now); rej != nil {
+			if first == nil {
+				first = &validator.Rejection{Code: rej.Code, Detail: set.Title + ": " + rej.Detail, Short: strings.TrimSuffix(set.Title+" · "+rej.Short, " · ")}
+			}
+			continue
+		}
+		log.Printf("search %q -> %s", query, r.Label())
+		return set, nil
+	}
+	return nil, first
 }
 
 func (a *App) lookup(ctx context.Context, req parser.Request) (*osumeta.Set, error) {

@@ -99,6 +99,7 @@ const modeTag = it => it.mode ? `<span class="mode mode-${esc(it.mode)}">${MODE[
 // Viewer-facing text. Reasons are phrased for the person who asked.
 const TX = {
   nowPlaying: ["Now playing", "กำลังเล่น"], reqBy: ["requested by", "ขอโดย"], request: ["Request", "ขอเพลง"],
+  reqArg: ["ID / link", "ID / ลิงก์"], reqArgName: ["song name / ID / link", "ชื่อเพลง / ID / ลิงก์"],
   added: ["added to the queue", "เพิ่มเข้าคิวแล้ว"], pos: ["#{n} in queue", "คิวที่ {n}"], next: ["up next", "เพลงถัดไป"],
   r_user_blacklisted: ["can't request right now", "ขอเพลงไม่ได้ในตอนนี้"], r_queue_full: ["the queue is full", "คิวเต็มแล้ว"],
   r_user_limit: ["you already have requests waiting", "คุณมีคำขอรออยู่แล้ว"], r_cooldown: ["please wait before the next request", "รอสักครู่ก่อนขอใหม่"],
@@ -107,7 +108,7 @@ const TX = {
   r_recently_played: ["played recently", "เพิ่งเล่นไป"], r_not_found: ["map not found", "ไม่พบแมพ"], r_mode: ["this mode isn't accepted", "ไม่รับโหมดนี้"],
   r_stars_low: ["too easy", "ง่ายเกินไป"], r_stars_high: ["too hard", "ยากเกินไป"], r_too_long: ["too long", "ยาวเกินไป"],
   r_meta_error: ["couldn't check the map, try again", "ตรวจแมพไม่ได้ ลองใหม่อีกครั้ง"], r_bad_input: ["not a map ID or link", "ไม่ใช่ ID หรือลิงก์แมพ"],
-  r_requests_off: ["requests are closed", "ปิดรับคำขออยู่"], r_followers_only: ["follow the stream to request", "ต้องกดติดตามก่อนถึงขอเพลงได้"],
+  r_requests_off: ["requests are closed", "ปิดรับคำขออยู่"], r_search_none: ["no map found with that name", "ไม่พบแมพชื่อนี้"], r_search_error: ["search failed, try an ID or link", "ค้นหาไม่ได้ ลองใช้ ID หรือลิงก์"], r_followers_only: ["follow the stream to request", "ต้องกดติดตามก่อนถึงขอเพลงได้"],
   c_skip: ["skipped the song", "ข้ามเพลงนี้"], c_remove: ["removed a request", "ลบคำขอ"], c_on: ["opened requests", "เปิดรับคำขอแล้ว"], c_off: ["closed requests", "ปิดรับคำขอแล้ว"],
   c_pos: ["is #{n} in the queue", "อยู่คิวที่ {n}"], c_pos_none: ["has no request in the queue", "ยังไม่มีคำขอในคิว"],
   c_np: ["asked what's playing", "ถามว่าเพลงอะไร"], c_np_none: ["nothing is playing yet", "ยังไม่มีเพลงที่เล่นอยู่"],
@@ -240,7 +241,7 @@ function render(S) {
   const cur = [...upSlot.children];
   if (cur.length !== next.length || cur.some((c, i) => c !== next[i])) upSlot.replaceChildren(...next);
 
-  setHTML(cmdSlot, S.requests && S.tikfinity.level === "green" ? `<div class="cmd">${tx("request")}: <b>${esc(S.command)}</b> &lt;ID / link&gt;</div>` : "");
+  setHTML(cmdSlot, S.requests && S.tikfinity.level === "green" ? `<div class="cmd">${tx("request")}: <b>${esc(S.command)}</b> &lt;${tx(S.search ? "reqArgName" : "reqArg")}&gt;</div>` : "");
 }
 let retry = 0;
 (function connect() {

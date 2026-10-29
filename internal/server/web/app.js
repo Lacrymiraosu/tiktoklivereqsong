@@ -53,7 +53,7 @@ const T = {
   priority: ["priority", "คิวพิเศษ"],
   dryRun: ["Dry run", "ทดลองไม่เปิดเกม"],
   clearTest: ["Clear test data", "ล้างข้อมูลทดสอบ"],
-  testPh: ["!req 2096297 or a link", "!req 2096297 หรือลิงก์"],
+  testPh: ["!req 2096297, a link or a song name", "!req 2096297, ลิงก์ หรือชื่อเพลง"],
   testUserPh: ["@user", "@ผู้ใช้"],
   testBtn: ["Send", "ส่ง"],
   hintChat: ["Sends the message as if @user typed it in TikTok chat: command, requests on/off, per-user limit, cooldown and every map rule apply. Works offline. A bare ID or link gets {cmd} added.", "ส่งข้อความเหมือน @ผู้ใช้ พิมพ์ในแชท TikTok ใช้กฎทั้งหมด (คำสั่ง เปิด/ปิดรับ จำนวนต่อคน คูลดาวน์ กฎแมพ) ใช้ได้แม้ไม่ได้ไลฟ์ ถ้าพิมพ์แค่ ID หรือลิงก์จะเติม {cmd} ให้"],
@@ -120,6 +120,8 @@ const T = {
   mappedBy: ["mapped by", "แมพโดย"],
   reqBy: ["requested by", "ขอโดย"],
   emptyQueue: ["The queue is empty. Viewers type {cmd} <ID or link> in TikTok chat.", "คิวว่าง ผู้ชมพิมพ์ {cmd} <ID หรือลิงก์> ในแชท TikTok"],
+  emptyQueueName: ["The queue is empty. Viewers type {cmd} <song name, ID or link> in TikTok chat.", "คิวว่าง ผู้ชมพิมพ์ {cmd} <ชื่อเพลง, ID หรือลิงก์> ในแชท TikTok"],
+  r_search_none: ["no map with that name", "ไม่พบแมพชื่อนี้"], r_search_error: ["song search failed", "ค้นหาเพลงไม่ได้"],
   resolving: ["looking up {n} request(s)…", "กำลังค้นหา {n} คำขอ…"],
   st_queued: ["waiting", "รอดาวน์โหลด"],
   st_downloading: ["downloading", "กำลังดาวน์โหลด"],
@@ -533,7 +535,7 @@ function renderQueue(items) {
   res.textContent = S.resolving > 0 ? t("resolving", { n: S.resolving }) : "";
   if (!items.length) {
     cards.clear();
-    if (!same(list, "empty" + LANG + S.command)) list.replaceChildren(h("div", { class: "empty" }, t("emptyQueue", { cmd: S.command })));
+    if (!same(list, "empty" + LANG + S.command + S.search)) list.replaceChildren(h("div", { class: "empty" }, t(S.search ? "emptyQueueName" : "emptyQueue", { cmd: S.command })));
     return;
   }
   list.dataset.key = "";
@@ -942,6 +944,7 @@ const SCHEMA = {
     F("command.nowCmd", "text", "Now playing command", "คำสั่งดูเพลงที่กำลังเล่น", "Anyone: the overlay shows the song being played and who asked for it. Each viewer can ask once every 20 s. Empty = off.", "ทุกคน: overlay จะแสดงเพลงที่กำลังเล่นและคนที่ขอ แต่ละคนถามได้ทุก 20 วินาที เว้นว่าง = ปิด"),
     F("command.voteSkipCmd", "text", "Vote skip command", "คำสั่งโหวตข้ามเพลง", null, null),
     F("command.voteSkipVotes", "number", "Votes needed to skip", "จำนวนโหวตที่ต้องใช้ข้ามเพลง", "Different viewers who must vote to skip the song being played. 0 = vote skip off.", "จำนวนผู้ชม (ไม่ซ้ำคน) ที่ต้องโหวตเพื่อข้ามเพลงที่กำลังเล่น 0 = ปิดการโหวต", { min: 0 }),
+    F("command.searchByName", "switch", "Requests by song name", "ขอเพลงด้วยชื่อ", "\"!req freedom dive\" searches catboy.best and takes the best title match (most played first) that passes your map rules. IDs and links work as before.", "\"!req freedom dive\" จะค้นใน catboy.best แล้วเลือกแมพที่ชื่อตรงที่สุด (เล่นเยอะสุดก่อน) ที่ผ่านกฎแมพ ID และลิงก์ใช้ได้เหมือนเดิม"),
     F("command.bareNumberAs", "seg", "A bare number is a…", "ตัวเลขเปล่าๆ หมายถึง…", null, null, { options: [["beatmap", ["beatmap (difficulty) ID", "ID บีทแมพ (ระดับ)"]], ["set", ["beatmapset ID", "ID เซ็ต"]]] }),
   ],
   rules: [
