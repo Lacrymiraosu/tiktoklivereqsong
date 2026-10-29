@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/draft/osureq/internal/config"
-	"github.com/draft/osureq/internal/queue"
-	"github.com/draft/osureq/internal/verifier"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/verifier"
 )
 
 const maxOsz = 400 << 20

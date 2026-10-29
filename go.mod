@@ -1,4 +1,4 @@
-module github.com/draft/osureq
+module github.com/Lacrymiraosu/tiktoklivereqsong
 
 go 1.23
 

@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/draft/osureq/internal/config"
-	"github.com/draft/osureq/internal/osumeta"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
 )
 
 var now = time.Date(2026, 10, 27, 20, 0, 0, 0, time.UTC)

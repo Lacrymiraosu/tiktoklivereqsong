@@ -16,12 +16,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/app"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
 	"github.com/coder/websocket"
-	"github.com/draft/osureq/internal/app"
-	"github.com/draft/osureq/internal/config"
-	"github.com/draft/osureq/internal/queue"
-	"github.com/draft/osureq/internal/tikfinity"
-	"github.com/draft/osureq/internal/tosu"
 )
 
 //go:embed web

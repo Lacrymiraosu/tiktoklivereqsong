@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/draft/osureq/internal/config"
-	"github.com/draft/osureq/internal/queue"
-	"github.com/draft/osureq/internal/tikfinity"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 )
 
 // newTestApp builds an App with real config and queue stores in a temp

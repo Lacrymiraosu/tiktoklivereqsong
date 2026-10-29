@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/draft/osureq/internal/tosu"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
 )
 
 func playing(set int, s tosu.Score, failed bool) tosu.Game {

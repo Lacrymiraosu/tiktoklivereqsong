@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/draft/osureq/internal/tikfinity"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 )
 
 // HandleGift turns gift coins into queue priority (config gifts). Coins add

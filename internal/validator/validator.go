@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/draft/osureq/internal/config"
-	"github.com/draft/osureq/internal/osumeta"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
 )
 
 // Rejection carries a stable code (translated by the dashboard and overlay),

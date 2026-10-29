@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/draft/osureq/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
 )
 
 func TestBan(t *testing.T) {

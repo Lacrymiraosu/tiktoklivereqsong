@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/draft/osureq/internal/validator"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/validator"
 )
 
 type State string

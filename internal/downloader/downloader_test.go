@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/draft/osureq/internal/config"
-	"github.com/draft/osureq/internal/queue"
-	"github.com/draft/osureq/internal/verifier"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/verifier"
 )
 
 const good = "osu file format v14\n[Metadata]\nVersion:Hard\nBeatmapSetID:9\n"

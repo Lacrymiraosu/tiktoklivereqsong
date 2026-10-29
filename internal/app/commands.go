@@ -4,7 +4,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/draft/osureq/internal/tikfinity"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 )
 
 // IsMod reports whether a chat user may use mod commands: listed in

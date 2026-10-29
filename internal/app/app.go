@@ -12,16 +12,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/draft/osureq/internal/config"
-	"github.com/draft/osureq/internal/downloader"
-	"github.com/draft/osureq/internal/importer"
-	"github.com/draft/osureq/internal/osumeta"
-	"github.com/draft/osureq/internal/parser"
-	"github.com/draft/osureq/internal/queue"
-	"github.com/draft/osureq/internal/tikfinity"
-	"github.com/draft/osureq/internal/tosu"
-	"github.com/draft/osureq/internal/validator"
-	"github.com/draft/osureq/internal/verifier"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/downloader"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/importer"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/parser"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/validator"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/verifier"
 )
 
 type App struct {

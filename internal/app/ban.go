@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/draft/osureq/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
 )
 
 // Ban adds a user, beatmapset or mapper to the blacklist and drops the
