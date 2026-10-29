@@ -243,3 +243,25 @@ func TestErrBody(t *testing.T) {
 		}
 	}
 }
+
+func TestPreflightEndpoint(t *testing.T) {
+	s, h := newTestServer(t)
+	s.App.Meta = nil // no network in tests
+	c := s.App.Cfg.Get()
+	c.Download.Sources = nil
+	s.App.Cfg.Set(c)
+	s.Extra = func() map[string]any { return map[string]any{"hotkeyErrors": map[string]string{}} }
+	m := decode(t, do(h, http.MethodPost, "/api/preflight", ""))
+	checks, _ := m["checks"].([]any)
+	if m["ok"] != true || len(checks) == 0 {
+		t.Fatalf("preflight: %v", m)
+	}
+	ids := map[string]string{}
+	for _, c := range checks {
+		c := c.(map[string]any)
+		ids[c["id"].(string)] = c["status"].(string)
+	}
+	if ids["mirror"] != "fail" || ids["overlay"] != "warn" || ids["tikfinity"] != "fail" {
+		t.Errorf("checks: %v", ids)
+	}
+}

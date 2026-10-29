@@ -132,3 +132,24 @@ func TestCleanupKeepsReferencedFiles(t *testing.T) {
 		t.Error("referenced file was deleted")
 	}
 }
+
+func TestProbe(t *testing.T) {
+	d, _ := setup(t, func(c *config.Config) {
+		c.Download.Sources = append(c.Download.Sources,
+			config.Source{Name: "off", Enabled: false, URL: c.Download.Sources[0].URL, TimeoutSec: 5},
+			config.Source{Name: "official", Enabled: true, Official: true, URL: c.Download.Sources[0].URL, TimeoutSec: 5})
+	})
+	got := d.Probe(context.Background(), 9)
+	want := map[string]bool{"html": false, "404": false, "stale": true, "good": true}
+	if len(got) != len(want) {
+		t.Fatalf("disabled and official sources must be skipped: %+v", got)
+	}
+	for _, r := range got {
+		if r.OK != want[r.Source] {
+			t.Errorf("%s: ok=%v (%s)", r.Source, r.OK, r.Error)
+		}
+	}
+	if entries, _ := os.ReadDir(d.CacheDir); len(entries) != 0 {
+		t.Errorf("a probe must not store anything: %v", entries)
+	}
+}

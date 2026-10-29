@@ -452,3 +452,72 @@ func (d *Downloader) CacheSize() int64 {
 	}
 	return total
 }
+
+// ProbeResult says whether one mirror answered with an .osz.
+type ProbeResult struct {
+	Source string `json:"source"`
+	OK     bool   `json:"ok"`
+	Error  string `json:"error,omitempty"`
+	Ms     int64  `json:"ms"`
+}
+
+// Probe asks every enabled mirror (not the official site, which needs the
+// browser) for the first bytes of setID and checks that a ZIP comes back.
+// Nothing is stored; it is the pre-stream check's "can we download?".
+func (d *Downloader) Probe(ctx context.Context, setID int) []ProbeResult {
+	var out []ProbeResult
+	for _, src := range d.Cfg().Download.Sources {
+		if !src.Enabled || src.Official {
+			continue
+		}
+		start := time.Now()
+		err := d.probe(ctx, src, setID)
+		r := ProbeResult{Source: src.Name, OK: err == nil, Ms: time.Since(start).Milliseconds()}
+		if err != nil {
+			r.Error = err.Error()
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+func (d *Downloader) probe(ctx context.Context, src config.Source, setID int) error {
+	u := srcURL(src, setID, d.Cfg().Download.NoVideo)
+	if !d.Allow(u) {
+		return fmt.Errorf("host not whitelisted: %s", u)
+	}
+	timeout := time.Duration(min(src.TimeoutSec, 20)) * time.Second
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "osureq/1.0 (TikTok LIVE request helper)")
+	req.Header.Set("Range", "bytes=0-1023")
+	if src.Referer != "" {
+		req.Header.Set("Referer", src.Referer)
+	}
+	resp, err := d.HTTP.Do(req)
+	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf("timed out after %s", timeout)
+		}
+		return err
+	}
+	defer resp.Body.Close()
+	if !d.Allow(resp.Request.URL.String()) {
+		return fmt.Errorf("redirected to a host that is not whitelisted: %s", resp.Request.URL.Host)
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 1024)) // mirrors that ignore Range are cut off here
+	if err != nil && len(b) < 4 {
+		return err
+	}
+	if !verifier.LooksLikeZip(b) {
+		return notZip(b)
+	}
+	return nil
+}
