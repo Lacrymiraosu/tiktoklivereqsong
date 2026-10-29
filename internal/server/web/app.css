@@ -222,8 +222,10 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 
 /* ---------- settings sheet ---------- */
 .scrim{position:fixed;inset:0;z-index:8;background:rgba(10,8,16,.6);animation:fadeIn .2s}
-.sheet{position:fixed;z-index:9;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--bg2);border-left:1px solid var(--line);display:flex;flex-direction:column;box-shadow:-24px 0 70px rgba(0,0,0,.45);animation:sheetIn .3s cubic-bezier(.2,.8,.2,1)}
-@keyframes sheetIn{from{transform:translateX(40px);opacity:0}}
+/* settings: a centred dialog with a fixed height, so switching tabs never makes it jump */
+.sheet{position:fixed;z-index:9;top:50%;left:50%;transform:translate(-50%,-50%);width:min(760px,calc(100% - 32px));height:min(86vh,820px);background:var(--bg2);border:1px solid var(--line);border-radius:22px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.55);animation:sheetIn .25s cubic-bezier(.2,.8,.2,1)}
+@keyframes sheetIn{from{opacity:0;transform:translate(-50%,-47%) scale(.97)}}
+@media (max-width:560px){.sheet{width:calc(100% - 16px);height:calc(100dvh - 16px);border-radius:18px}}
 @keyframes fadeIn{from{opacity:0}}
 .sheet-h{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 0}
 .sheet-h b{font-size:18px}
