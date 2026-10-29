@@ -69,7 +69,7 @@ const T = {
   viewer: ["viewer", "viewer"], viewerTitle: ["Open in the beatmap viewer", "เปิดใน beatmap viewer"],
   confirmQuit: ["Stop osureq? Requests will not be taken until you start it again.", "ปิด osureq? จะไม่รับคำขอจนกว่าจะเปิดใหม่"],
   quitDone: ["osureq stopped. You can close this tab.", "ปิด osureq แล้ว ปิดแท็บนี้ได้เลย"],
-  trayHint: ["osureq runs in the system tray (bottom-right, next to the clock). Right-click the pink icon for options.", "osureq ทำงานอยู่ที่ถาดระบบ (มุมขวาล่างข้างนาฬิกา) คลิกขวาที่ไอคอนสีชมพูเพื่อดูเมนู"],
+  trayHint: ["osureq runs in its CMD window, which shows the log. Closing that window also stops osureq.", "osureq ทำงานอยู่ในหน้าต่าง CMD ซึ่งแสดง log ด้วย ปิดหน้าต่างนั้นก็เป็นการปิด osureq"],
   cmdSent: ["Command sent (see Activity)", "ส่งคำสั่งแล้ว (ดูที่ กิจกรรม)"],
   ignored: ["Ignored: real chat would not treat this as a request", "ไม่ใช่คำขอ: แชทจริงจะไม่นับข้อความนี้"],
   confirmClearTest: ["Remove all test requests, their history, rejections and cooldowns?", "ลบคำขอทดสอบทั้งหมด รวมประวัติ การปฏิเสธ และคูลดาวน์ที่เกิดจากการทดสอบ?"],

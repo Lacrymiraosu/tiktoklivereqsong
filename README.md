@@ -19,7 +19,7 @@ A local dashboard (English/Thai) and a transparent OBS overlay run inside the sa
 
 * **คืออะไร:** โปรแกรม Windows ไฟล์เดียว (`osureq.exe`) ให้ผู้ชม TikTok LIVE ขอเพลง osu! ผ่านแชทด้วย `!req <ID หรือลิงก์>`
 * **ทำอะไรได้:** รับแชทจาก TikFinity → ตรวจกฎ (ดาว ความยาว โหมด สถานะ แบน คูลดาวน์ ผู้ติดตาม ฯลฯ) → ดาวน์โหลดจาก mirror → ตรวจ MD5 เทียบกับ osu! → เปิดแมพใน osu! เมื่อกด ถัดไป หรือเปิดอัตโนมัติเมื่อ tosu เห็นว่าเพลงก่อนหน้าเล่นจบ
-* **เพิ่มเติม:** ป๊อปอัปแจ้งผู้ชมบน overlay, คำสั่งม็อด (`!skip`, `!remove`, `!reqon`/`!reqoff`), เก็บผลการเล่นจาก tosu, ของขวัญได้คิวพิเศษ, ไอคอนที่ถาดระบบ, ฟังตัวอย่างเพลง/เปิดใน beatmap viewer, ปุ่มแบนคลิกเดียว
+* **เพิ่มเติม:** ป๊อปอัปแจ้งผู้ชมบน overlay, คำสั่งม็อด (`!skip`, `!remove`, `!reqon`/`!reqoff`), เก็บผลการเล่นจาก tosu, ของขวัญได้คิวพิเศษ, ฟังตัวอย่างเพลง/เปิดใน beatmap viewer, ปุ่มแบนคลิกเดียว
 * **ต้องมี:** Windows 10/11 x64, osu! (stable หรือ lazer), **TikFinity Desktop** และ **tosu** (เปิดไว้ระหว่างไลฟ์)
 * **สำหรับนักพัฒนา:** Go 1.23+ บน Windows, รัน `go test ./...`, build ด้วย `build.ps1`
 * **โครงสร้าง:** `main.go` ต่อสายทุกอย่าง, โค้ดหลักอยู่ใน `internal/<โมดูล>` แยกหน้าที่ชัดเจน, หน้าเว็บอยู่ใน `internal/server/web` และถูกฝังลงใน exe
@@ -65,7 +65,7 @@ A local dashboard (English/Thai) and a transparent OBS overlay run inside the sa
 **Verified for real on the developer's PC:** TikFinity detection, WebSocket connection and `config` handshake;
 osu! metadata scraping; catboy downloads; MD5 verification (single diff and whole set); rejections; preload copy;
 osu! folder auto-detection from the registry; the dashboard, settings and overlay; simulated chat; dry run;
-the anti-flicker rendering, overlay pop-ups, mod commands and gifts through simulated chat, the tray icon (start, second launch, quit),
+the anti-flicker rendering, overlay pop-ups, mod commands and gifts through simulated chat, second launch and Quit,
 audio preview and one-click bans. Auto mode and play results were verified against a **fake** tosu server.
 
 **Not yet verified with the real thing:** see [Known limitations and open items](#known-limitations-and-open-items)
@@ -92,7 +92,7 @@ audio preview and one-click bans. Auto mode and play results were verified again
 * **Viewer roles**: followers-only mode and a higher per-user limit for subscribers (when TikFinity sends these flags).
 * **One-click bans** of a requester, map or mapper from a queue card or the rejection log.
 * **Audio preview** of queued maps and a link to open them in the owner's **beatmap viewer**.
-* **System tray**: no console window; tray icon with open dashboard, requests on/off, dry run, data folder, quit. A second launch opens the running copy.
+* **CMD window** with the live log (titled `osureq <version>`); closing it stops the helper cleanly. A second launch opens the running copy's dashboard.
 * **Dashboard** (EN/TH): status of TikFinity and tosu, now playing, queue with drag-to-reorder, per-source download
   progress, MD5 result, rejection log, activity, history, raw TikFinity events, full settings editor.
 * **Test panel**: simulated chat through the real rules (requests and commands), quick add, simulated gifts, dry run (never touches osu!), clear test data.
@@ -133,9 +133,8 @@ Out of scope for now: sending messages to TikTok chat (TikFinity's API does not 
 
 1. Put `osureq.exe` in its own folder, for example `C:\osureq\`. It creates `config.json`, `queue.json`, `osureq.log` and a `cache\` folder next to itself.
 2. Start TikFinity Desktop and connect it to the TikTok account, then start **tosu** and osu!.
-3. Double-click `osureq.exe`. There is no window: osureq lives in the **system tray** (pink ball icon next to the clock) and the dashboard
-   opens at <http://127.0.0.1:21280/>. Left-click the tray icon to reopen the dashboard; right-click for requests on/off, dry run, data folder and **Quit**.
-   Starting it a second time just opens the dashboard of the running copy.
+3. Double-click `osureq.exe`. A **CMD window** opens and shows the log; keep it open while streaming (closing it, or Ctrl+C, stops osureq).
+   The dashboard opens at <http://127.0.0.1:21280/>. Starting it a second time just opens the dashboard of the running copy.
 4. In **Settings → osu!**, choose stable or lazer. The osu! folder is detected from the `.osz` file association if the default one has no Songs folder.
 5. Check the two status pills at the top:
    * **TikFinity**: 🔴 not installed/not running · 🟡 not connected, or connected and "Waiting for stream" · 🟢 live and taking requests.
@@ -286,7 +285,6 @@ tosu ─────ws───────────►│                   
 * Every chat request is resolved in its own goroutine (`App.submit`), because metadata lookups take network time.
 * `server`: `net/http` on 127.0.0.1; state pushes are coalesced (120 ms) and sent to every WebSocket client.
 * Hotkeys: a locked OS thread with a Win32 message loop (`platform.Hotkeys`).
-* Tray icon: another locked OS thread with a hidden window and message loop (`platform.Tray`); menu clicks run in goroutines.
 * Overlay pop-ups: `App.emit` appends to a 30-entry feed (`App.Feed`) that is part of every state push; the overlay shows entries newer than the last one it saw.
 
 **State ownership:** `queue.Queue` (mutex-guarded) is the single source of truth for requests; `config.Store` for settings
@@ -329,7 +327,6 @@ otiktokdownloader/
     ├── tikfinity/    tikfinity.go (+_test) TikFinity detection + WebSocket client + chat parsing
     ├── tosu/         tosu.go (+_test)      tosu WebSocket client + song-end Tracker
     ├── platform/     platform_windows.go, hotkey.go (+_test)  Win32: ShellExecute, processes, registry, hotkeys
-    │                 tray_windows.go       tray icon (drawn at runtime), menu, message box, console attach
     └── server/       server.go             HTTP routes, guard, state snapshot, WebSocket push
         └── web/                            embedded into the exe with go:embed
             ├── index.html                  dashboard markup
@@ -343,7 +340,7 @@ otiktokdownloader/
 
 | File | Lines | What is in it | Key symbols |
 |---|---:|---|---|
-| `main.go` | ~300 | Parses `-dir` / `-no-browser`, attaches to a parent console if any, picks the base folder (exe folder, or cwd under `go run`), sets up `osureq.log` (rotates at 5 MB), loads config, fixes the osu! folder from the registry, builds every module, wires callbacks (chat/gift → app, tosu → app, status → push + tray tip, config changes → hotkeys/reconnects), hands off to an already running copy, starts the tray and goroutines, waits for quit | `main`, `exeDir`, `setupLog`, `fatal`, `alreadyRunning`, `trayTip` |
+| `main.go` | ~250 | Parses `-dir` / `-no-browser`, titles the CMD window, picks the base folder (exe folder, or cwd under `go run`), sets up `osureq.log` (rotates at 5 MB), loads config, fixes the osu! folder from the registry, builds every module, wires callbacks (chat/gift → app, tosu → app, status → push, config changes → hotkeys/reconnects), hands off to an already running copy, starts the goroutines, waits for Ctrl+C / window close / Quit | `main`, `exeDir`, `setupLog`, `fatal`, `alreadyRunning` |
 | `internal/app/app.go` | ~750 | The brain. Turns chat into queue items, runs downloads/preload, handles Next/Play/Skip/Remove/Retry, auto mode and play results via tosu, dry run, test panel, notices | `App`, `HandleChat`, `SimulateChat`, `TestRequest`, `submit`/`resolve`/`lookup`, `Run`/`tick`, `OnGame`, `ResultShort`, `startDownload`/`download`, `preImport`, `Next`, `Play`/`play`, `Skip`, `ClearTest`, `ToggleDryRun`, `Hotkey`, `warnOnce`; `origin` (`fromChat`/`fromSim`/`fromQuick`) |
 | `internal/app/feed.go` | ~50 | Events for the overlay pop-ups (added, rejected, command, gift, result), newest first, 30 kept | `FeedEvent`, `emit`, `Feed` |
 | `internal/app/commands.go` | ~100 | Chat commands other than requests; `IsMod` (Mods list or TikTok moderator flag) | `command`, `IsMod` |
@@ -361,9 +358,8 @@ otiktokdownloader/
 | `internal/importer/osudb.go` | ~70 | Finds beatmap MD5s in `osu!.db` by scanning for `0x0b 0x20 <32 hex>` instead of parsing the versioned format | `OsuDB.Has`, `ScanHashes` |
 | `internal/tikfinity/tikfinity.go` | ~440 | Install/process checks, WebSocket loop, `config` handshake, live detection (any event; times out after 5 min of silence), raw event log (first event of each type kept), chat field extraction with fallbacks, viewer roles (yes/no/unknown), gift parsing (streaks counted once) | `Client`, `Status` (`red`/`yellow`/`green`, codes), `Chat`, `Tri`, `ParseChat`, `Gift`, `ParseGift`, `Accepting` |
 | `internal/tosu/tosu.go` | ~420 | tosu WebSocket loop (`/websocket/v2`), payload parsing (state, beatmap, live `play` numbers, `resultsScreen`), status levels (only the short `Brief` state drives pushes), remembers `tosu.exe` path, song-end state machine | `Client`, `Status`, `Game`, `Brief`, `Score`, `Parse`, `Tracker`, `Phase` (`waiting`/`playing`/`results`/`ended`) |
-| `internal/platform/platform_windows.go` | ~280 | `ShellExecuteW` open, Toolhelp process list, process image path, TikFinity lookup (path + Uninstall registry), osu! stable lookup (`HKCR\osustable.File.osz\shell\open\command`), detached launch, `RegisterHotKey` message loop | `ShellOpen`, `ProcessRunning`, `ProcessPath`, `FindTikFinity`, `FindOsuStable`, `Launch`, `Hotkeys` |
+| `internal/platform/platform_windows.go` | ~280 | `ShellExecuteW` open, Toolhelp process list, process image path, TikFinity lookup (path + Uninstall registry), osu! stable lookup (`HKCR\osustable.File.osz\shell\open\command`), detached launch, `RegisterHotKey` message loop, console window title | `ShellOpen`, `ProcessRunning`, `ProcessPath`, `FindTikFinity`, `FindOsuStable`, `Launch`, `Hotkeys`, `SetConsoleTitle` |
 | `internal/platform/hotkey.go` | ~50 | Parses `Ctrl+Alt+N`, `Shift+F5`, `F9`, `Win+Num5`… into modifier + virtual key | `ParseHotkey` |
-| `internal/platform/tray_windows.go` | ~420 | Notification-area icon on its own thread (hidden window, `Shell_NotifyIconW`, re-added when Explorer restarts), right-click menu, icon drawn pixel by pixel in the logo colours, `MessageBoxW`, attaching to a parent console | `Tray` (`Start`, `SetTip`, `Stop`), `TrayItem`, `MessageBox`, `HasConsole`, `AttachParentConsole` |
 | `internal/server/server.go` | ~420 | Routes, `guard` (Host + `X-Osureq` header), `State` snapshot, coalesced WebSocket push + 20 s keepalive state, config GET/PUT, actions (incl. quit), queue operations, test/simulate/simulateGift, ban | `Server`, `State`, `Handler`, `Push`, `Listen`, `Quit` |
 | `internal/server/web/index.html` | ~90 | Dashboard skeleton: top bar (status pills, requests switch, language, settings), banners, now playing, test panel, queue, side logs, settings sheet, toast | |
 | `internal/server/web/app.js` | ~860 | Everything on the dashboard: `T` i18n table (en/th), API helper, WebSocket client, incremental rendering, queue cards, drag & drop, ban menu, audio preview + viewer links, results, test panel (chat / quick / gift), settings `SCHEMA` → form | `render`, `renderBanner`, `renderTosuBanner`, `renderNow`, `updatePhase`, `resultShort`, `renderQueue`, `buildCard`, `banMenu`, `mapLinks`, `updateAttempts`, `renderSide`, `same`, `SCHEMA`, `field` |
@@ -581,20 +577,19 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.3.1          # vet + test + build → dist\osureq.exe (tray app, no console)
-.\build.ps1 -Version 1.3.1 -Console # console build that prints its log, for debugging
+.\build.ps1 -Version 1.3.1          # vet + test + build → dist\osureq.exe
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go build -trimpath -ldflags "-s -w -H windowsgui -X main.version=1.3.1" -o dist\osureq.exe .
+go build -trimpath -ldflags "-s -w -X main.version=1.3.1" -o dist\osureq.exe .
 ```
 
 * `main.version` is set at build time (`dev` otherwise).
-* The release build uses `-H windowsgui` (no console). Started from a terminal, it attaches to that terminal and prints there; otherwise it only writes `osureq.log`
-  and shows fatal errors in a message box. `go run .` and plain `go build` give a console app, which is handy while developing.
+* osureq is a **console app on purpose**: the owner wants the CMD window with the log visible. Do not switch it to `-H windowsgui` or add a tray icon without asking;
+  a tray version existed briefly in 1.3.0 and was removed in 1.3.1. The log goes to the window and to `osureq.log`.
 * Format with `gofmt -w .`; check the dashboard script with `node --check internal/server/web/app.js`.
 * Regenerate `.osz` fixtures: `go test ./internal/verifier -update`.
 * **Replacing a running exe:** Windows will not overwrite a running `osureq.exe`, but it allows renaming it. Rename it to `osureq.old.exe`, build the new one,
@@ -654,7 +649,6 @@ Read this before changing anything.
 | Next → `.osz` opens in osu! | not exercised on the real machine during development; confirm once |
 | Global hotkeys | implemented, not exercised |
 | TikFinity gift and role fields | follow TikTok's payload names; check the raw event panel for `gift` and `chat` during a stream |
-| Tray icon | starts, hands off and quits correctly in tests; the icon's look was not checked on screen |
 | Official download fallback | implemented, not exercised (needs a logged-in browser) |
 | osu! lazer | supported via `open` and tosu, not tested |
 | osu.direct no-video URL | `?noVideo=1` is a guess |
@@ -696,10 +690,11 @@ Read this before changing anything.
 | | `a4134a8` | Chat commands: `!remove`, and for mods `!skip`, `!remove @user`, `!reqon`, `!reqoff` |
 | | `bd94357` | Play results from tosu on requests, history, dashboard and overlay |
 | | `bd318e8` | Gifts buy queue priority (opt-in) |
-| | `e7cc01a` | System tray app (no console), second launch opens the running copy, Quit button |
+| | `e7cc01a` | System tray app (no console), second launch opens the running copy, Quit button (tray removed again in 1.3.1) |
 | | `bb8e34f` | Audio preview and "open in beatmap viewer" links |
 | | `02449a6` | One-click bans from queue cards and the rejection log |
 | | `eb4b13b` | Followers-only and per-subscriber limits |
+| 1.3.1 | | Back to a console app: the CMD window shows the log (titled `osureq <version>`); no tray icon. Closing the window stops cleanly |
 
 ---
 

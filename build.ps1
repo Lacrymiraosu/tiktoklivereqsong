@@ -2,8 +2,7 @@
 # Usage:  powershell -ExecutionPolicy Bypass -File build.ps1 [-Version 1.0.0] [-SkipTests]
 param(
   [string]$Version = "1.0.0",
-  [switch]$SkipTests,
-  [switch]$Console
+  [switch]$SkipTests
 )
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -22,10 +21,8 @@ if (-not $SkipTests) {
 
 $env:GOOS = "windows"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"
 New-Item -ItemType Directory -Force dist | Out-Null
-# -H windowsgui: no console window; osureq lives in the system tray.
-# Use -Console to get a console build for debugging.
-$gui = if ($Console) { "" } else { "-H windowsgui" }
-go build -trimpath -ldflags "-s -w $gui -X main.version=$Version" -o dist\osureq.exe .
+# A console app on purpose: its CMD window shows the log while streaming.
+go build -trimpath -ldflags "-s -w -X main.version=$Version" -o dist\osureq.exe .
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
 $size = (Get-Item dist\osureq.exe).Length / 1MB

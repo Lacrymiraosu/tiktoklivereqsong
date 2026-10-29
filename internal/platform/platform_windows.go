@@ -275,3 +275,12 @@ func (h *Hotkeys) Stop() {
 		<-done
 	}
 }
+
+// SetConsoleTitle names the CMD window, so it is easy to find among others.
+func SetConsoleTitle(title string) {
+	t, err := windows.UTF16PtrFromString(title)
+	if err != nil {
+		return
+	}
+	windows.NewLazySystemDLL("kernel32.dll").NewProc("SetConsoleTitleW").Call(uintptr(unsafe.Pointer(t)))
+}

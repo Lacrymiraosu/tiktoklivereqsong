@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/draft/osureq/internal/app"
@@ -30,13 +31,8 @@ import (
 
 var version = "dev"
 
-// console is true when there is a terminal to print to: a console build, or
-// the GUI build started from a terminal. Otherwise errors use message boxes.
-var console bool
-
 func main() {
-	platform.AttachParentConsole()
-	console = platform.HasConsole()
+	platform.SetConsoleTitle("osureq " + version)
 	dirFlag := flag.String("dir", "", "folder for config.json, queue.json, cache and log (default: next to the exe)")
 	noBrowser := flag.Bool("no-browser", false, "do not open the dashboard on start")
 	flag.Parse()
@@ -95,11 +91,7 @@ func main() {
 	tf.OnChat = a.HandleChat
 	tf.OnGift = a.HandleGift
 	srv := server.New(a, version)
-	var tray platform.Tray
-	a.OnChange(func() {
-		srv.Push()
-		tray.SetTip(trayTip(a))
-	})
+	a.OnChange(srv.Push)
 	ts := tosu.New(tosu.Env{Running: platform.ProcessRunning, Path: platform.ProcessPath, Launch: platform.Launch},
 		func() tosu.Settings {
 			c := store.Get().Connection
@@ -167,7 +159,8 @@ func main() {
 		return map[string]any{"hotkeyErrors": errs, "baseDir": base, "cacheDir": dl.CacheDir}
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	// Ctrl+C, or closing the CMD window (Go reports that as SIGTERM), stops cleanly.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	port := cfg.Connection.DashboardPort
@@ -176,51 +169,26 @@ func main() {
 		if alreadyRunning(url) {
 			// Started twice: show the running copy instead of an error.
 			log.Printf("another osureq is already running on %s; opening its dashboard", url)
+			fmt.Printf("\n  osureq is already running (see its other window).\n  Opening its dashboard: %s\n\n", url)
 			if !*noBrowser {
 				platform.ShellOpen(url)
 			}
+			time.Sleep(4 * time.Second) // long enough to read the message
 			return
 		}
 		fatal(fmt.Errorf("cannot listen on 127.0.0.1:%d (another program uses this port; change dashboardPort in config.json): %w", port, err))
 	}
 	srv.Quit = stop
 	log.Printf("dashboard: %s   overlay: %soverlay", url, url)
-	if console {
-		fmt.Printf("\n  Dashboard:     %s\n  OBS overlay:   %soverlay\n\n  Press Ctrl+C to stop the helper.\n\n", url, url)
-	}
+	fmt.Printf("\n  osureq %s\n  Dashboard:     %s\n  OBS overlay:   %soverlay\n\n  Keep this window open while you stream. Close it (or press Ctrl+C) to stop.\n\n", version, url, url)
 	if cfg.Connection.OpenDashboard && !*noBrowser {
 		platform.ShellOpen(url)
-	}
-
-	tray.OnOpen = func() { platform.ShellOpen(url) }
-	tray.Items = func() []platform.TrayItem {
-		c := store.Get()
-		L := func(en, th string) string {
-			if c.Language == "th" {
-				return th
-			}
-			return en
-		}
-		return []platform.TrayItem{
-			{Label: L("Open dashboard", "เปิดแดชบอร์ด"), Default: true, OnClick: func() { platform.ShellOpen(url) }},
-			{Separator: true},
-			{Label: L("Take requests", "รับคำขอ"), Checked: c.Command.Enabled, OnClick: func() { a.ToggleRequests() }},
-			{Label: L("Dry run (never open osu!)", "ทดลองไม่เปิดเกม (Dry run)"), Checked: c.Test.DryRun, OnClick: func() { a.ToggleDryRun() }},
-			{Separator: true},
-			{Label: L("Open data folder", "เปิดโฟลเดอร์ข้อมูล"), OnClick: func() { platform.ShellOpen(base) }},
-			{Separator: true},
-			{Label: L("Quit osureq", "ออกจาก osureq"), OnClick: stop},
-		}
-	}
-	if err := tray.Start(trayTip(a)); err != nil {
-		log.Printf("tray icon: %v", err) // the dashboard's Quit button still works
 	}
 
 	go tf.Run(ctx)
 	go ts.Run(ctx)
 	go a.Run(ctx)
 	<-ctx.Done()
-	tray.Stop()
 	hk.Stop()
 	q.Flush()
 	log.Printf("bye")
@@ -249,22 +217,14 @@ func setupLog(path string) {
 	if err != nil {
 		return
 	}
-	if console {
-		log.SetOutput(io.MultiWriter(f, os.Stderr)) // file first: a failing console must not lose log lines
-	} else {
-		log.SetOutput(f)
-	}
+	log.SetOutput(io.MultiWriter(f, os.Stderr)) // file first: a failing console must not lose log lines
 	log.SetFlags(log.LstdFlags)
 }
 
 func fatal(err error) {
 	log.Printf("fatal: %v", err)
-	if console {
-		fmt.Fprintf(os.Stderr, "\nError: %v\n\nPress Enter to exit.", err)
-		fmt.Scanln()
-	} else {
-		platform.MessageBox("osureq", "osureq could not start:\n\n"+err.Error(), true)
-	}
+	fmt.Fprintf(os.Stderr, "\nError: %v\n\nPress Enter to exit.", err)
+	fmt.Scanln()
 	os.Exit(1)
 }
 
@@ -280,22 +240,4 @@ func alreadyRunning(url string) bool {
 		Version string `json:"version"`
 	}
 	return resp.StatusCode == http.StatusOK && json.NewDecoder(resp.Body).Decode(&st) == nil && st.Version != ""
-}
-
-// trayTip is the text shown when hovering the tray icon.
-func trayTip(a *app.App) string {
-	s := a.Queue.Snapshot()
-	c := a.Cfg.Get()
-	req := "requests on"
-	if !c.Command.Enabled {
-		req = "requests off"
-	}
-	tip := fmt.Sprintf("osureq · %d in queue · %s", len(s.Items), req)
-	if c.Test.DryRun {
-		tip += " · DRY RUN"
-	}
-	if s.Now != nil {
-		tip += "\n▶ " + s.Now.Artist + " - " + s.Now.Title
-	}
-	return tip
 }
