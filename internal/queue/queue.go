@@ -65,6 +65,19 @@ type Item struct {
 	// what tosu has seen of the now-playing map: waiting | playing | results | ended
 	PlayPhase string    `json:"playPhase,omitempty"`
 	PhaseAt   time.Time `json:"phaseAt,omitempty"`
+	Result    *Result   `json:"result,omitempty"` // how the streamer did, from tosu
+}
+
+// Result is how a requested map went, as tosu saw it.
+type Result struct {
+	Outcome  string  `json:"outcome"` // passed | failed | quit
+	Accuracy float64 `json:"accuracy"`
+	Rank     string  `json:"rank,omitempty"`
+	MaxCombo int     `json:"maxCombo"`
+	Score    int64   `json:"score"`
+	PP       float64 `json:"pp,omitempty"`
+	Mods     string  `json:"mods,omitempty"`
+	Misses   int     `json:"misses"`
 }
 
 type Played struct {
@@ -74,6 +87,7 @@ type Played struct {
 	At     time.Time `json:"at"`
 	Result string    `json:"result"` // played | skipped
 	Test   bool      `json:"test,omitempty"`
+	Play   *Result   `json:"play,omitempty"` // tosu's numbers, when the map was played
 }
 
 type Rejected struct {
@@ -423,7 +437,7 @@ func (q *Queue) finishLocked(result string) {
 
 // record adds it to the history; q.mu must be held.
 func (q *Queue) record(it *Item, result string) {
-	q.d.History = append([]Played{{SetID: it.SetID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test}}, q.d.History...)
+	q.d.History = append([]Played{{SetID: it.SetID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test, Play: it.Result}}, q.d.History...)
 	if len(q.d.History) > maxHistory {
 		q.d.History = q.d.History[:maxHistory]
 	}

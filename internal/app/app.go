@@ -34,17 +34,19 @@ type App struct {
 	OsuDB   *importer.OsuDB
 	OpenURL func(string) error
 
-	changed  func()
-	wake     chan struct{}
-	mu       sync.Mutex
-	inflight map[string]context.CancelFunc // item id -> download cancel
-	notices  []Notice
-	advance  sync.Mutex
-	pending  int // requests being resolved
-	track    tosu.Tracker
-	trackID  string // queue item the tracker follows
-	feed     []FeedEvent
-	feedSeq  int64
+	changed    func()
+	wake       chan struct{}
+	mu         sync.Mutex
+	inflight   map[string]context.CancelFunc // item id -> download cancel
+	notices    []Notice
+	advance    sync.Mutex
+	pending    int // requests being resolved
+	track      tosu.Tracker
+	trackID    string // queue item the tracker follows
+	feed       []FeedEvent
+	feedSeq    int64
+	lastPlay   tosu.Score // latest live numbers of the map being tracked
+	lastFailed bool
 }
 
 type Notice struct {
@@ -338,19 +340,73 @@ func (a *App) OnGame(g tosu.Game) {
 		if a.track.Phase == "" {
 			a.track.Reset(now.SetID, time.Now())
 		}
+		a.lastPlay, a.lastFailed = tosu.Score{}, false
 	}
+	before := a.track.Phase
 	changed := a.track.Update(g, time.Now())
 	phase, since := a.track.Phase, a.track.Since
+	if phase == tosu.Playing && g.State == "play" {
+		a.lastPlay, a.lastFailed = g.Play, g.Failed // keep the latest live numbers
+	}
+	var res *queue.Result
+	switch {
+	case changed && phase == tosu.Results:
+		sc := g.Results
+		if sc.Score == 0 && sc.Accuracy == 0 {
+			sc = a.lastPlay // results block not filled yet: use the last live numbers
+		}
+		res = toResult("passed", sc)
+	case changed && phase == tosu.Ended && before == tosu.Playing && a.lastPlay.Score > 0:
+		outcome := "quit"
+		if a.lastFailed {
+			outcome = "failed"
+		}
+		res = toResult(outcome, a.lastPlay)
+	}
 	a.mu.Unlock()
 	if !changed {
 		return
 	}
-	a.Queue.Update(now.ID, func(x *queue.Item) { x.PlayPhase, x.PhaseAt = string(phase), since })
+	a.Queue.Update(now.ID, func(x *queue.Item) {
+		x.PlayPhase, x.PhaseAt = string(phase), since
+		if res != nil {
+			x.Result = res
+		}
+	})
 	log.Printf("tosu: %s - %s is now %s", now.Artist, now.Title, phase)
+	if res != nil {
+		log.Printf("result for @%s: %s %s", now.User, res.Outcome, ResultShort(res))
+		a.emit(FeedEvent{Kind: "result", User: now.User, Nick: now.Nick, Code: res.Outcome, Short: ResultShort(res),
+			Title: now.Title, Artist: now.Artist, Version: now.Version, Test: now.Test})
+	}
 	if phase == tosu.Ended {
 		a.Notify("info", "finished: %s - %s (@%s)", now.Artist, now.Title, now.User)
 	}
 	a.Wake()
+}
+
+func toResult(outcome string, s tosu.Score) *queue.Result {
+	return &queue.Result{Outcome: outcome, Accuracy: s.Accuracy, Rank: s.Rank, MaxCombo: s.MaxCombo,
+		Score: s.Score, PP: s.PP, Mods: s.Mods, Misses: s.Misses}
+}
+
+// ResultShort formats a result without words, e.g. "98.52% S · 812x · 2 miss · HDHR".
+func ResultShort(r *queue.Result) string {
+	parts := []string{fmt.Sprintf("%.2f%%", r.Accuracy)}
+	if r.Rank != "" && r.Outcome == "passed" {
+		parts[0] += " " + r.Rank
+	}
+	parts = append(parts, fmt.Sprintf("%dx", r.MaxCombo))
+	if r.Misses > 0 {
+		parts = append(parts, fmt.Sprintf("%d miss", r.Misses))
+	}
+	if r.PP >= 1 && r.Outcome == "passed" {
+		parts = append(parts, fmt.Sprintf("%.0fpp", r.PP))
+	}
+	if r.Mods != "" && r.Mods != "NM" {
+		parts = append(parts, r.Mods)
+	}
+	return strings.Join(parts, " · ")
 }
 
 // startDownload fetches the item in the background. silentImport copies it

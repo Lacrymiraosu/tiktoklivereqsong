@@ -35,6 +35,31 @@ type Game struct {
 	BeatmapID int    `json:"beatmapId"`
 	Checksum  string `json:"checksum"`
 	Failed    bool   `json:"failed"`
+	Play      Score  `json:"play"`    // live numbers during gameplay
+	Results   Score  `json:"results"` // the results screen (only meaningful in state resultScreen)
+}
+
+// Score is one play's numbers, from tosu's play or resultsScreen block.
+type Score struct {
+	Accuracy float64 `json:"accuracy"`
+	Rank     string  `json:"rank"`
+	MaxCombo int     `json:"maxCombo"`
+	Score    int64   `json:"score"`
+	PP       float64 `json:"pp"`
+	Mods     string  `json:"mods"` // e.g. "HDHR", "" for no mods
+	Misses   int     `json:"misses"`
+}
+
+// Brief is what the status pill needs; it changes far less often than Game.
+type Brief struct {
+	Client    string `json:"client"`
+	State     string `json:"state"`
+	SetID     int    `json:"setId"`
+	BeatmapID int    `json:"beatmapId"`
+}
+
+func (g Game) Brief() Brief {
+	return Brief{Client: g.Client, State: g.State, SetID: g.SetID, BeatmapID: g.BeatmapID}
 }
 
 type Status struct {
@@ -43,7 +68,7 @@ type Status struct {
 	Running   bool   `json:"running"`
 	Path      string `json:"path"`
 	Connected bool   `json:"connected"`
-	Game      Game   `json:"game"`
+	Game      Brief  `json:"game"`
 	Error     string `json:"error,omitempty"`
 }
 
@@ -199,7 +224,7 @@ func (c *Client) connect(ctx context.Context, s Settings) {
 	cancel()
 	if err != nil {
 		c.set(func(st *Status) {
-			st.Connected, st.Game = false, Game{}
+			st.Connected, st.Game = false, Brief{}
 			if st.Running {
 				st.Error = "WebSocket: " + err.Error()
 			} else {
@@ -226,7 +251,7 @@ func (c *Client) connect(ctx context.Context, s Settings) {
 		_, data, err := conn.Read(rctx)
 		if err != nil {
 			c.set(func(st *Status) {
-				st.Connected, st.Game = false, Game{}
+				st.Connected, st.Game = false, Brief{}
 				if ctx.Err() == nil && websocket.CloseStatus(err) != websocket.StatusNormalClosure {
 					st.Error = "disconnected: " + err.Error()
 				}
@@ -238,7 +263,9 @@ func (c *Client) connect(ctx context.Context, s Settings) {
 			continue
 		}
 		last = g
-		c.set(func(st *Status) { st.Game = g })
+		if b := g.Brief(); b != c.Status().Game {
+			c.set(func(st *Status) { st.Game = b })
+		}
 		if c.OnGame != nil {
 			c.OnGame(g)
 		}
@@ -257,9 +284,41 @@ type v2 struct {
 		Checksum string `json:"checksum"`
 	} `json:"beatmap"`
 	Play struct {
-		Failed bool `json:"failed"`
+		Failed   bool    `json:"failed"`
+		Accuracy float64 `json:"accuracy"`
+		Score    int64   `json:"score"`
+		Combo    struct {
+			Max int `json:"max"`
+		} `json:"combo"`
+		Rank struct {
+			Current string `json:"current"`
+		} `json:"rank"`
+		PP struct {
+			Current float64 `json:"current"`
+		} `json:"pp"`
+		Mods v2mods `json:"mods"`
+		Hits v2hits `json:"hits"`
 	} `json:"play"`
+	Results struct {
+		Accuracy float64 `json:"accuracy"`
+		Score    int64   `json:"score"`
+		MaxCombo int     `json:"maxCombo"`
+		Rank     string  `json:"rank"`
+		PP       struct {
+			Current float64 `json:"current"`
+		} `json:"pp"`
+		Mods v2mods `json:"mods"`
+		Hits v2hits `json:"hits"`
+	} `json:"resultsScreen"`
 	Error string `json:"error"`
+}
+
+type v2mods struct {
+	Name string `json:"name"`
+}
+
+type v2hits struct {
+	Miss int `json:"0"`
 }
 
 // Parse extracts the game state from a tosu /websocket/v2 message.
@@ -272,9 +331,14 @@ func Parse(b []byte) (Game, bool) {
 	if name == "" {
 		name = stateName(m.State.Number)
 	}
+	p, r := m.Play, m.Results
 	return Game{
 		Client: m.Client, State: name, SetID: m.Beatmap.Set, BeatmapID: m.Beatmap.ID,
-		Checksum: strings.ToLower(m.Beatmap.Checksum), Failed: m.Play.Failed,
+		Checksum: strings.ToLower(m.Beatmap.Checksum), Failed: p.Failed,
+		Play: Score{Accuracy: p.Accuracy, Rank: p.Rank.Current, MaxCombo: p.Combo.Max, Score: p.Score,
+			PP: p.PP.Current, Mods: p.Mods.Name, Misses: p.Hits.Miss},
+		Results: Score{Accuracy: r.Accuracy, Rank: r.Rank, MaxCombo: r.MaxCombo, Score: r.Score,
+			PP: r.PP.Current, Mods: r.Mods.Name, Misses: r.Hits.Miss},
 	}, true
 }
 

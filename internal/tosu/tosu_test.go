@@ -46,6 +46,21 @@ func run(tr *Tracker, steps ...Game) []Phase {
 
 func g(state string, set int) Game { return Game{State: state, SetID: set} }
 
+func TestParseScores(t *testing.T) {
+	g, ok := Parse([]byte(`{"state":{"name":"resultScreen"},"beatmap":{"set":1},
+		"play":{"failed":true,"accuracy":97.5,"score":123,"combo":{"current":5,"max":300},"rank":{"current":"A","maxThisPlay":"S"},"pp":{"current":88.8},"mods":{"name":"HD","number":8},"hits":{"0":3,"300":10}},
+		"resultsScreen":{"accuracy":98.52,"score":9000000,"maxCombo":812,"rank":"S","pp":{"current":301.4,"fc":310},"mods":{"name":"HDHR"},"hits":{"0":2}}}`))
+	if !ok {
+		t.Fatal("parse failed")
+	}
+	if g.Play != (Score{Accuracy: 97.5, Rank: "A", MaxCombo: 300, Score: 123, PP: 88.8, Mods: "HD", Misses: 3}) || !g.Failed {
+		t.Errorf("play = %+v failed=%v", g.Play, g.Failed)
+	}
+	if g.Results != (Score{Accuracy: 98.52, Rank: "S", MaxCombo: 812, Score: 9000000, PP: 301.4, Mods: "HDHR", Misses: 2}) {
+		t.Errorf("results = %+v", g.Results)
+	}
+}
+
 func TestTracker(t *testing.T) {
 	const req = 100
 	cases := []struct {

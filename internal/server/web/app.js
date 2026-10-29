@@ -113,6 +113,7 @@ const T = {
   getTosu: ["Download tosu", "ดาวน์โหลด tosu"],
   launchTosu: ["Launch tosu", "เปิด tosu"],
   chk_osu: ["osu!", "osu!"],
+  res_passed: ["cleared", "ผ่าน"], res_failed: ["failed", "ตาย"], res_quit: ["quit", "ออกกลางเพลง"],
   ph_waiting: ["waiting for you to play it", "รอเริ่มเล่นแมพนี้"],
   ph_playing: ["playing", "กำลังเล่น"],
   ph_results: ["results screen", "หน้าผลคะแนน"],
@@ -269,6 +270,16 @@ function renderTosuBanner(ts) {
     acts));
 }
 
+// resultShort mirrors app.ResultShort: "98.52% S · 812x · 2 miss · 301pp · HDHR".
+function resultShort(r) {
+  if (!r) return "";
+  const p = [r.accuracy.toFixed(2) + "%" + (r.rank && r.outcome === "passed" ? " " + r.rank : ""), r.maxCombo + "x"];
+  if (r.misses > 0) p.push(r.misses + " miss");
+  if (r.pp >= 1 && r.outcome === "passed") p.push(Math.round(r.pp) + "pp");
+  if (r.mods && r.mods !== "NM") p.push(r.mods);
+  return p.join(" · ");
+}
+
 // The phase line under now playing: what tosu has seen of the map, and in
 // auto mode when the next one opens. Updated every second without a rebuild.
 function updatePhase() {
@@ -283,6 +294,7 @@ function updatePhase() {
     const hasNext = (S.queue.items || []).some(i => i.state !== "failed");
     text += " · " + (!auto ? t("ph_pressNext") : !hasNext ? t("ph_queueEmpty") : t("ph_nextIn", { n: Math.max(0, left) }));
   }
+  if (n.result) text += " · " + t("res_" + n.result.outcome) + " " + resultShort(n.result);
   el.className = "phase " + cls;
   el.lastChild.textContent = text;
 }
@@ -440,7 +452,8 @@ function renderSide() {
   const raw = (S.raw && S.raw.length ? S.raw : Object.values(S.firstRaw || {})).slice(0, 30);
   fill("#rejLog", rej.slice(0, 40).map(r => logItem("err", t("r_" + r.code), "@" + r.user, r.at, r.detail, r.input)), rej.slice(0, 40));
   fill("#noteLog", notes.map(n => logItem({ error: "err", warn: "warn" }[n.kind] || "info", n.kind, "", n.at, n.text)), notes);
-  fill("#histLog", hist.map(p => logItem(p.result === "played" ? "ok" : "warn", p.title, "@" + p.user, p.at, t(p.result))), hist);
+  fill("#histLog", hist.map(p => logItem(p.result === "played" ? "ok" : "warn", p.title, "@" + p.user, p.at,
+    t(p.result) + (p.play ? " · " + t("res_" + p.play.outcome) + " " + resultShort(p.play) : ""))), hist);
   fill("#rawLog", raw.map(r => logItem("info", r.event, "", r.at, "", r.raw)), raw.map(r => [r.at, r.event]));
   const ov = location.origin + "/overlay";
   const kv = $("#infoKv");
