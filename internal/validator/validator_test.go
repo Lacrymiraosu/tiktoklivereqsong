@@ -173,3 +173,33 @@ func TestWholeSetPrefersMainMode(t *testing.T) {
 		t.Fatalf("want the taiko diff when only taiko is allowed, got %+v %v", d, rej)
 	}
 }
+
+func TestFollowerAndSubscriberRules(t *testing.T) {
+	r := rules()
+	r.FollowersOnly = true
+	r.SubscriberLimit = 4
+	q := config.Queue{PerUserLimit: 2}
+	cases := []struct {
+		name  string
+		roles Roles
+		busy  int
+		want  string
+	}{
+		{"follower", Roles{Follower: 1}, 0, ""},
+		{"not following", Roles{Follower: -1}, 0, "followers_only"},
+		{"unknown follow status is let through", Roles{}, 0, ""},
+		{"normal limit", Roles{Follower: 1}, 2, "user_limit"},
+		{"subscriber gets more", Roles{Follower: 1, Subscriber: 1}, 3, ""},
+		{"subscriber limit reached", Roles{Follower: 1, Subscriber: 1}, 4, "user_limit"},
+	}
+	for _, c := range cases {
+		st := State{Roles: c.roles, UserActive: c.busy}
+		if got := code(CheckUser("viewer", st, r, q, now)); got != c.want {
+			t.Errorf("%s: got %q want %q", c.name, got, c.want)
+		}
+	}
+	r.ExemptUsers = []string{"viewer"}
+	if rej := CheckUser("viewer", State{Roles: Roles{Follower: -1}}, r, q, now); rej != nil {
+		t.Errorf("exempt users skip the follower rule: %v", rej)
+	}
+}

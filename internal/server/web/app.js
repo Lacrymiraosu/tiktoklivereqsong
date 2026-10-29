@@ -138,7 +138,7 @@ const T = {
   ph_pressNext: ["press Next", "กด ถัดไป"],
   ph_noTosu: ["auto mode paused: tosu not connected", "โหมดอัตโนมัติหยุดรอ: ยังไม่เชื่อมต่อ tosu"],
   ph_queueEmpty: ["queue is empty", "คิวว่าง"],
-  r_too_long: ["too long", "ยาวเกิน"], r_meta_error: ["osu! lookup failed", "ดึงข้อมูล osu! ไม่ได้"], r_bad_input: ["invalid input", "รูปแบบไม่ถูกต้อง"], r_requests_off: ["requests off", "ปิดรับคำขอ"],
+  r_too_long: ["too long", "ยาวเกิน"], r_meta_error: ["osu! lookup failed", "ดึงข้อมูล osu! ไม่ได้"], r_bad_input: ["invalid input", "รูปแบบไม่ถูกต้อง"], r_requests_off: ["requests off", "ปิดรับคำขอ"], r_followers_only: ["not a follower", "ไม่ได้ติดตาม"],
   // settings tabs
   tab_connection: ["Connection", "การเชื่อมต่อ"], tab_osu: ["osu!", "osu!"], tab_command: ["Command", "คำสั่ง"], tab_rules: ["Map rules", "กฎแมพ"],
   tab_queue: ["Queue", "คิว"], tab_download: ["Download", "ดาวน์โหลด"], tab_md5: ["MD5", "MD5"], tab_import: ["Import", "นำเข้า"], tab_overlay: ["Overlay", "โอเวอร์เลย์"], tab_hotkeys: ["Hotkeys", "ปุ่มลัด"],
@@ -669,6 +669,8 @@ const SCHEMA = {
     F("rules.maxLengthSec", "number", "Max length (s)", "ความยาวสูงสุด (วินาที)", "0 = no limit", "0 = ไม่จำกัด", { min: 0 }),
     F("rules.modes", "multi", "Allowed modes", "โหมดที่อนุญาต", null, null, { options: MODES }),
     F("rules.statuses", "multi", "Allowed statuses", "สถานะที่อนุญาต", null, null, { options: STATUSES.map(s => [s, s]) }),
+    F("rules.followersOnly", "switch", "Followers only", "เฉพาะผู้ติดตาม", "Rejects viewers TikTok reports as not following. If TikFinity does not send follow status, requests are let through and Activity shows a warning.", "ปฏิเสธผู้ชมที่ TikTok แจ้งว่ายังไม่ได้ติดตาม ถ้า TikFinity ไม่ส่งสถานะการติดตามมา จะปล่อยผ่านและแจ้งเตือนใน กิจกรรม"),
+    F("rules.subscriberPerUserLimit", "number", "Requests per subscriber", "คำขอต่อคนสำหรับสมาชิก", "Waiting requests allowed for TikTok subscribers. 0 = same as everyone.", "จำนวนคำขอที่รอได้ของสมาชิก TikTok 0 = เท่ากับคนอื่น", { min: 0 }),
     F("rules.blacklistSets", "numlist", "Blacklisted set IDs", "ID เซ็ตที่แบน", "Comma separated", "คั่นด้วยจุลภาค"),
     F("rules.blacklistMappers", "list", "Blacklisted mappers", "แมพเปอร์ที่แบน", "Comma separated osu! usernames", "ชื่อผู้ใช้ osu! คั่นด้วยจุลภาค"),
     F("rules.blacklistUsers", "list", "Blacklisted TikTok users", "ผู้ใช้ TikTok ที่แบน", "Comma separated @uniqueId", "@uniqueId คั่นด้วยจุลภาค"),

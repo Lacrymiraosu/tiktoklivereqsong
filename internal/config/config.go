@@ -57,7 +57,9 @@ type Rules struct {
 	BlacklistSets   []int    `json:"blacklistSets"`
 	BlacklistMapper []string `json:"blacklistMappers"`
 	BlacklistUsers  []string `json:"blacklistUsers"`
-	ExemptUsers     []string `json:"exemptUsers"` // no per-user limit or cooldown (streamer, mods)
+	ExemptUsers     []string `json:"exemptUsers"`            // no per-user limit or cooldown (streamer, mods)
+	FollowersOnly   bool     `json:"followersOnly"`          // reject viewers TikTok says do not follow
+	SubscriberLimit int      `json:"subscriberPerUserLimit"` // per-user limit for subscribers; 0 = same as everyone
 }
 
 type Queue struct {

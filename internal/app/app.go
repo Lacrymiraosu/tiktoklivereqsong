@@ -47,6 +47,7 @@ type App struct {
 	feedSeq    int64
 	lastPlay   tosu.Score // latest live numbers of the map being tracked
 	lastFailed bool
+	warned     map[string]bool
 }
 
 type Notice struct {
@@ -90,6 +91,20 @@ func (a *App) Notify(kind, f string, args ...any) {
 	a.Changed()
 }
 
+// warnOnce adds an activity warning once per run for each key.
+func (a *App) warnOnce(key, f string, args ...any) {
+	a.mu.Lock()
+	if a.warned == nil {
+		a.warned = map[string]bool{}
+	}
+	seen := a.warned[key]
+	a.warned[key] = true
+	a.mu.Unlock()
+	if !seen {
+		a.Notify("warn", f, args...)
+	}
+}
+
 func (a *App) Notices() []Notice {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -114,7 +129,10 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 		a.emit(FeedEvent{Kind: "rejected", User: ch.User, Nick: ch.Nick, Code: "requests_off"})
 		return
 	}
-	go a.submit(ch.User, ch.Nick, ch.Comment, req, fromChat)
+	if cfg.Rules.FollowersOnly && ch.Follower == tikfinity.Unknown {
+		a.warnOnce("follow", "followers-only is on, but TikFinity did not say whether @%s follows; letting the request through", ch.User)
+	}
+	go a.submit(ch.User, ch.Nick, ch.Comment, req, fromChat, validator.Roles{Follower: int8(ch.Follower), Subscriber: int8(ch.Subscriber)})
 }
 
 // origin says where a request came from.
@@ -154,7 +172,7 @@ func (a *App) SimulateChat(user, comment string) (it *queue.Item, rej *validator
 		a.Queue.Reject(rr)
 		return nil, r, true
 	}
-	it, rej = a.submit(user, user, comment, req, fromSim)
+	it, rej = a.submit(user, user, comment, req, fromSim, validator.Roles{})
 	return it, rej, true
 }
 
@@ -176,10 +194,10 @@ func (a *App) TestRequest(user, input string) (*queue.Item, *validator.Rejection
 		a.Queue.Reject(rr)
 		return nil, r
 	}
-	return a.submit(user, user, input, req, fromQuick)
+	return a.submit(user, user, input, req, fromQuick, validator.Roles{})
 }
 
-func (a *App) submit(user, nick, input string, req parser.Request, o origin) (*queue.Item, *validator.Rejection) {
+func (a *App) submit(user, nick, input string, req parser.Request, o origin, roles validator.Roles) (*queue.Item, *validator.Rejection) {
 	a.mu.Lock()
 	a.pending++
 	a.mu.Unlock()
@@ -189,7 +207,7 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin) (*q
 		a.mu.Unlock()
 		a.Changed()
 	}()
-	it, rej := a.resolve(user, nick, input, req, o)
+	it, rej := a.resolve(user, nick, input, req, o, roles)
 	if rej != nil {
 		rr := queue.RejectedFrom(user, input, rej)
 		rr.Test = o != fromChat
@@ -206,11 +224,12 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin) (*q
 	return it, nil
 }
 
-func (a *App) resolve(user, nick, input string, req parser.Request, o origin) (*queue.Item, *validator.Rejection) {
+func (a *App) resolve(user, nick, input string, req parser.Request, o origin, roles validator.Roles) (*queue.Item, *validator.Rejection) {
 	cfg := a.Cfg.Get()
 	now := time.Now()
 	st := a.Queue.ValidationState(user)
 	if o != fromQuick {
+		st.Roles = roles
 		if r := validator.CheckUser(user, st, cfg.Rules, cfg.Queue, now); r != nil {
 			return nil, r
 		}

@@ -30,8 +30,16 @@ func (r *Rejection) with(short string, a ...any) *Rejection {
 	return r
 }
 
+// Roles is what TikTok says about the viewer. Each value is 1 (yes),
+// -1 (no) or 0 (unknown, e.g. TikFinity did not send it); unknown never blocks.
+type Roles struct {
+	Follower   int8
+	Subscriber int8
+}
+
 // State is a snapshot of the queue used for the checks.
 type State struct {
+	Roles       Roles
 	QueueLen    int
 	UserActive  int               // requests by this user still waiting (not the one playing)
 	LastRequest time.Time         // last accepted request by this user
@@ -51,8 +59,15 @@ func CheckUser(user string, st State, rules config.Rules, q config.Queue, now ti
 	if listed(rules.ExemptUsers, user) {
 		return nil
 	}
-	if q.PerUserLimit > 0 && st.UserActive >= q.PerUserLimit {
-		return reject("user_limit", "@%s already has %d request(s) waiting", user, st.UserActive).with("%d/%d", st.UserActive, q.PerUserLimit)
+	if rules.FollowersOnly && st.Roles.Follower < 0 {
+		return reject("followers_only", "@%s does not follow the stream", user)
+	}
+	limit := q.PerUserLimit
+	if st.Roles.Subscriber > 0 && rules.SubscriberLimit > 0 && (limit == 0 || rules.SubscriberLimit > limit) {
+		limit = rules.SubscriberLimit
+	}
+	if limit > 0 && st.UserActive >= limit {
+		return reject("user_limit", "@%s already has %d request(s) waiting", user, st.UserActive).with("%d/%d", st.UserActive, limit)
 	}
 	if q.CooldownSec > 0 && !st.LastRequest.IsZero() {
 		if left := time.Duration(q.CooldownSec)*time.Second - now.Sub(st.LastRequest); left > 0 {
