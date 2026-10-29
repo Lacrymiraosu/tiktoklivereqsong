@@ -46,6 +46,11 @@ const T = {
   testPanel: ["Test", "ทดสอบ"],
   modeChat: ["Simulate chat", "จำลองแชท"],
   modeQuick: ["Quick add", "เพิ่มด่วน"],
+  modeGift: ["Gift", "ของขวัญ"],
+  hintGift: ["Pretends @user sent a gift worth this many coins (gift priority must be on in Settings → Queue).", "จำลองว่า @ผู้ใช้ ส่งของขวัญมูลค่าเท่านี้เหรียญ (ต้องเปิดคิวพิเศษจากของขวัญใน ตั้งค่า → คิว)"],
+  giftPh: ["coins, e.g. 30", "จำนวนเหรียญ เช่น 30"],
+  giftDone: ["Gift sent: {n} priority earned", "ส่งของขวัญแล้ว: ได้คิวพิเศษ {n} ครั้ง"],
+  priority: ["priority", "คิวพิเศษ"],
   dryRun: ["Dry run", "ทดลองไม่เปิดเกม"],
   clearTest: ["Clear test data", "ล้างข้อมูลทดสอบ"],
   testPh: ["!req 2096297 or a link", "!req 2096297 หรือลิงก์"],
@@ -247,6 +252,7 @@ function tagsFor(it) {
     it.md5 ? h("em", { class: "md5-" + it.md5 }, "MD5 " + it.md5) : null,
     it.source ? h("em", {}, it.source) : null,
     it.bySet ? h("em", {}, t("wholeSet")) : null,
+    it.priority ? h("em", { class: "prio" }, "★ " + t("priority")) : null,
     it.test ? h("em", {}, t("test")) : null);
 }
 
@@ -499,7 +505,8 @@ try { testMode = localStorage.getItem("osureq.testMode") || "chat"; } catch {}
 function renderTestHint() {
   document.querySelectorAll("#testMode button").forEach(b => b.classList.toggle("on", b.dataset.mode === testMode));
   const cmd = S ? S.command : "!req";
-  $("#testHint").textContent = t(testMode === "chat" ? "hintChat" : "hintQuick", { cmd }) + (S && S.dryRun ? t("hintDry") : "");
+  $("#testHint").textContent = t({ chat: "hintChat", quick: "hintQuick", gift: "hintGift" }[testMode] || "hintChat", { cmd }) + (S && S.dryRun ? t("hintDry") : "");
+  $("#testIn").placeholder = t(testMode === "gift" ? "giftPh" : "testPh");
 }
 $("#testMode").addEventListener("click", e => {
   const b = e.target.closest("button[data-mode]");
@@ -518,6 +525,11 @@ $("#testForm").addEventListener("submit", async e => {
   const btn = e.submitter; btn.disabled = true;
   try {
     let j;
+    if (testMode === "gift") {
+      j = await api("POST", "/api/simulateGift", { user, coins: parseInt(input, 10) || 0 });
+      if (j.ok) { toast(t("giftDone", { n: j.earned })); $("#testIn").value = ""; } else toast(j.error, true);
+      return;
+    }
     if (testMode === "chat") {
       if (!input.startsWith("!")) input = (S ? S.command : "!req") + " " + input;
       j = await api("POST", "/api/simulate", { user, message: input });
@@ -584,6 +596,9 @@ const SCHEMA = {
     F("queue.cooldownSec", "number", "Per-user cooldown (s)", "คูลดาวน์ต่อคน (วินาที)", null, null, { min: 0 }),
     F("rules.exemptUsers", "list", "No-limit users", "ผู้ใช้ที่ไม่จำกัด", "Comma separated @uniqueId (you, your mods). They skip the per-user limit and cooldown.", "@uniqueId คั่นด้วยจุลภาค (คุณ หรือม็อด) ไม่ติดจำนวนคำขอต่อคนและคูลดาวน์"),
     F("queue.noRepeatMin", "number", "No repeat within (min)", "ห้ามซ้ำภายใน (นาที)", null, null, { min: 0 }),
+    F("gifts.enabled", "switch", "Gifts buy priority", "ของขวัญได้คิวพิเศษ", "A viewer's gift coins add up; every full amount below moves their oldest waiting request to the top (after other priority requests), or is kept for their next request.", "เหรียญของขวัญของแต่ละคนจะสะสม ครบตามจำนวนด้านล่างเมื่อไหร่ คำขอที่รออยู่เก่าที่สุดของคนนั้นจะขึ้นหน้าคิว (ต่อจากคำขอพิเศษอื่น) หรือเก็บไว้ใช้กับคำขอถัดไป"),
+    F("gifts.coinsPerPriority", "number", "Coins per priority", "เหรียญต่อคิวพิเศษ 1 ครั้ง", null, null, { min: 1 }),
+    F("gifts.creditMinutes", "number", "Unused priority lasts (min)", "สิทธิ์ที่ยังไม่ใช้อยู่ได้ (นาที)", null, null, { min: 1 }),
     F("queue.playMode", "seg", "Play mode", "โหมดเล่น", "auto opens the next map when tosu sees that you played the current one and went back to song select (requires tosu). Without tosu, auto waits.", "auto จะเปิดแมพถัดไปเมื่อ tosu เห็นว่าเล่นแมพปัจจุบันจบและกลับไปหน้าเลือกเพลงแล้ว (ต้องใช้ tosu) ถ้าไม่มี tosu จะหยุดรอ", { options: [["manual", ["manual (press Next)", "กดเอง (ถัดไป)"]], ["auto", ["auto", "อัตโนมัติ"]]] }),
     F("queue.autoGapSec", "number", "Wait after song ends (s)", "รอหลังเพลงจบ (วินาที)", "Seconds after you return to song select before the next map opens.", "จำนวนวินาทีหลังกลับไปหน้าเลือกเพลง ก่อนเปิดแมพถัดไป", { min: 0 }),
   ],

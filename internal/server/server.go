@@ -117,6 +117,7 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/queue/{id}/{op}", s.queueOp)
 	mux.HandleFunc("POST /api/test", s.test)
 	mux.HandleFunc("POST /api/simulate", s.simulate)
+	mux.HandleFunc("POST /api/simulateGift", s.simulateGift)
 	return guard(port, mux)
 }
 
@@ -327,6 +328,25 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(w, map[string]any{"ok": true, "item": it})
 	}
+}
+
+// simulateGift pretends a viewer sent a gift worth `coins`.
+func (s *Server) simulateGift(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		User  string `json:"user"`
+		Coins int    `json:"coins"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&body) != nil || body.Coins <= 0 {
+		httpErr(w, http.StatusBadRequest, "send {user, coins > 0}")
+		return
+	}
+	n, err := s.App.SimulateGift(body.User, body.Coins)
+	s.Push()
+	if err != nil {
+		result(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "earned": n})
 }
 
 func result(w http.ResponseWriter, err error) {

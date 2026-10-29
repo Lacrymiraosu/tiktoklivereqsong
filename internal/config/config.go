@@ -118,6 +118,13 @@ type Hotkeys struct {
 	Toggle  string `json:"toggleRequests"`
 }
 
+// Gifts turns TikTok gifts into queue priority.
+type Gifts struct {
+	Enabled          bool `json:"enabled"`
+	CoinsPerPriority int  `json:"coinsPerPriority"` // coins (added up per viewer) for one priority request
+	CreditMinutes    int  `json:"creditMinutes"`    // how long an unused priority waits for a request
+}
+
 // Test holds the dashboard's test-panel switches.
 type Test struct {
 	DryRun bool `json:"dryRun"` // Next/Play move the queue but never open or copy anything into osu!
@@ -136,6 +143,7 @@ type Config struct {
 	Overlay    Overlay    `json:"overlay"`
 	Hotkeys    Hotkeys    `json:"hotkeys"`
 	Test       Test       `json:"test"`
+	Gifts      Gifts      `json:"gifts"`
 }
 
 func Default() Config {
@@ -177,6 +185,7 @@ func Default() Config {
 		MD5:     MD5{Enabled: true, Level: "requested", VerifyCache: true, OnAllFail: "skip", MetaTimeoutSec: 15},
 		Import:  Import{Mode: "open", Preload: true, PreloadCount: 2},
 		Overlay: Overlay{Visible: 5, Requester: true, Theme: "pink", Scale: 100, Position: "top-left", Feedback: true, FeedbackSec: 7, Lang: "auto"},
+		Gifts:   Gifts{Enabled: false, CoinsPerPriority: 30, CreditMinutes: 60},
 		Hotkeys: Hotkeys{Enabled: false, Next: "Ctrl+Alt+N", Skip: "Ctrl+Alt+S", Remove: "Ctrl+Alt+Backspace", Toggle: "Ctrl+Alt+R"},
 	}
 }

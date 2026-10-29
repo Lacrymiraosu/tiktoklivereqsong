@@ -52,6 +52,7 @@ type Item struct {
 	AddedAt   time.Time `json:"addedAt"`
 	Test      bool      `json:"test,omitempty"`      // added from the dashboard's test panel
 	Simulated bool      `json:"simulated,omitempty"` // simulated chat: counts for cooldown/limits like a real one
+	Priority  bool      `json:"priority,omitempty"`  // bought with gifts: kept at the top of the queue
 
 	State     State     `json:"state"`
 	File      string    `json:"file,omitempty"`
@@ -107,7 +108,8 @@ type data struct {
 	LastReq  map[string]time.Time `json:"lastRequest"`
 	Rejected []Rejected           `json:"rejected"`
 	// users whose cooldown was set by a simulated chat, reset by ClearTest
-	TestUsers map[string]bool `json:"testUsers,omitempty"`
+	TestUsers map[string]bool    `json:"testUsers,omitempty"`
+	Credits   map[string]*Credit `json:"credits,omitempty"` // gift coins and priority tokens per user
 }
 
 // Snapshot is a deep enough copy for rendering.
@@ -272,6 +274,11 @@ func (q *Queue) ClearTest() []string {
 		delete(q.d.LastReq, u)
 	}
 	q.d.TestUsers = nil
+	for u, c := range q.d.Credits {
+		if c.Test {
+			delete(q.d.Credits, u)
+		}
+	}
 	q.changed()
 	return ids
 }

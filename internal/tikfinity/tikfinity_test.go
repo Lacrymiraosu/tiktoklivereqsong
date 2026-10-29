@@ -55,3 +55,20 @@ func TestParseChatRoles(t *testing.T) {
 		t.Errorf("followRole 0 means not following: %+v", ch)
 	}
 }
+
+func TestParseGift(t *testing.T) {
+	g, ok := ParseGift([]byte(`{"uniqueId":"rich","nickname":"Rich","giftName":"Rose","giftType":1,"repeatCount":7,"repeatEnd":true,"diamondCount":1}`))
+	if !ok || g.Coins != 7 || g.User != "rich" || g.Name != "Rose" {
+		t.Errorf("finished streak: %+v %v", g, ok)
+	}
+	if _, ok := ParseGift([]byte(`{"uniqueId":"rich","giftType":1,"repeatCount":3,"repeatEnd":false,"diamondCount":1}`)); ok {
+		t.Error("a running streak must not count yet")
+	}
+	g, ok = ParseGift([]byte(`{"user":{"uniqueId":"big"},"giftName":"Lion","giftType":2,"repeatCount":1,"diamondCount":29999}`))
+	if !ok || g.Coins != 29999 || g.User != "big" {
+		t.Errorf("non-streak gift: %+v %v", g, ok)
+	}
+	if _, ok := ParseGift([]byte(`{"uniqueId":"x","diamondCount":0}`)); ok {
+		t.Error("zero-coin gift should be ignored")
+	}
+}

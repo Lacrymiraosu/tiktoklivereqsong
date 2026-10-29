@@ -88,6 +88,7 @@ type Client struct {
 	Env      Env
 	Settings func() Settings
 	OnChat   func(Chat)
+	OnGift   func(Gift)
 	OnStatus func(Status)
 
 	mu          sync.Mutex
@@ -303,6 +304,11 @@ func (c *Client) handle(b []byte, logRaw bool) {
 		return
 	}
 	c.set(func(st *Status) { st.Handshake, st.Live, st.LastEvent = true, true, time.Now() })
+	if e.Event == "gift" && c.OnGift != nil {
+		if g, ok := ParseGift(e.Data); ok {
+			c.OnGift(g)
+		}
+	}
 	if e.Event == "chat" && c.OnChat != nil {
 		if ch, ok := ParseChat(e.Data); ok {
 			c.OnChat(ch)
@@ -367,6 +373,59 @@ func ParseChat(data json.RawMessage) (Chat, bool) {
 		}
 	}
 	return ch, true
+}
+
+// Gift is a finished gift (a whole streak for streakable gifts).
+type Gift struct {
+	User  string
+	Nick  string
+	Name  string
+	Coins int // diamondCount × repeatCount
+}
+
+// ParseGift reads a TikFinity gift event. Streakable gifts (giftType 1) send
+// an event per tap; only the last one (repeatEnd) is counted, so a streak is
+// not counted many times. Field names follow TikTok's payload as forwarded by
+// TikFinity and are not verified on a live stream yet.
+func ParseGift(data json.RawMessage) (Gift, bool) {
+	var m map[string]any
+	if json.Unmarshal(data, &m) != nil {
+		return Gift{}, false
+	}
+	user, _ := m["user"].(map[string]any)
+	str := func(keys ...string) string {
+		for _, src := range []map[string]any{m, user} {
+			for _, k := range keys {
+				if v, ok := src[k].(string); ok && v != "" {
+					return v
+				}
+			}
+		}
+		return ""
+	}
+	num := func(keys ...string) (float64, bool) {
+		for _, k := range keys {
+			if v, ok := m[k].(float64); ok {
+				return v, true
+			}
+		}
+		return 0, false
+	}
+	if t, _ := num("giftType"); t == 1 {
+		if end, ok := m["repeatEnd"].(bool); ok && !end {
+			return Gift{}, false // streak still running
+		}
+	}
+	each, _ := num("diamondCount", "diamond_count")
+	count, ok := num("repeatCount", "repeat_count")
+	if !ok || count < 1 {
+		count = 1
+	}
+	g := Gift{User: str("uniqueId", "username"), Nick: str("nickname"), Name: str("giftName", "name"), Coins: int(each * count)}
+	if g.Nick == "" {
+		g.Nick = g.User
+	}
+	return g, g.User != "" && g.Coins > 0
 }
 
 func shortErr(err error) string {

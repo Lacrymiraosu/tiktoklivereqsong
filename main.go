@@ -85,6 +85,7 @@ func main() {
 
 	a := app.New(store, q, osumeta.New(), dl, im, tf, platform.ShellOpen)
 	tf.OnChat = a.HandleChat
+	tf.OnGift = a.HandleGift
 	srv := server.New(a, version)
 	a.OnChange(srv.Push)
 	ts := tosu.New(tosu.Env{Running: platform.ProcessRunning, Path: platform.ProcessPath, Launch: platform.Launch},

@@ -143,7 +143,7 @@ function render(S) {
       ${o.showRequester ? `<div class="who">${tx("reqBy")} <em>@${esc(n.user)}</em></div>` : ""}</div></div>`;
   }
   if (items.length) html += `<div class="up">` + items.map((it, i) =>
-    `<div class="row" style="--i:${i}"><span class="n">${i + 1}</span><span class="t">${star(it)}${esc(it.artist)} - ${esc(it.title)}</span>${o.showRequester ? `<span class="r">@${esc(it.user)}</span>` : ""}</div>`).join("") + `</div>`;
+    `<div class="row" style="--i:${i}"><span class="n"${it.priority ? ' style="background:var(--gold);color:#1c1726"' : ""}>${it.priority ? "★" : i + 1}</span><span class="t">${star(it)}${esc(it.artist)} - ${esc(it.title)}</span>${o.showRequester ? `<span class="r">@${esc(it.user)}</span>` : ""}</div>`).join("") + `</div>`;
   if (S.requests && S.tikfinity.level === "green") html += `<div class="cmd">${tx("request")}: <b>${esc(S.command)}</b> &lt;ID / link&gt;</div>`;
   if (html !== last) { main.innerHTML = html; last = html; }
 }

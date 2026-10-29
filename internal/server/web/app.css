@@ -133,6 +133,7 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .st-ranked,.st-approved{background:#3f7d4f!important}
 .st-loved{background:#a3406f!important}
 .st-qualified{background:#2f6d99!important}
+.tags em.prio{background:rgba(255,207,107,.25);color:var(--warn);font-weight:600}
 .md5-ok,.md5-cached,.md5-installed{background:rgba(87,214,141,.22)!important;color:#8ee6a0}
 .md5-mismatch{background:rgba(255,207,107,.2)!important;color:var(--warn)}
 .md5-unverified{background:rgba(255,255,255,.08)!important;color:var(--dim)}
