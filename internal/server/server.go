@@ -21,6 +21,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/update"
 	"github.com/coder/websocket"
 )
 
@@ -62,6 +63,7 @@ type State struct {
 	BlacklistUsers []string                      `json:"blacklistUsers"`
 	DryRun         bool                          `json:"dryRun"`
 	VoteSkip       app.VoteSkip                  `json:"voteSkip"`
+	Update         *update.Release               `json:"update,omitempty"`
 	Raw            []tikfinity.RawEvent          `json:"raw,omitempty"`
 	FirstRaw       map[string]tikfinity.RawEvent `json:"firstRaw,omitempty"`
 	Extra          map[string]any                `json:"extra,omitempty"`
@@ -75,7 +77,7 @@ func (s *Server) state() State {
 		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(), Feed: s.App.Feed(),
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name,
 		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, Volume: cfg.MasterVolume, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
-		VoteSkip: s.App.Votes(),
+		VoteSkip: s.App.Votes(), Update: s.App.Update(),
 	}
 	if s.Extra != nil {
 		st.Extra = s.Extra()

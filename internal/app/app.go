@@ -20,6 +20,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/update"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/validator"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/verifier"
 )
@@ -52,6 +53,7 @@ type App struct {
 	infoAt     map[string]time.Time // user|command -> last !pos / !np answered
 	voteID     string               // now-playing item the skip votes are for
 	voters     map[string]bool
+	latest     *update.Release // a newer osureq release, if GitHub has one
 }
 
 type Notice struct {
@@ -741,6 +743,24 @@ func (a *App) Resolving() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.pending
+}
+
+// SetUpdate records a newer osureq release; Activity mentions each version once.
+func (a *App) SetUpdate(r update.Release) {
+	a.mu.Lock()
+	seen := a.latest != nil && a.latest.Version == r.Version
+	a.latest = &r
+	a.mu.Unlock()
+	if !seen {
+		a.Say("info", "update", map[string]string{"v": r.Version}, "osureq %s is available: %s", r.Version, r.URL)
+	}
+}
+
+// Update returns the newer release, or nil.
+func (a *App) Update() *update.Release {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.latest
 }
 
 // ClearTest removes all test-panel data and cancels its downloads.

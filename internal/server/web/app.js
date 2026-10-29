@@ -178,6 +178,8 @@ const T = {
   n_banned_mapper: ["Banned mapper {v} (removed {n})", "แบนแมพเปอร์ {v} แล้ว (ลบ {n} รายการ)"],
   n_skipErr: ["!skip by @{u}: {msg}", "!skip โดย @{u}: {msg}"],
   n_usedCmd: ["@{u} used {cmd}", "@{u} ใช้คำสั่ง {cmd}"],
+  updAvail: ["Update {v} ↗", "อัปเดต {v} ↗"], updTitle: ["osureq {v} is out. Opens the release page; download the zip there and replace osureq.exe.", "osureq {v} ออกแล้ว กดเพื่อเปิดหน้าดาวน์โหลด โหลด zip แล้วแทนที่ osureq.exe"],
+  n_update: ["osureq {v} is available (button at the top)", "มี osureq {v} แล้ว (ปุ่มด้านบน)"],
   n_gameDetected: ["tosu sees osu! {game} running, so Settings → osu! → Game is now {game}", "tosu เห็นว่าเปิด osu! {game} อยู่ จึงเปลี่ยน ตั้งค่า → osu! → เกม เป็น {game} ให้"],
   n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
   e_vote_skip: ["Votes to skip cannot be negative", "จำนวนโหวตข้ามเพลงติดลบไม่ได้"],
@@ -290,6 +292,9 @@ function render() {
   if (!volEditing) showVolume(S.masterVolume ?? 10);
   $("#dryRunSw").checked = S.dryRun;
   $("#dryPill").hidden = !S.dryRun;
+  const up = $("#updPill");
+  up.hidden = !S.update;
+  if (S.update) { up.href = S.update.url; up.textContent = t("updAvail", { v: S.update.version }); up.title = t("updTitle", { v: S.update.version }); }
   renderTestHint();
   const ts = S.tosu;
   $("#tosuDot").className = "dot " + ts.level;
@@ -835,6 +840,7 @@ const SCHEMA = {
     F("connection.tosuUrl", "text", "tosu WebSocket URL (required)", "URL WebSocket ของ tosu (จำเป็น)", "Default ws://127.0.0.1:24050/websocket/v2. Auto mode uses it to see when a song has ended.", "ค่าเริ่มต้น ws://127.0.0.1:24050/websocket/v2 โหมดอัตโนมัติใช้ดูว่าเพลงจบแล้ว"),
     F("connection.tosuPath", "text", "tosu.exe path", "ที่อยู่ tosu.exe", "Filled in automatically the first time tosu is seen running.", "จะถูกกรอกให้อัตโนมัติเมื่อเห็น tosu เปิดอยู่ครั้งแรก"),
     F("connection.autoLaunchTosu", "switch", "Auto-launch tosu", "เปิด tosu อัตโนมัติ", "Starts tosu if it is not running (needs the path above).", "เปิด tosu ให้ถ้ายังไม่ได้เปิด (ต้องมีที่อยู่ด้านบน)"),
+    F("connection.checkUpdates", "switch", "Check for updates", "ตรวจหาอัปเดต", "Asks GitHub twice a day whether a newer osureq exists and shows a button at the top. Nothing is downloaded by itself.", "ถาม GitHub วันละ 2 ครั้งว่ามี osureq ใหม่หรือไม่ แล้วแสดงปุ่มด้านบน ไม่ดาวน์โหลดอะไรเอง"),
     F("connection.logRawEvents", "switch", "Log raw events", "บันทึกอีเวนต์ดิบ", "Shows every TikFinity message in the side panel. Use it to check field names.", "แสดงทุกข้อความจาก TikFinity ที่แผงข้าง ใช้ตรวจชื่อฟิลด์"),
   ],
   osu: [
