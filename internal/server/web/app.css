@@ -120,7 +120,7 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .card.failed{border-color:rgba(255,90,110,.6)}
 .card.drag{opacity:.4}
 .card.over{border-color:var(--sky);transform:translateY(2px)}
-.ci{position:relative;padding:11px 14px 11px 52px;display:flex;flex-direction:column;gap:2px;min-width:0;margin-right:150px}
+.ci{position:relative;padding:11px 14px 11px 52px;display:flex;flex-direction:column;gap:2px;min-width:0;margin-right:290px}
 @media (max-width:560px){.ci{margin-right:0;padding-bottom:58px}}
 .pos{position:absolute;left:12px;top:12px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;background:rgba(255,255,255,.12);cursor:grab}
 .ci b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -148,6 +148,12 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .cbtn.go{background:var(--pink);border-color:var(--pink);color:var(--pinkdk)}
 .cbtn:active{transform:scale(.9)}
 .cbtn:disabled{opacity:.35;cursor:default}
+.banwrap{position:relative;display:inline-flex}
+.banpop{position:fixed;z-index:12;min-width:200px;display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:14px;background:var(--panel);border:1px solid var(--line);box-shadow:0 14px 40px rgba(0,0,0,.5);animation:fadeIn .15s}
+.banpop[hidden]{display:none!important}
+.banpop button{min-height:38px;padding:0 12px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.banpop button:hover{background:rgba(255,90,110,.18);color:#ffb3bd}
+.tp .banlink{align-self:flex-start;font-size:12px;color:#ff9aa6;margin-top:2px}
 .att{position:relative;display:flex;flex-direction:column;gap:4px;margin:0 14px 12px 52px}
 .arow{display:grid;grid-template-columns:86px 1fr auto;gap:10px;align-items:center;font-size:12px;color:var(--dim)}
 .arow b{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

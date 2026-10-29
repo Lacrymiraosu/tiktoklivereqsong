@@ -60,6 +60,11 @@ const T = {
   hintQuick: ["Adds a map straight to the queue. Only map rules apply (no per-user limit or cooldown).", "เพิ่มแมพเข้าคิวทันที ใช้แค่กฎแมพ (ไม่นับจำนวนต่อคนและคูลดาวน์)"],
   hintDry: [" Dry run is on: Next and Play move the queue but never open osu! or copy into Songs.", " เปิดโหมดทดลองอยู่: กด ถัดไป/เล่น จะเลื่อนคิวแต่ไม่เปิด osu! และไม่คัดลอกเข้า Songs"],
   quit: ["Quit osureq", "ออกจาก osureq"],
+  ban: ["Ban…", "แบน…"], banUser: ["Ban @{u}", "แบน @{u}"], banMap: ["Ban this map", "แบนแมพนี้"], banMapper: ["Ban mapper {m}", "แบนแมพเปอร์ {m}"],
+  confirmBan_user: ["Ban @{v}? Their waiting requests are removed and new ones are rejected.", "แบน @{v}? คำขอที่รออยู่จะถูกลบ และคำขอใหม่จะถูกปฏิเสธ"],
+  confirmBan_set: ["Ban beatmapset {v}? Waiting requests for it are removed.", "แบนเซ็ต {v}? คำขอที่รออยู่ของแมพนี้จะถูกลบ"],
+  confirmBan_mapper: ["Ban maps by {v}? Waiting requests for their maps are removed.", "แบนแมพของ {v}? คำขอที่รออยู่ของแมพเหล่านี้จะถูกลบ"],
+  banned: ["Banned {v} · removed {n}. Undo in Settings → Map rules.", "แบน {v} แล้ว · ลบ {n} คำขอ ยกเลิกได้ใน ตั้งค่า → กฎแมพ"],
   pvPlay: ["preview", "ฟังตัวอย่าง"], pvStop: ["stop", "หยุด"], pvFail: ["Could not play the preview", "เล่นตัวอย่างเพลงไม่ได้"],
   viewer: ["viewer", "viewer"], viewerTitle: ["Open in the beatmap viewer", "เปิดใน beatmap viewer"],
   confirmQuit: ["Stop osureq? Requests will not be taken until you start it again.", "ปิด osureq? จะไม่รับคำขอจนกว่าจะเปิดใหม่"],
@@ -424,7 +429,8 @@ function buildCard(it, i, total) {
       btn(ICON.up, L("Move up", "เลื่อนขึ้น"), () => q("move", { to: i - 1 }), "", i === 0),
       btn(ICON.down, L("Move down", "เลื่อนลง"), () => q("move", { to: i + 1 }), "", i === total - 1),
       btn(ICON.skip, t("skip"), () => q("skip")),
-      btn(ICON.x, L("Remove", "ลบ"), () => q("remove"))));
+      btn(ICON.x, L("Remove", "ลบ"), () => q("remove")),
+      banMenu(it)));
   if (it.warning) card.append(h("div", { class: "warnline" }, "⚠ " + it.warning));
   if (it.error) card.append(h("div", { class: "errline" }, it.error));
   card.addEventListener("dragstart", e => { dragId = it.id; card.classList.add("drag"); e.dataTransfer.effectAllowed = "move"; });
@@ -465,6 +471,34 @@ function attemptView(a) {
   return { pct, text: a.message ? `${right} · ${a.message}` : right };
 }
 
+// banMenu is the ⛔ button on a card: ban the requester, the map or its mapper.
+function banMenu(it) {
+  const pop = h("div", { class: "banpop", hidden: true },
+    h("button", { type: "button", onclick: () => ban("user", it.user) }, t("banUser", { u: it.user })),
+    h("button", { type: "button", onclick: () => ban("set", String(it.setId)) }, t("banMap")),
+    it.creator ? h("button", { type: "button", onclick: () => ban("mapper", it.creator) }, t("banMapper", { m: it.creator })) : null);
+  const b = h("button", { class: "cbtn", type: "button", title: t("ban"), "aria-label": t("ban"), "aria-haspopup": "menu",
+    onclick: e => {
+      e.stopPropagation(); closeBanMenus(pop);
+      // fixed position next to the button: cards clip anything that overflows them
+      const r = e.currentTarget.getBoundingClientRect();
+      pop.style.top = r.bottom + 6 + "px";
+      pop.style.right = Math.max(8, innerWidth - r.right) + "px";
+      pop.hidden = !pop.hidden;
+    } }, "⛔");
+  return h("span", { class: "banwrap" }, b, pop);
+}
+function closeBanMenus(except) { document.querySelectorAll(".banpop").forEach(p => { if (p !== except) p.hidden = true; }); }
+document.addEventListener("click", e => { if (!e.target.closest(".banwrap")) closeBanMenus(); });
+addEventListener("scroll", () => closeBanMenus(), { passive: true });
+async function ban(kind, value) {
+  closeBanMenus();
+  if (!confirm(t("confirmBan_" + kind, { v: value }))) return;
+  const j = await api("POST", "/api/ban", { kind, value });
+  if (j.ok) toast(t("banned", { v: kind === "user" ? "@" + value : value, n: j.removed }));
+  else toast(j.error, true);
+}
+
 function attempts(list) {
   return h("div", { class: "att" }, list.map(a => {
     const { pct, text } = attemptView(a);
@@ -493,7 +527,12 @@ function renderSide() {
   $("#rejCount").textContent = rej.length || "";
   const notes = (S.notices || []).slice(0, 30), hist = S.queue.history || [];
   const raw = (S.raw && S.raw.length ? S.raw : Object.values(S.firstRaw || {})).slice(0, 30);
-  fill("#rejLog", rej.slice(0, 40).map(r => logItem("err", t("r_" + r.code), "@" + r.user, r.at, r.detail, r.input)), rej.slice(0, 40));
+  const banned = new Set((S.blacklistUsers || []).map(u => u.replace(/^@/, "").toLowerCase()));
+  fill("#rejLog", rej.slice(0, 40).map(r => {
+    const li = logItem("err", t("r_" + r.code), "@" + r.user, r.at, r.detail, r.input);
+    if (!r.test && !banned.has(r.user.toLowerCase())) li.append(h("button", { class: "mlink banlink", type: "button", onclick: () => ban("user", r.user) }, "⛔ " + t("banUser", { u: r.user })));
+    return li;
+  }), [rej.slice(0, 40), [...banned]]);
   fill("#noteLog", notes.map(n => logItem({ error: "err", warn: "warn" }[n.kind] || "info", n.kind, "", n.at, n.text)), notes);
   fill("#histLog", hist.map(p => logItem(p.result === "played" ? "ok" : "warn", p.title, "@" + p.user, p.at,
     t(p.result) + (p.play ? " · " + t("res_" + p.play.outcome) + " " + resultShort(p.play) : ""))), hist);

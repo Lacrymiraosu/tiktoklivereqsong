@@ -43,25 +43,26 @@ func New(a *app.App, version string) *Server {
 }
 
 type State struct {
-	Version   string                        `json:"version"`
-	TikFinity tikfinity.Status              `json:"tikfinity"`
-	Tosu      tosu.Status                   `json:"tosu"`
-	AutoGap   int                           `json:"autoGap"`
-	Queue     queue.Snapshot                `json:"queue"`
-	Requests  bool                          `json:"requests"`
-	Resolving int                           `json:"resolving"`
-	Feed      []app.FeedEvent               `json:"feed"`
-	Notices   []app.Notice                  `json:"notices"`
-	CacheMB   float64                       `json:"cacheMb"`
-	Overlay   config.Overlay                `json:"overlay"`
-	Command   string                        `json:"command"`
-	Lang      string                        `json:"lang"`
-	PlayMode  string                        `json:"playMode"`
-	ViewerURL string                        `json:"viewerUrl"`
-	DryRun    bool                          `json:"dryRun"`
-	Raw       []tikfinity.RawEvent          `json:"raw,omitempty"`
-	FirstRaw  map[string]tikfinity.RawEvent `json:"firstRaw,omitempty"`
-	Extra     map[string]any                `json:"extra,omitempty"`
+	Version        string                        `json:"version"`
+	TikFinity      tikfinity.Status              `json:"tikfinity"`
+	Tosu           tosu.Status                   `json:"tosu"`
+	AutoGap        int                           `json:"autoGap"`
+	Queue          queue.Snapshot                `json:"queue"`
+	Requests       bool                          `json:"requests"`
+	Resolving      int                           `json:"resolving"`
+	Feed           []app.FeedEvent               `json:"feed"`
+	Notices        []app.Notice                  `json:"notices"`
+	CacheMB        float64                       `json:"cacheMb"`
+	Overlay        config.Overlay                `json:"overlay"`
+	Command        string                        `json:"command"`
+	Lang           string                        `json:"lang"`
+	PlayMode       string                        `json:"playMode"`
+	ViewerURL      string                        `json:"viewerUrl"`
+	BlacklistUsers []string                      `json:"blacklistUsers"`
+	DryRun         bool                          `json:"dryRun"`
+	Raw            []tikfinity.RawEvent          `json:"raw,omitempty"`
+	FirstRaw       map[string]tikfinity.RawEvent `json:"firstRaw,omitempty"`
+	Extra          map[string]any                `json:"extra,omitempty"`
 }
 
 func (s *Server) state() State {
@@ -71,7 +72,7 @@ func (s *Server) state() State {
 		Version: s.Version, TikFinity: s.App.TF.Status(), Tosu: s.App.Tosu.Status(), AutoGap: cfg.Queue.AutoGapSec, Queue: s.App.Queue.Snapshot(),
 		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(), Feed: s.App.Feed(),
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name,
-		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
+		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
 	}
 	if s.Extra != nil {
 		st.Extra = s.Extra()
@@ -120,6 +121,7 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/test", s.test)
 	mux.HandleFunc("POST /api/simulate", s.simulate)
 	mux.HandleFunc("POST /api/simulateGift", s.simulateGift)
+	mux.HandleFunc("POST /api/ban", s.ban)
 	return guard(port, mux)
 }
 
@@ -335,6 +337,25 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(w, map[string]any{"ok": true, "item": it})
 	}
+}
+
+// ban blacklists a user, beatmapset or mapper and drops matching requests.
+func (s *Server) ban(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Kind  string `json:"kind"` // user | set | mapper
+		Value string `json:"value"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&body) != nil {
+		httpErr(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	n, err := s.App.Ban(body.Kind, body.Value)
+	s.Push()
+	if err != nil {
+		result(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "removed": n})
 }
 
 // simulateGift pretends a viewer sent a gift worth `coins`.
