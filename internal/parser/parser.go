@@ -14,6 +14,7 @@ const (
 	KindNone Kind = iota
 	KindBeatmap
 	KindSet
+	KindSearch // a song name: Query holds the text
 )
 
 func (k Kind) String() string {
@@ -22,6 +23,8 @@ func (k Kind) String() string {
 		return "beatmap"
 	case KindSet:
 		return "set"
+	case KindSearch:
+		return "search"
 	}
 	return "none"
 }
@@ -34,13 +37,21 @@ type Request struct {
 	BeatmapID int
 	Mode      string // only from #mode fragments
 	Bare      bool   // a plain number: its kind is a guess (see Options.BareNumberAs)
+	Query     string // KindSearch: the song name as typed
 }
 
 type Options struct {
 	Command      string
 	Aliases      []string
 	BareNumberAs string // "beatmap" (default) or "set"
+	Search       bool   // text that is not an ID or link is a song name
 }
+
+// Search queries shorter than this are ignored, longer ones are cut.
+const (
+	MinQuery = 3
+	MaxQuery = 80
+)
 
 var (
 	reSetMap = regexp.MustCompile(`^/beatmapsets/(\d+)/?$`)
@@ -56,7 +67,37 @@ func Parse(comment string, o Options) (Request, bool) {
 	if len(fields) < 2 || !isCommand(fields[0], o) {
 		return Request{}, false
 	}
-	return ParseArg(fields[1], o.BareNumberAs)
+	return ParseInput(fields[1:], o.BareNumberAs, o.Search)
+}
+
+// ParseInput reads what follows the command. An ID or osu! link in the
+// first word wins (anything after it is ignored, as before); otherwise, with
+// search on, the words are a song name. Links to other sites are never
+// searched for.
+func ParseInput(words []string, bareAs string, search bool) (Request, bool) {
+	if len(words) == 0 {
+		return Request{}, false
+	}
+	if r, ok := ParseArg(words[0], bareAs); ok {
+		return r, true
+	}
+	if !search {
+		return Request{}, false
+	}
+	for _, w := range words {
+		lw := strings.ToLower(w)
+		if strings.Contains(lw, "://") || strings.Contains(lw, "/") || strings.HasPrefix(lw, "www.") {
+			return Request{}, false
+		}
+	}
+	q := strings.Join(words, " ")
+	if len([]rune(q)) < MinQuery {
+		return Request{}, false
+	}
+	if r := []rune(q); len(r) > MaxQuery {
+		q = strings.TrimSpace(string(r[:MaxQuery]))
+	}
+	return Request{Kind: KindSearch, Query: q}, true
 }
 
 func isCommand(word string, o Options) bool {
