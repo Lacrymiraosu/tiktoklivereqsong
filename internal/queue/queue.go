@@ -112,6 +112,9 @@ type data struct {
 	// users whose cooldown was set by a simulated chat, reset by ClearTest
 	TestUsers map[string]bool    `json:"testUsers,omitempty"`
 	Credits   map[string]*Credit `json:"credits,omitempty"` // gift coins and priority tokens per user
+	// The stream session the summary covers (see summary.go).
+	SessionStart    time.Time `json:"sessionStart"`
+	SessionRejected int       `json:"sessionRejected"`
 }
 
 // Snapshot is a deep enough copy for rendering.
@@ -155,6 +158,7 @@ func Open(path string) (*Queue, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
+	q.maybeNewSession(time.Now())
 	return q, nil
 }
 
@@ -289,6 +293,9 @@ func (q *Queue) ClearTest() []string {
 func (q *Queue) Reject(r Rejected) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if !r.Test {
+		q.d.SessionRejected++
+	}
 	q.d.Rejected = append([]Rejected{r}, q.d.Rejected...)
 	if len(q.d.Rejected) > maxRejected {
 		q.d.Rejected = q.d.Rejected[:maxRejected]

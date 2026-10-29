@@ -180,6 +180,12 @@ const T = {
   n_usedCmd: ["@{u} used {cmd}", "@{u} ใช้คำสั่ง {cmd}"],
   updAvail: ["Update {v} ↗", "อัปเดต {v} ↗"], updTitle: ["osureq {v} is out. Opens the release page; download the zip there and replace osureq.exe.", "osureq {v} ออกแล้ว กดเพื่อเปิดหน้าดาวน์โหลด โหลด zip แล้วแทนที่ osureq.exe"],
   n_update: ["osureq {v} is available (button at the top)", "มี osureq {v} แล้ว (ปุ่มด้านบน)"],
+  session: ["This stream", "ไลฟ์นี้"], sumShow: ["Show on overlay", "แสดงบน overlay"], sumNew: ["New session", "เริ่มรอบใหม่"],
+  sumStarted: ["Started", "เริ่ม"], sumPlayed: ["Played", "เล่นแล้ว"], sumPassed: ["{n} cleared", "ผ่าน {n}"], sumSkipped: ["Skipped", "ข้าม"],
+  sumRejected: ["Rejected", "ถูกปฏิเสธ"], sumViewers: ["Viewers who asked", "ผู้ชมที่ขอเพลง"], sumBest: ["Best play", "ผลดีที่สุด"], sumTop: ["Most requests", "ขอมากที่สุด"],
+  sumShown: ["The summary is on the overlay for 20 s", "แสดงสรุปบน overlay 20 วินาที"],
+  confirmNewSession: ["Start a new session? The summary starts counting from zero (history is kept).", "เริ่มรอบใหม่? สรุปจะเริ่มนับจากศูนย์ (ประวัติยังอยู่)"],
+  n_newSession: ["Started a new stream session", "เริ่มรอบไลฟ์ใหม่แล้ว"],
   n_gameDetected: ["tosu sees osu! {game} running, so Settings → osu! → Game is now {game}", "tosu เห็นว่าเปิด osu! {game} อยู่ จึงเปลี่ยน ตั้งค่า → osu! → เกม เป็น {game} ให้"],
   n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
   e_vote_skip: ["Votes to skip cannot be negative", "จำนวนโหวตข้ามเพลงติดลบไม่ได้"],
@@ -668,6 +674,7 @@ function renderSide() {
   fill("#histLog", hist.map(p => logItem(p.result === "played" ? "ok" : "warn", p.title, "@" + p.user, p.at,
     t(p.result) + (p.play ? " · " + t("res_" + p.play.outcome) + " " + resultShort(p.play) : ""))), hist);
   fill("#rawLog", raw.map(r => logItem("info", r.event, "", r.at, "", r.raw)), raw.map(r => [r.at, r.event]));
+  renderSummary(S.summary);
   const ov = location.origin + "/overlay";
   const kv = $("#infoKv");
   kv.replaceChildren(
@@ -677,6 +684,23 @@ function renderSide() {
     h("dt", {}, t("overlayUrl")), h("dd", {}, h("button", { class: "mlink", onclick: () => copy(ov) }, ov)),
     ...(S.extra ? [h("dt", {}, t("folder")), h("dd", {}, S.extra.baseDir)] : []));
 }
+
+// renderSummary fills the "This stream" box (see queue.Summary).
+function renderSummary(s) {
+  const kv = $("#sumKv");
+  if (!s || same(kv, JSON.stringify([s, LANG]))) return;
+  const row = (k, ...v) => [h("dt", {}, t(k)), h("dd", {}, ...v)];
+  kv.replaceChildren(
+    ...row("sumStarted", timeOf(s.start)),
+    ...row("sumPlayed", String(s.played), s.passed ? " · " + t("sumPassed", { n: s.passed }) : ""),
+    ...row("sumSkipped", String(s.skipped)),
+    ...row("sumRejected", String(s.rejected)),
+    ...row("sumViewers", String(s.viewers)),
+    ...(s.best ? row("sumBest", h("span", { title: s.best.title }, s.best.title), h("br"), resultShort(s.best.play) + " · @" + s.best.user) : []),
+    ...(s.top && s.top.length ? row("sumTop", s.top.map(u => "@" + u.user + " ×" + u.count).join(", ")) : []));
+}
+$("#sumShowBtn").addEventListener("click", async () => { const j = await act("/api/action/showSummary"); if (j.ok) toast(t("sumShown")); });
+$("#sumNewBtn").addEventListener("click", () => { if (confirm(t("confirmNewSession"))) act("/api/action/newSession"); });
 
 function copy(text) {
   navigator.clipboard.writeText(text).then(() => toast(t("copied")), () => toast(text));

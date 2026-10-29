@@ -54,6 +54,7 @@ type App struct {
 	voteID     string               // now-playing item the skip votes are for
 	voters     map[string]bool
 	latest     *update.Release // a newer osureq release, if GitHub has one
+	summaryN   int64           // bumped each time the overlay should show the session summary
 }
 
 type Notice struct {
@@ -761,6 +762,27 @@ func (a *App) Update() *update.Release {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.latest
+}
+
+// ShowSummary asks the overlay to show the session summary for a while.
+func (a *App) ShowSummary() {
+	a.mu.Lock()
+	a.summaryN++
+	a.mu.Unlock()
+	a.Changed()
+}
+
+// SummaryShown counts ShowSummary calls; the overlay shows the card when it changes.
+func (a *App) SummaryShown() int64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.summaryN
+}
+
+// NewSession starts a new stream session for the summary.
+func (a *App) NewSession() {
+	a.Queue.NewSession(time.Now())
+	a.Say("info", "newSession", nil, "started a new stream session")
 }
 
 // ClearTest removes all test-panel data and cancels its downloads.
