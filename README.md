@@ -18,7 +18,8 @@ A local dashboard (English/Thai) and a transparent OBS overlay run inside the sa
 ### สรุปภาษาไทย
 
 * **คืออะไร:** โปรแกรม Windows ไฟล์เดียว (`osureq.exe`) ให้ผู้ชม TikTok LIVE ขอเพลง osu! ผ่านแชทด้วย `!req <ID หรือลิงก์>`
-* **ทำอะไรได้:** รับแชทจาก TikFinity → ตรวจกฎ (ดาว ความยาว โหมด สถานะ แบน คูลดาวน์ ฯลฯ) → ดาวน์โหลดจาก mirror → ตรวจ MD5 เทียบกับ osu! → เปิดแมพใน osu! เมื่อกด ถัดไป หรือเปิดอัตโนมัติเมื่อ tosu เห็นว่าเพลงก่อนหน้าเล่นจบ
+* **ทำอะไรได้:** รับแชทจาก TikFinity → ตรวจกฎ (ดาว ความยาว โหมด สถานะ แบน คูลดาวน์ ผู้ติดตาม ฯลฯ) → ดาวน์โหลดจาก mirror → ตรวจ MD5 เทียบกับ osu! → เปิดแมพใน osu! เมื่อกด ถัดไป หรือเปิดอัตโนมัติเมื่อ tosu เห็นว่าเพลงก่อนหน้าเล่นจบ
+* **เพิ่มเติม:** ป๊อปอัปแจ้งผู้ชมบน overlay, คำสั่งม็อด (`!skip`, `!remove`, `!reqon`/`!reqoff`), เก็บผลการเล่นจาก tosu, ของขวัญได้คิวพิเศษ, ไอคอนที่ถาดระบบ, ฟังตัวอย่างเพลง/เปิดใน beatmap viewer, ปุ่มแบนคลิกเดียว
 * **ต้องมี:** Windows 10/11 x64, osu! (stable หรือ lazer), **TikFinity Desktop** และ **tosu** (เปิดไว้ระหว่างไลฟ์)
 * **สำหรับนักพัฒนา:** Go 1.23+ บน Windows, รัน `go test ./...`, build ด้วย `build.ps1`
 * **โครงสร้าง:** `main.go` ต่อสายทุกอย่าง, โค้ดหลักอยู่ใน `internal/<โมดูล>` แยกหน้าที่ชัดเจน, หน้าเว็บอยู่ใน `internal/server/web` และถูกฝังลงใน exe
@@ -56,18 +57,19 @@ A local dashboard (English/Thai) and a transparent OBS overlay run inside the sa
 
 | | |
 |---|---|
-| Version | **1.2.0** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.3.0** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
-| Tests | `go test ./...`: 10 packages with tests, all passing |
+| Tests | `go test ./...`: 11 packages with tests, all passing |
 | Repository | local git repo, branch `main`, no remote yet |
 
 **Verified for real on the developer's PC:** TikFinity detection, WebSocket connection and `config` handshake;
 osu! metadata scraping; catboy downloads; MD5 verification (single diff and whole set); rejections; preload copy;
 osu! folder auto-detection from the registry; the dashboard, settings and overlay; simulated chat; dry run;
-the anti-flicker rendering. Auto mode was verified end to end against a **fake** tosu server.
+the anti-flicker rendering, overlay pop-ups, mod commands and gifts through simulated chat, the tray icon (start, second launch, quit),
+audio preview and one-click bans. Auto mode and play results were verified against a **fake** tosu server.
 
 **Not yet verified with the real thing:** see [Known limitations and open items](#known-limitations-and-open-items)
-(live TikTok chat payload, real tosu + osu! gameplay, opening `.osz` into osu! via Next, hotkeys, official-download fallback, lazer).
+(live TikTok chat, gift and role fields, real tosu + osu! gameplay, opening `.osz` into osu! via Next, hotkeys, official-download fallback, lazer).
 
 ---
 
@@ -82,14 +84,23 @@ the anti-flicker rendering. Auto mode was verified end to end against a **fake**
 * **MD5 verification** (`requested` or `strict`) against osu!'s current checksums; an outdated mirror copy is rejected.
 * **Import** by opening the `.osz` (stable + lazer), copying it into Songs, or extracting it (stable), plus **preload** of the next N maps.
 * **Play modes**: manual (**Next** button/hotkey) or **auto**, which uses tosu to see when the song has really ended.
+* **Play results** from tosu (accuracy, rank, combo, misses, pp, mods; passed/failed/quit) on the request, in history and on the overlay.
+* **Viewer feedback on the overlay**: since the helper cannot write in TikTok chat, pop-ups say when a request was added (with its place)
+  or rejected (with the reason, e.g. "too hard · 5.88★ > 5.00★"), plus mod commands, gifts and results. English or Thai.
+* **Chat commands**: `!remove` (own latest request), and for mods `!skip`, `!remove @user`, `!reqon`, `!reqoff`. Mods = a list, plus TikTok moderators.
+* **Gift priority** (opt-in): gift coins add up per viewer; each full amount moves their oldest waiting request to the top or is saved for the next one.
+* **Viewer roles**: followers-only mode and a higher per-user limit for subscribers (when TikFinity sends these flags).
+* **One-click bans** of a requester, map or mapper from a queue card or the rejection log.
+* **Audio preview** of queued maps and a link to open them in the owner's **beatmap viewer**.
+* **System tray**: no console window; tray icon with open dashboard, requests on/off, dry run, data folder, quit. A second launch opens the running copy.
 * **Dashboard** (EN/TH): status of TikFinity and tosu, now playing, queue with drag-to-reorder, per-source download
   progress, MD5 result, rejection log, activity, history, raw TikFinity events, full settings editor.
-* **Test panel**: simulated chat through the real rules, quick add, dry run (never touches osu!), clear test data.
-* **OBS overlay**: transparent page with now playing, requester and upcoming queue (themes, size, corner).
+* **Test panel**: simulated chat through the real rules (requests and commands), quick add, simulated gifts, dry run (never touches osu!), clear test data.
+* **OBS overlay**: transparent page with now playing, requester, upcoming queue (priority marked) and pop-ups (themes, size, corner, language).
 * **Global hotkeys**: next, skip, remove last, toggle requests.
 * **Security**: 127.0.0.1-only server, Host and header checks, whitelisted download hosts, path-traversal-safe extraction.
 
-Out of scope for now: sending messages to TikTok chat, gift/points priority, macOS/Linux.
+Out of scope for now: sending messages to TikTok chat (TikFinity's API does not offer it), macOS/Linux.
 
 ---
 
@@ -122,7 +133,9 @@ Out of scope for now: sending messages to TikTok chat, gift/points priority, mac
 
 1. Put `osureq.exe` in its own folder, for example `C:\osureq\`. It creates `config.json`, `queue.json`, `osureq.log` and a `cache\` folder next to itself.
 2. Start TikFinity Desktop and connect it to the TikTok account, then start **tosu** and osu!.
-3. Double-click `osureq.exe`. The dashboard opens at <http://127.0.0.1:21280/>.
+3. Double-click `osureq.exe`. There is no window: osureq lives in the **system tray** (pink ball icon next to the clock) and the dashboard
+   opens at <http://127.0.0.1:21280/>. Left-click the tray icon to reopen the dashboard; right-click for requests on/off, dry run, data folder and **Quit**.
+   Starting it a second time just opens the dashboard of the running copy.
 4. In **Settings → osu!**, choose stable or lazer. The osu! folder is detected from the `.osz` file association if the default one has no Songs folder.
 5. Check the two status pills at the top:
    * **TikFinity**: 🔴 not installed/not running · 🟡 not connected, or connected and "Waiting for stream" · 🟢 live and taking requests.
@@ -147,19 +160,32 @@ Command-line flags: `-dir <folder>` keeps config, queue, cache and log somewhere
 
 Anything else is ignored. Only numeric IDs on `osu.ppy.sh` (or `old.ppy.sh`) are accepted.
 
+Other chat commands (names are configurable; an empty name turns one off):
+
+| Command | Who | What it does |
+|---|---|---|
+| `!remove` | anyone | removes your own latest waiting request |
+| `!remove @user` | mods | removes that user's latest waiting request |
+| `!skip` | mods | skips the song being played (opens the next one) |
+| `!reqon` / `!reqoff` | mods | opens / closes requests |
+
+Mods are the users in **Settings → Command → Mods**, plus TikTok moderators when TikFinity sends that flag (`command.trustTikTokMods`).
+
 ---
 
 ## How a request is handled
 
 1. **Parse** (`internal/parser`): the chat message must start with the command or an alias, followed by an ID or link.
-2. **User checks** (`validator.CheckUser`, no network): blacklisted user, queue full, per-user limit, cooldown. Exempt users skip the last two.
+2. **User checks** (`validator.CheckUser`, no network): blacklisted user, queue full, followers-only, per-user limit (higher for subscribers if set), cooldown.
+   Exempt users skip everything after "queue full".
 3. **Metadata** (`internal/osumeta`): `GET https://osu.ppy.sh/beatmapsets/{setId}` (or `/beatmaps/{id}`, which redirects to the set) and parse
    the `<script id="json-beatmapset">` JSON: title, artist, mapper, status, video flag, and per difficulty its id, mode, stars, length and
    `checksum` (MD5 of the `.osu`). Fallback: `GET https://osu.ppy.sh/osu/{beatmapId}` and hash it locally. Stars, length and status are
    then unknown, so they are not checked and the item gets a warning. A bare number that is not found is retried with the other meaning (beatmap ↔ set).
 4. **Map rules** (`validator.CheckMap`): set/mapper blacklist, status, duplicate (queued or playing), no-repeat window, then mode, stars and length
-   on the requested diff. For whole-set requests, the hardest diff that passes is chosen.
-5. **Queue** (`internal/queue`): saved to `queue.json` and kept across restarts.
+   on the requested diff. For whole-set requests, the hardest diff that passes is chosen, preferring the set's main mode (the mode most of its diffs use).
+5. **Queue** (`internal/queue`): saved to `queue.json` and kept across restarts. A saved gift priority is applied right away (see [Gifts](#gift-priority)).
+   The overlay gets an "added" or "rejected" pop-up for every request (`app.FeedEvent`).
 6. **Download** (`internal/downloader`), sources in configured order:
    1. `https://catboy.best/d/{setId}` (no video: `…/d/{setId}n`, sent with `Referer: https://catboy.best/`)
    2. `https://osu.direct/api/d/{setId}` (no video: `?noVideo=1`)
@@ -180,7 +206,13 @@ Anything else is ignored. Only numeric IDs on `osu.ppy.sh` (or `old.ppy.sh`) are
 
 Rejection reason codes (shown translated on the dashboard): `user_blacklisted`, `queue_full`, `user_limit`, `cooldown`, `set_blacklisted`,
 `mapper_blacklisted`, `status`, `duplicate`, `recently_played`, `not_found`, `mode`, `stars_low`, `stars_high`, `too_long`, `meta_error`,
-`bad_input`, `requests_off`.
+`bad_input`, `requests_off`, `followers_only`. Each rejection also has a language-neutral `short` detail (e.g. `5.88★ > 5.00★`, `60s`, `2/2`) used by the overlay.
+
+### Gift priority
+
+Off by default (`gifts.enabled`). TikFinity `gift` events are counted per viewer (streakable gifts once, when the streak ends: `repeatEnd`).
+Every full `gifts.coinsPerPriority` coins (default 30) gives one priority: the viewer's oldest waiting request moves to the top, behind earlier
+priority requests; with nothing waiting, it is saved for their next request for `gifts.creditMinutes`. Priority requests show ★ on the dashboard and overlay.
 
 ---
 
@@ -200,6 +232,11 @@ The helper follows the map it opened (matched by **beatmapset**, so any difficul
 There is **no timer fallback**: if tosu is not connected, auto mode pauses and the dashboard says so; it resumes by itself when tosu returns.
 When nothing is playing, the first ready map opens straight away. Manual **Next** always works.
 
+**Play results:** while the map is in `playing`, the latest live numbers from `play` are kept. Entering `results` stores tosu's `resultsScreen`
+as **passed**; leaving gameplay without a results screen stores the last live numbers as **failed** (tosu's `play.failed`) or **quit**.
+A quit before any score leaves no result. The result is saved on the item (`Item.result`), copied into history (`Played.play`), shown on the phase line,
+and announced on the overlay: `98.52% S · 812x · 2 miss · 301pp · HDHR`.
+
 ---
 
 ## Testing without going live
@@ -209,8 +246,10 @@ The **Test** panel on the dashboard works while TikFinity is offline:
 * **Simulate chat** (`POST /api/simulate`): a message as any `@user`, through the real chat path (command, aliases, requests on/off,
   per-user limit, cooldown, map rules). Non-requests are reported as "ignored". A bare ID or link gets the command prepended.
 * **Quick add** (`POST /api/test`): straight into the queue, map rules only.
+* **Gift** (`POST /api/simulateGift`): pretends `@user` sent a gift worth N coins (gift priority must be on).
+* Chat commands (`!skip`, `!remove`, …) can be typed in Simulate chat too; mods are checked against the Mods list.
 * **Dry run** (`test.dryRun`): Next/Play move the queue (auto mode runs too) but never open osu! or copy into Songs. A `DRY RUN` badge shows. Downloads and MD5 checks still happen.
-* **Clear test data**: removes test requests (also from now playing), their history and rejections, and cooldowns set by simulated chat.
+* **Clear test data**: removes test requests (also from now playing), their history and rejections, cooldowns set by simulated chat, and test gift credits.
 
 ---
 
@@ -247,6 +286,8 @@ tosu ─────ws───────────►│                   
 * Every chat request is resolved in its own goroutine (`App.submit`), because metadata lookups take network time.
 * `server`: `net/http` on 127.0.0.1; state pushes are coalesced (120 ms) and sent to every WebSocket client.
 * Hotkeys: a locked OS thread with a Win32 message loop (`platform.Hotkeys`).
+* Tray icon: another locked OS thread with a hidden window and message loop (`platform.Tray`); menu clicks run in goroutines.
+* Overlay pop-ups: `App.emit` appends to a 30-entry feed (`App.Feed`) that is part of every state push; the overlay shows entries newer than the last one it saw.
 
 **State ownership:** `queue.Queue` (mutex-guarded) is the single source of truth for requests; `config.Store` for settings
 (subscribers via `OnChange`). The UI never holds state of its own beyond view preferences in `localStorage`.
@@ -269,12 +310,18 @@ otiktokdownloader/
 ├── .gitattributes               *.osz binary (keeps test fixtures byte-exact on Windows)
 ├── dist/                        (ignored) built exe; when run from here also holds config/queue/cache/log
 └── internal/
-    ├── app/          app.go                orchestration: request pipeline, preload, play/next/skip, auto mode, test panel
+    ├── app/          app.go                orchestration: request pipeline, preload, play/next/skip, auto mode, results, test panel
+    │                 feed.go               overlay pop-up events (FeedEvent)
+    │                 commands.go (+_test)  chat commands: !skip, !remove, !reqon, !reqoff; who is a mod
+    │                 gifts.go              gift coins → priority, simulated gifts
+    │                 ban.go (+_test)       one-click bans (blacklist + drop matching requests)
+    │                 results_test.go       tosu → play result tests
     ├── config/       config.go             config.json schema, defaults, validation, store with change subscribers
     ├── parser/       parser.go (+_test)    "!req …" → Request{Kind, SetID, BeatmapID, Mode, Bare}
     ├── osumeta/      osumeta.go (+_test)   osu.ppy.sh scraping: set metadata, reference MD5, beatmap→set, raw .osu fallback
     ├── validator/    validator.go (+_test) CheckUser / CheckMap → *Rejection{Code, Detail}
     ├── queue/        queue.go (+_test)     items, now playing, history, rejections, cooldowns; queue.json persistence
+    │                 gifts.go (+_test)     gift credits, priority tokens, prioritise
     ├── downloader/   downloader.go (+_test) sources, timeouts, ZIP sniffing, official browser flow, cache, cleanup
     ├── verifier/     verifier.go (+_test)  in-memory unzip + MD5 compare (strict / requested)
     │   └── testdata/                       .osz fixtures (regenerate with -update)
@@ -282,6 +329,7 @@ otiktokdownloader/
     ├── tikfinity/    tikfinity.go (+_test) TikFinity detection + WebSocket client + chat parsing
     ├── tosu/         tosu.go (+_test)      tosu WebSocket client + song-end Tracker
     ├── platform/     platform_windows.go, hotkey.go (+_test)  Win32: ShellExecute, processes, registry, hotkeys
+    │                 tray_windows.go       tray icon (drawn at runtime), menu, message box, console attach
     └── server/       server.go             HTTP routes, guard, state snapshot, WebSocket push
         └── web/                            embedded into the exe with go:embed
             ├── index.html                  dashboard markup
@@ -295,28 +343,34 @@ otiktokdownloader/
 
 | File | Lines | What is in it | Key symbols |
 |---|---:|---|---|
-| `main.go` | ~210 | Parses `-dir` / `-no-browser`, picks the base folder (exe folder, or cwd under `go run`), sets up `osureq.log` (rotates at 5 MB), loads config, fixes the osu! folder from the registry, builds every module, wires callbacks (chat → app, tosu → app, status → push, config changes → hotkeys/reconnects), starts goroutines, waits for Ctrl+C | `main`, `exeDir`, `setupLog`, `fatal` |
-| `internal/app/app.go` | ~650 | The brain. Turns chat into queue items, runs downloads/preload, handles Next/Play/Skip/Remove/Retry, auto mode via tosu phases, dry run, test panel, notices | `App`, `HandleChat`, `SimulateChat`, `TestRequest`, `submit`/`resolve`/`lookup`, `Run`/`tick`, `OnGame`, `startDownload`/`download`, `preImport`, `Next`, `Play`/`play`, `Skip`, `ClearTest`, `ToggleDryRun`, `Hotkey`; `origin` (`fromChat`/`fromSim`/`fromQuick`) |
+| `main.go` | ~300 | Parses `-dir` / `-no-browser`, attaches to a parent console if any, picks the base folder (exe folder, or cwd under `go run`), sets up `osureq.log` (rotates at 5 MB), loads config, fixes the osu! folder from the registry, builds every module, wires callbacks (chat/gift → app, tosu → app, status → push + tray tip, config changes → hotkeys/reconnects), hands off to an already running copy, starts the tray and goroutines, waits for quit | `main`, `exeDir`, `setupLog`, `fatal`, `alreadyRunning`, `trayTip` |
+| `internal/app/app.go` | ~750 | The brain. Turns chat into queue items, runs downloads/preload, handles Next/Play/Skip/Remove/Retry, auto mode and play results via tosu, dry run, test panel, notices | `App`, `HandleChat`, `SimulateChat`, `TestRequest`, `submit`/`resolve`/`lookup`, `Run`/`tick`, `OnGame`, `ResultShort`, `startDownload`/`download`, `preImport`, `Next`, `Play`/`play`, `Skip`, `ClearTest`, `ToggleDryRun`, `Hotkey`, `warnOnce`; `origin` (`fromChat`/`fromSim`/`fromQuick`) |
+| `internal/app/feed.go` | ~50 | Events for the overlay pop-ups (added, rejected, command, gift, result), newest first, 30 kept | `FeedEvent`, `emit`, `Feed` |
+| `internal/app/commands.go` | ~100 | Chat commands other than requests; `IsMod` (Mods list or TikTok moderator flag) | `command`, `IsMod` |
+| `internal/app/gifts.go` | ~60 | Gift coins → priority tokens → prioritised requests; simulated gifts | `HandleGift`, `SimulateGift`, `applyCredit` |
+| `internal/app/ban.go` | ~70 | Adds to a blacklist and removes matching waiting requests | `Ban` |
 | `internal/config/config.go` | ~310 | All settings structs with JSON names, `Default()`, `Validate()`, download host whitelist, `Store` (atomic save via `.tmp` + rename, `OnChange` subscribers). Unknown/missing fields fall back to defaults because the file is unmarshalled over `Default()` | `Config`, `Connection`, `Osu`, `Command`, `Rules`, `Queue`, `Source`, `Download`, `MD5`, `Import`, `Overlay`, `Hotkeys`, `Test`, `HostAllowed`, `Store` |
 | `internal/parser/parser.go` | ~150 | Command matching (case-insensitive, aliases), ID and link parsing, `#mode/id` fragments, rejects foreign hosts and non-numeric IDs. `Bare` marks plain numbers so the app can retry as the other kind | `Parse`, `ParseArg`, `Request`, `Request.Flip`, `Kind` |
 | `internal/osumeta/osumeta.go` | ~290 | **The only code that talks to osu.ppy.sh for metadata.** Rate-limited (700 ms between requests), 10 min cache, `json-beatmapset` extraction, beatmap→set resolution, raw `.osu` fallback (`Partial` sets) | `Client`, `Get`, `ResolveSet`, `ParsePageJSON`, `ParseOsuHeader`, `Set`, `Diff`, `ErrNotFound` |
-| `internal/validator/validator.go` | ~170 | Pure functions, no I/O. User checks (cheap, before any network) and map checks; picks the diff for whole-set requests | `CheckUser`, `CheckMap`, `State`, `Input`, `Rejection` |
-| `internal/queue/queue.go` | ~500 | Thread-safe queue + now playing + history (200) + rejections (100) + per-user last request; debounced save to `queue.json`; on load, unfinished downloads and ready items go back to `queued` so files are re-verified | `Queue`, `Item`, `State` (`queued`/`downloading`/`ready`/`failed`/`playing`), `Attempt`, `Played`, `Rejected`, `ValidationState`, `Promote`, `Drop`, `Move`, `ClearTest`, `Snapshot` |
+| `internal/validator/validator.go` | ~210 | Pure functions, no I/O. User checks (cheap, before any network: blacklist, queue size, followers-only, per-user/subscriber limit, cooldown) and map checks; picks the diff for whole-set requests (main mode first) | `CheckUser`, `CheckMap`, `State`, `Roles`, `Input`, `Rejection` (`Code`, `Detail`, `Short`) |
+| `internal/queue/queue.go` | ~550 | Thread-safe queue + now playing + history (200) + rejections (100) + per-user last request; debounced save to `queue.json`; on load, unfinished downloads and ready items go back to `queued` so files are re-verified | `Queue`, `Item`, `State` (`queued`/`downloading`/`ready`/`failed`/`playing`), `Attempt`, `Played`, `Rejected`, `ValidationState`, `Promote`, `Drop`, `Move`, `RemoveLatestBy`, `Position`, `ClearTest`, `Snapshot`; `Result` (play result) |
+| `internal/queue/gifts.go` | ~100 | Per-user gift coins and priority tokens (with expiry); moving a request behind the other priority requests | `Credit`, `AddCoins`, `UseToken`, `Tokens` |
 | `internal/downloader/downloader.go` | ~450 | Cache lookup, source loop, streaming download with progress, early "not a ZIP" detection, official browser flow (watches Downloads, waits for the size to settle, ignores `.crdownload`/`.part`), verified-file registry (`Trusted`), LRU-ish cleanup | `Downloader`, `Get`, `Job`, `Outcome`, `Trusted`, `Cleanup`, `CacheSize` |
 | `internal/verifier/verifier.go` | ~140 | ZIP magic check, in-memory unzip (64 MB per `.osu` cap), MD5 per `.osu`, comparison at `strict`/`requested` level | `Verify`, `Compare`, `OsuHashes`, `LooksLikeZip`, `Reference`, `Result` |
 | `internal/importer/importer.go` | ~210 | Refuses untrusted files, `open`/`copy`/`extract`, Songs folder from `osu!.<user>.cfg` `BeatmapDirectory`, Windows-safe names, traversal-safe joins | `Importer.Import`, `SongsDir`, `CopyToSongs`, `ExtractToSongs`, `SafeJoin`, `SafeName` |
 | `internal/importer/osudb.go` | ~70 | Finds beatmap MD5s in `osu!.db` by scanning for `0x0b 0x20 <32 hex>` instead of parsing the versioned format | `OsuDB.Has`, `ScanHashes` |
-| `internal/tikfinity/tikfinity.go` | ~335 | Install/process checks, WebSocket loop, `config` handshake, live detection (any event; times out after 5 min of silence), raw event log (first event of each type kept), chat field extraction with fallbacks | `Client`, `Status` (`red`/`yellow`/`green`, codes), `Chat`, `ParseChat`, `Accepting` |
-| `internal/tosu/tosu.go` | ~360 | tosu WebSocket loop (`/websocket/v2`), payload parsing (state, beatmap set/id/checksum, failed, client), status levels, remembers `tosu.exe` path, song-end state machine | `Client`, `Status`, `Game`, `Parse`, `Tracker`, `Phase` (`waiting`/`playing`/`results`/`ended`) |
+| `internal/tikfinity/tikfinity.go` | ~440 | Install/process checks, WebSocket loop, `config` handshake, live detection (any event; times out after 5 min of silence), raw event log (first event of each type kept), chat field extraction with fallbacks, viewer roles (yes/no/unknown), gift parsing (streaks counted once) | `Client`, `Status` (`red`/`yellow`/`green`, codes), `Chat`, `Tri`, `ParseChat`, `Gift`, `ParseGift`, `Accepting` |
+| `internal/tosu/tosu.go` | ~420 | tosu WebSocket loop (`/websocket/v2`), payload parsing (state, beatmap, live `play` numbers, `resultsScreen`), status levels (only the short `Brief` state drives pushes), remembers `tosu.exe` path, song-end state machine | `Client`, `Status`, `Game`, `Brief`, `Score`, `Parse`, `Tracker`, `Phase` (`waiting`/`playing`/`results`/`ended`) |
 | `internal/platform/platform_windows.go` | ~280 | `ShellExecuteW` open, Toolhelp process list, process image path, TikFinity lookup (path + Uninstall registry), osu! stable lookup (`HKCR\osustable.File.osz\shell\open\command`), detached launch, `RegisterHotKey` message loop | `ShellOpen`, `ProcessRunning`, `ProcessPath`, `FindTikFinity`, `FindOsuStable`, `Launch`, `Hotkeys` |
 | `internal/platform/hotkey.go` | ~50 | Parses `Ctrl+Alt+N`, `Shift+F5`, `F9`, `Win+Num5`… into modifier + virtual key | `ParseHotkey` |
-| `internal/server/server.go` | ~370 | Routes, `guard` (Host + `X-Osureq` header), `State` snapshot, coalesced WebSocket push + 20 s keepalive state, config GET/PUT, actions, queue operations, test/simulate | `Server`, `State`, `Handler`, `Push`, `Listen` |
+| `internal/platform/tray_windows.go` | ~420 | Notification-area icon on its own thread (hidden window, `Shell_NotifyIconW`, re-added when Explorer restarts), right-click menu, icon drawn pixel by pixel in the logo colours, `MessageBoxW`, attaching to a parent console | `Tray` (`Start`, `SetTip`, `Stop`), `TrayItem`, `MessageBox`, `HasConsole`, `AttachParentConsole` |
+| `internal/server/server.go` | ~420 | Routes, `guard` (Host + `X-Osureq` header), `State` snapshot, coalesced WebSocket push + 20 s keepalive state, config GET/PUT, actions (incl. quit), queue operations, test/simulate/simulateGift, ban | `Server`, `State`, `Handler`, `Push`, `Listen`, `Quit` |
 | `internal/server/web/index.html` | ~90 | Dashboard skeleton: top bar (status pills, requests switch, language, settings), banners, now playing, test panel, queue, side logs, settings sheet, toast | |
-| `internal/server/web/app.js` | ~730 | Everything on the dashboard: `T` i18n table (en/th), API helper, WebSocket client, incremental rendering, queue cards, drag & drop, test panel, settings `SCHEMA` → form | `render`, `renderBanner`, `renderTosuBanner`, `renderNow`, `updatePhase`, `renderQueue`, `buildCard`, `updateAttempts`, `renderSide`, `same`, `SCHEMA`, `field` |
+| `internal/server/web/app.js` | ~860 | Everything on the dashboard: `T` i18n table (en/th), API helper, WebSocket client, incremental rendering, queue cards, drag & drop, ban menu, audio preview + viewer links, results, test panel (chat / quick / gift), settings `SCHEMA` → form | `render`, `renderBanner`, `renderTosuBanner`, `renderNow`, `updatePhase`, `resultShort`, `renderQueue`, `buildCard`, `banMenu`, `mapLinks`, `updateAttempts`, `renderSide`, `same`, `SCHEMA`, `field` |
 | `internal/server/web/app.css` | ~230 | Design tokens and components copied from the owner's osu! beatmap viewer: pills, banners, cover cards, star chips, switches, tabs, sheet, toast | `:root` tokens |
-| `internal/server/web/overlay.html` | ~90 | OBS page: transparent, now playing + upcoming, theme/scale/position from config, reconnecting WebSocket | |
+| `internal/server/web/overlay.html` | ~160 | OBS page: transparent, now playing + upcoming (priority ★), pop-ups from the feed with their own en/th text table `TX`, theme/scale/position/language from config, reconnecting WebSocket | `render`, `showToasts`, `toastHTML` |
 | `internal/verifier/testdata/*.osz` | | `set_good`, `set_outdated` (old Hard diff), `set_extra` (extra `.osu`), `set_no_osu`, `not_zip` (HTML) | regenerate: `go test ./internal/verifier -update` |
-| `*_test.go` | | parser (link forms, hostile inputs), validator (every rule, exempt users), verifier (fixtures, levels), downloader (fake mirrors: fallthrough, cache, skip/warn, MD5 off, cleanup), importer (traversal, Songs dir, osu!.db scan), queue (limits, ClearTest), osumeta (page JSON, .osu header), tikfinity (chat parsing, levels), tosu (payload, Tracker paths, client vs fake server), platform (hotkey parsing) | |
+| `*_test.go` | | parser (link forms, hostile inputs), validator (every rule, exempt users), verifier (fixtures, levels), downloader (fake mirrors: fallthrough, cache, skip/warn, MD5 off, cleanup), importer (traversal, Songs dir, osu!.db scan), queue (limits, ClearTest, gift credits and ordering), app (chat commands, play results, bans), osumeta (page JSON, .osu header), tikfinity (chat parsing, roles, gifts, levels), tosu (payload incl. scores, Tracker paths, client vs fake server), platform (hotkey parsing) | |
 
 ---
 
@@ -332,12 +386,18 @@ These are the assumptions most likely to break when a third party changes someth
   forwards; **not yet verified on a live stream**. `ParseChat` also accepts `text`/`message`, `username`/`userId`, `displayName`, and the same keys under `data.user`.
 * Process name `TikFinity.exe`; default install `%LOCALAPPDATA%\Programs\tikfinity\TikFinity.exe`; also found through
   `HKCU|HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\*` where `DisplayName` starts with "TikFinity".
+* Roles (**unverified**): `isModerator`, `isSubscriber`, `followRole` (0 none, 1 follower, 2 friend) on `data`, `data.user`, or `data.userIdentity`
+  (`isModeratorOfAnchor`, `isSubscriberOfAnchor`, `isFollowerOfAnchor`). Missing = unknown, which never blocks a viewer.
+* Gifts (**unverified**): `{"event":"gift","data":{"uniqueId","nickname","giftName","giftType","repeatCount","repeatEnd","diamondCount"}}`.
+  Coins = `diamondCount × repeatCount`; for `giftType` 1 (streakable) only the event with `repeatEnd: true` counts.
 * The dashboard keeps the first event of every type, and with `logRawEvents` the last 100 events, so field names can be checked without a debugger.
 
 ### tosu (`internal/tosu`)
 
 * WebSocket `ws://127.0.0.1:24050/websocket/v2` (configurable); tosu pushes the full state every poll (default 100 ms). Only changes are forwarded to the app.
-* Fields used: `client` (`stable`/`lazer`), `state.name` (or `state.number`), `beatmap.set`, `beatmap.id`, `beatmap.checksum`, `play.failed`. A payload with `error` is ignored.
+* Fields used: `client` (`stable`/`lazer`), `state.name` (or `state.number`), `beatmap.set`, `beatmap.id`, `beatmap.checksum`,
+  `play.{failed, accuracy, score, combo.max, rank.current, pp.current, mods.name, hits."0"}` and
+  `resultsScreen.{accuracy, score, maxCombo, rank, pp.current, mods.name, hits."0"}` (types from `packages/tosu/src/api/types/v2.ts`). A payload with `error` is ignored.
 * `state` names follow tosu's `GameState` enum: `menu 0, edit 1, play 2, exit 3, selectEdit 4, selectPlay 5, selectDrawings 6, resultScreen 7, update 8,
   busy 9, unknown 10, lobby 11, matchSetup 12, selectMulti 13, rankingVs 14, onlineSelection 15, optionsOffsetWizard 16, rankingTagCoop 17, rankingTeam 18,
   beatmapImport 19, packageUpdater 20, benchmark 21, tourney 22, charts 23` (source: `tosuapp/tosu/packages/common/enums/osu.ts`).
@@ -351,6 +411,10 @@ These are the assumptions most likely to break when a third party changes someth
 | Beatmap → set | `GET https://osu.ppy.sh/beatmaps/{id}` (redirects to the set page) | `/b/{id}` also redirects |
 | Fallback MD5 | `GET https://osu.ppy.sh/osu/{beatmapId}` | raw `.osu`; `[Metadata] BeatmapSetID` gives the set |
 | Covers (browser only) | `https://assets.ppy.sh/beatmaps/{setId}/covers/cover.jpg` | |
+| Audio preview (browser only) | `https://b.ppy.sh/preview/{setId}.mp3` | played by the dashboard, not the helper |
+
+**Beatmap viewer link:** `osu.viewerUrl` (default `https://osu-beatmap-viewer.vercel.app/`) + `?s={setId}&b={beatmapId}`. It is only a link opened in the
+browser; the helper sends nothing to the viewer. The viewer loads map files from public mirrors itself.
 
 User-Agent `osureq/1.0 (TikTok LIVE request helper)`. Never embed osu! OAuth secrets.
 
@@ -386,13 +450,16 @@ Every non-GET request must send the header `X-Osureq: 1`. Responses are JSON; ac
 | `GET /api/state` | the same `State` once |
 | `GET /api/config` | `{config, defaults}` |
 | `PUT /api/config` | replace the whole config (validated); `{ok, restartNeeded}` |
-| `POST /api/action/{name}` | `next`, `skip`, `removeLast`, `toggleRequests`, `clear`, `cleanup`, `toggleDryRun`, `clearTest`, `launchTikfinity`, `reconnect`, `openTikfinityDownload`, `launchTosu`, `reconnectTosu`, `openTosuDownload` |
+| `POST /api/action/{name}` | `next`, `skip`, `removeLast`, `toggleRequests`, `clear`, `cleanup`, `toggleDryRun`, `clearTest`, `launchTikfinity`, `reconnect`, `openTikfinityDownload`, `launchTosu`, `reconnectTosu`, `openTosuDownload`, `quit` |
 | `POST /api/queue/{id}/{op}` | `remove`, `skip`, `play`, `retry`, `move` (body `{"to": <index>}`) |
 | `POST /api/test` | quick add: `{"input": "<id or link>", "user": "<name>"}` → `{ok, item}` or `{ok:false, code, error}` |
-| `POST /api/simulate` | simulated chat: `{"message": "!req …", "user": "<name>"}`; `code: "ignored"` when it is not a request |
+| `POST /api/simulate` | simulated chat: `{"message": "!req …", "user": "<name>"}`; `code: "ignored"` when it is not a request; `{ok, command: true}` for a chat command |
+| `POST /api/simulateGift` | `{"user": "<name>", "coins": 30}` → `{ok, earned}` (priorities earned) |
+| `POST /api/ban` | `{"kind": "user" \| "set" \| "mapper", "value": "…"}` → `{ok, removed}` |
 
 `State` fields: `version`, `tikfinity` (status), `tosu` (status incl. `game`), `autoGap`, `queue` (`items`, `now`, `history`, `rejected`),
-`requests`, `resolving`, `notices`, `cacheMb`, `overlay`, `command`, `lang`, `playMode`, `dryRun`, `raw`, `firstRaw`, `extra` (`hotkeyErrors`, `baseDir`, `cacheDir`).
+`requests`, `resolving`, `notices`, `feed` (overlay pop-up events), `cacheMb`, `overlay`, `command`, `lang`, `playMode`, `viewerUrl`, `blacklistUsers`, `dryRun`, `raw`, `firstRaw`,
+`extra` (`hotkeyErrors`, `baseDir`, `cacheDir`).
 
 Example (PowerShell):
 
@@ -441,15 +508,21 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `cacheFolder` | `cache` | Relative to the exe (or `-dir`) |
 | | `downloadsFolder` | `%USERPROFILE%\Downloads` | Watched by the official source |
 | | `useOsuDb` | `false` | Experimental (stable): if `osu!.db` already has the map, skip the download and open `osu://b/{id}` |
+| | `viewerUrl` | `https://osu-beatmap-viewer.vercel.app/` | Beatmap viewer for the "viewer ↗" link; empty hides it |
 | command | `name` / `aliases` | `!req` / `!request`, `!r` | |
 | | `enabled` | `true` | Requests on/off (also the switch in the top bar) |
 | | `bareNumberAs` | `beatmap` | `beatmap` or `set` (the other meaning is tried if not found) |
+| | `mods` | empty | TikTok users who may use mod commands |
+| | `trustTikTokMods` | `true` | TikTok moderators count as mods (when TikFinity sends the flag) |
+| | `skipCmd` / `removeCmd` / `openCmd` / `closeCmd` | `!skip` / `!remove` / `!reqon` / `!reqoff` | empty turns a command off |
 | rules | `minStars` / `maxStars` | `0` / `0` | 0 = no limit |
 | | `maxLengthSec` | `0` | 0 = no limit |
 | | `modes` | all four | `osu`, `taiko`, `fruits`, `mania` |
 | | `statuses` | ranked, approved, qualified, loved | plus `pending`, `wip`, `graveyard` |
 | | `blacklistSets` / `blacklistMappers` / `blacklistUsers` | empty | |
-| | `exemptUsers` | empty | TikTok users who skip the per-user limit and cooldown |
+| | `exemptUsers` | empty | TikTok users who skip followers-only, the per-user limit and cooldown |
+| | `followersOnly` | `false` | Reject viewers TikTok reports as not following (unknown is let through) |
+| | `subscriberPerUserLimit` | `0` | Per-user limit for subscribers; 0 = same as everyone |
 | queue | `maxSize` | `30` | 0 = no limit |
 | | `perUserLimit` | `2` | Maps **waiting** per user (the one playing does not count) |
 | | `cooldownSec` | `60` | Per user |
@@ -467,6 +540,11 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | import | `mode` | `open` | `open`, `copy-to-songs`, `extract-to-songs` |
 | | `preload` / `preloadCount` | `true` / `2` | |
 | overlay | `visible`, `showRequester`, `theme` (`pink`/`sky`/`mono`), `scale` (%), `position` | `5`, `true`, `pink`, `100`, `top-left` | |
+| | `feedback` / `feedbackSec` | `true` / `7` | Pop-ups for viewers and how long they stay |
+| | `lang` | `auto` | Overlay language: `auto` (OBS browser language), `en`, `th` |
+| gifts | `enabled` | `false` | Gifts buy queue priority |
+| | `coinsPerPriority` | `30` | Coins (added up per viewer) for one priority |
+| | `creditMinutes` | `60` | How long an unused priority waits for a request |
 | hotkeys | `enabled` | `false` | Global hotkeys (work while osu! has focus) |
 | | `next` / `skip` / `removeLast` / `toggleRequests` | `Ctrl+Alt+N` / `Ctrl+Alt+S` / `Ctrl+Alt+Backspace` / `Ctrl+Alt+R` | |
 | test | `dryRun` | `false` | Next/Play never open osu! or touch Songs |
@@ -503,17 +581,20 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.2.1          # vet + test + build → dist\osureq.exe
+.\build.ps1 -Version 1.3.1          # vet + test + build → dist\osureq.exe (tray app, no console)
+.\build.ps1 -Version 1.3.1 -Console # console build that prints its log, for debugging
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go build -trimpath -ldflags "-s -w -X main.version=1.2.1" -o dist\osureq.exe .
+go build -trimpath -ldflags "-s -w -H windowsgui -X main.version=1.3.1" -o dist\osureq.exe .
 ```
 
 * `main.version` is set at build time (`dev` otherwise).
+* The release build uses `-H windowsgui` (no console). Started from a terminal, it attaches to that terminal and prints there; otherwise it only writes `osureq.log`
+  and shows fatal errors in a message box. `go run .` and plain `go build` give a console app, which is handy while developing.
 * Format with `gofmt -w .`; check the dashboard script with `node --check internal/server/web/app.js`.
 * Regenerate `.osz` fixtures: `go test ./internal/verifier -update`.
 * **Replacing a running exe:** Windows will not overwrite a running `osureq.exe`, but it allows renaming it. Rename it to `osureq.old.exe`, build the new one,
@@ -572,12 +653,14 @@ Read this before changing anything.
 | Auto mode with real tosu + osu! | verified only with a fake tosu server; confirm state names during real play (stable and lazer) |
 | Next → `.osz` opens in osu! | not exercised on the real machine during development; confirm once |
 | Global hotkeys | implemented, not exercised |
+| TikFinity gift and role fields | follow TikTok's payload names; check the raw event panel for `gift` and `chat` during a stream |
+| Tray icon | starts, hands off and quits correctly in tests; the icon's look was not checked on screen |
 | Official download fallback | implemented, not exercised (needs a logged-in browser) |
 | osu! lazer | supported via `open` and tosu, not tested |
 | osu.direct no-video URL | `?noVideo=1` is a guess |
 | `useOsuDb` / `osu://b/{id}` | experimental, off by default |
 | Overlay "now playing" card | rendered and styled, only partly checked visually |
-| Ideas | per-user or mod priority, gift-based priority, chat replies (TikFinity cannot send to chat), auto-detect stable vs lazer from tosu `client`, show tosu's live map on the dashboard |
+| Ideas | GitHub repo + release builds, update check, auto-detect stable vs lazer from tosu `client`, show tosu's live map on the dashboard, a short session summary (maps played, best result) at the end of a stream |
 
 ---
 
@@ -609,6 +692,14 @@ Read this before changing anything.
 | 1.1.0 | `0452c08` | Test panel: simulated chat, quick add, dry run, clear test data |
 | 1.1.1 | `6f6f7f3` | Dashboard no longer flickers during downloads (incremental rendering) |
 | 1.2.0 | `aa3cf23` | Auto mode detects the end of a song with tosu (no timer); tosu becomes a requirement; tosu status, banner and phase line |
+| 1.3.0 | `c665402` | Overlay pop-ups for added/rejected requests (with reasons); whole-set requests prefer the main mode |
+| | `a4134a8` | Chat commands: `!remove`, and for mods `!skip`, `!remove @user`, `!reqon`, `!reqoff` |
+| | `bd94357` | Play results from tosu on requests, history, dashboard and overlay |
+| | `bd318e8` | Gifts buy queue priority (opt-in) |
+| | `e7cc01a` | System tray app (no console), second launch opens the running copy, Quit button |
+| | `bb8e34f` | Audio preview and "open in beatmap viewer" links |
+| | `02449a6` | One-click bans from queue cards and the rejection log |
+| | `eb4b13b` | Followers-only and per-subscriber limits |
 
 ---
 
