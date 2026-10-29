@@ -151,11 +151,13 @@ func FindOsuStable() (string, bool) {
 	return "", false
 }
 
-// Launch starts an executable detached from the helper.
+// Launch starts an executable apart from the helper. A console app (tosu)
+// gets its own visible console window rather than none (DETACHED_PROCESS
+// would leave it running hidden); GUI apps ignore the console flag.
 func Launch(path string) error {
 	cmd := exec.Command(path)
 	cmd.Dir = filepath.Dir(path)
-	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.DETACHED_PROCESS}
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NEW_CONSOLE}
 	if err := cmd.Start(); err != nil {
 		return err
 	}
