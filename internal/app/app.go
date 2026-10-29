@@ -49,6 +49,9 @@ type App struct {
 	lastPlay   tosu.Score // latest live numbers of the map being tracked
 	lastFailed bool
 	warned     map[string]bool
+	infoAt     map[string]time.Time // user|command -> last !pos / !np answered
+	voteID     string               // now-playing item the skip votes are for
+	voters     map[string]bool
 }
 
 type Notice struct {

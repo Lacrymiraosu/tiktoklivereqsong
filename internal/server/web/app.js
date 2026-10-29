@@ -81,9 +81,9 @@ const T = {
   confirmQuit: ["Stop osureq? Requests will not be taken until you start it again.", "ปิด osureq? จะไม่รับคำขอจนกว่าจะเปิดใหม่"],
   quitDone: ["osureq stopped. You can close this tab.", "ปิด osureq แล้ว ปิดแท็บนี้ได้เลย"],
   trayHint: ["osureq runs in its CMD window, which shows the log. Closing that window also stops osureq.", "osureq ทำงานอยู่ในหน้าต่าง CMD ซึ่งแสดง log ด้วย ปิดหน้าต่างนั้นก็เป็นการปิด osureq"],
-  cmd_cmd_done: ["Command done (see Activity)", "ทำตามคำสั่งแล้ว (ดูที่ กิจกรรม)"],
+  cmd_cmd_done: ["Command done (shown on the overlay)", "ทำตามคำสั่งแล้ว (แสดงบน overlay)"],
   cmd_cmd_not_mod: ["@{u} is not a mod, so the command was ignored (as in real chat). Add mods in Settings → Command.", "@{u} ไม่ใช่ม็อด คำสั่งจึงไม่ทำงาน (เหมือนในแชทจริง) เพิ่มม็อดได้ใน ตั้งค่า → คำสั่ง"],
-  cmd_cmd_nothing: ["Nothing to do: no matching request, or nothing is playing", "ไม่มีอะไรให้ทำ: ไม่มีคำขอที่ตรงกัน หรือไม่มีเพลงที่กำลังเล่น"],
+  cmd_cmd_nothing: ["Nothing to do: no matching request, nothing is playing, already voted, or asked again too soon (20 s)", "ไม่มีอะไรให้ทำ: ไม่มีคำขอที่ตรงกัน ไม่มีเพลงที่กำลังเล่น โหวตไปแล้ว หรือถามซ้ำเร็วเกินไป (20 วินาที)"],
   giftNum: ["Enter the number of coins, e.g. 30", "ใส่จำนวนเหรียญเป็นตัวเลข เช่น 30"],
   e_busy: ["Already opening a map, try again in a moment", "กำลังเปิดแมพอยู่ ลองใหม่อีกครู่"],
   e_queue_empty: ["The queue is empty", "คิวว่างอยู่"],
@@ -178,6 +178,9 @@ const T = {
   n_banned_mapper: ["Banned mapper {v} (removed {n})", "แบนแมพเปอร์ {v} แล้ว (ลบ {n} รายการ)"],
   n_skipErr: ["!skip by @{u}: {msg}", "!skip โดย @{u}: {msg}"],
   n_usedCmd: ["@{u} used {cmd}", "@{u} ใช้คำสั่ง {cmd}"],
+  n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
+  e_vote_skip: ["Votes to skip cannot be negative", "จำนวนโหวตข้ามเพลงติดลบไม่ได้"],
+  ph_votes: ["skip votes {v}/{n}", "โหวตข้าม {v}/{n}"],
   n_giftMoved: ["@{u}'s gift moved {title} up the queue", "ของขวัญจาก @{u} ทำให้ {title} ขึ้นคิวก่อน"],
   n_cacheCleanup: ["Cache cleanup removed {n} file(s)", "ล้างแคชแล้ว ลบ {n} ไฟล์"],
   n_quit: ["Quit from the dashboard", "สั่งปิดจากแดชบอร์ด"],
@@ -447,6 +450,8 @@ function updatePhase() {
     text += " · " + (!auto ? t("ph_pressNext") : !hasNext ? t("ph_queueEmpty") : t("ph_nextIn", { n: Math.max(0, left) }));
   }
   if (n.result) text += " · " + t("res_" + n.result.outcome) + " " + resultShort(n.result);
+  const vs = S.voteSkip || {};
+  if (vs.needed > 0 && vs.votes > 0) text += " · " + t("ph_votes", { v: vs.votes, n: vs.needed });
   el.className = "phase " + cls;
   el.lastChild.textContent = text;
 }
@@ -850,6 +855,10 @@ const SCHEMA = {
     F("command.removeCmd", "text", "Remove command", "คำสั่งลบคำขอ", "Anyone removes their own latest request; mods can add @user. Empty = off.", "ทุกคนลบคำขอล่าสุดของตัวเองได้ ม็อดเติม @ชื่อ เพื่อลบของคนอื่น เว้นว่าง = ปิด"),
     F("command.openCmd", "text", "Open requests (mods)", "เปิดรับคำขอ (ม็อด)", null, null),
     F("command.closeCmd", "text", "Close requests (mods)", "ปิดรับคำขอ (ม็อด)", null, null),
+    F("command.posCmd", "text", "Queue position command", "คำสั่งดูลำดับคิว", "Anyone: the overlay shows where their requests are in the queue. Empty = off.", "ทุกคน: overlay จะบอกว่าคำขอของคนนั้นอยู่คิวที่เท่าไร เว้นว่าง = ปิด"),
+    F("command.nowCmd", "text", "Now playing command", "คำสั่งดูเพลงที่กำลังเล่น", "Anyone: the overlay shows the song being played and who asked for it. Each viewer can ask once every 20 s. Empty = off.", "ทุกคน: overlay จะแสดงเพลงที่กำลังเล่นและคนที่ขอ แต่ละคนถามได้ทุก 20 วินาที เว้นว่าง = ปิด"),
+    F("command.voteSkipCmd", "text", "Vote skip command", "คำสั่งโหวตข้ามเพลง", null, null),
+    F("command.voteSkipVotes", "number", "Votes needed to skip", "จำนวนโหวตที่ต้องใช้ข้ามเพลง", "Different viewers who must vote to skip the song being played. 0 = vote skip off.", "จำนวนผู้ชม (ไม่ซ้ำคน) ที่ต้องโหวตเพื่อข้ามเพลงที่กำลังเล่น 0 = ปิดการโหวต", { min: 0 }),
     F("command.bareNumberAs", "seg", "A bare number is a…", "ตัวเลขเปล่าๆ หมายถึง…", null, null, { options: [["beatmap", ["beatmap (difficulty) ID", "ID บีทแมพ (ระดับ)"]], ["set", ["beatmapset ID", "ID เซ็ต"]]] }),
   ],
   rules: [
