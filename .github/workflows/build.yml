@@ -1,0 +1,90 @@
+# Every push and pull request: vet, test and build osureq.exe (kept as a
+# workflow artifact for 14 days).
+# A tag v1.2.3: the same build with version 1.2.3, published as a GitHub
+# release with osureq-1.2.3-windows-x64.zip and its SHA-256.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Version
+        id: ver
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq "tag") { $v = $env:GITHUB_REF_NAME.TrimStart("v") }
+          else { $v = "0.0.0-dev+" + $env:GITHUB_SHA.Substring(0, 7) }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      # build.ps1 runs go vet and go test, writes the Windows resources and builds dist\osureq.exe.
+      # Resource versions must be plain x.y.z, so dev builds use 0.0.0 there.
+      - name: Build
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          if ($v -notmatch '^\d+\.\d+\.\d+$') {
+            go vet ./...; if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            go test ./...; if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            go run ./tools/winres -version 0.0.0; if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            $env:CGO_ENABLED = "0"
+            New-Item -ItemType Directory -Force dist | Out-Null
+            go build -trimpath -ldflags "-X main.version=$v" -o dist\osureq.exe .
+            exit $LASTEXITCODE
+          }
+          ./build.ps1 -Version $v
+
+      - name: Package
+        id: pkg
+        run: |
+          $name = "osureq-${{ steps.ver.outputs.version }}-windows-x64".Replace("+", "-")
+          Compress-Archive -Path dist\osureq.exe -DestinationPath "$name.zip"
+          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $name.zip" | Out-File -Encoding ascii "$name.zip.sha256"
+          "name=$name" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pkg.outputs.name }}
+          path: |
+            ${{ steps.pkg.outputs.name }}.zip
+            ${{ steps.pkg.outputs.name }}.zip.sha256
+          retention-days: 14
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" out/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "osureq ${TAG#v}" \
+            --notes "Download osureq-${TAG#v}-windows-x64.zip, unzip it and run osureq.exe. See the README for setup (TikFinity and tosu are required) and the Changelog for what changed."

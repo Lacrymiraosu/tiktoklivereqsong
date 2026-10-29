@@ -5,3 +5,4 @@ queue.json
 *.tmp
 osureq.log
 osureq.log.old
+/*.zip
