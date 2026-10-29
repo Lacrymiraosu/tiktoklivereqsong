@@ -31,3 +31,21 @@ func TestValidationProblemsHaveCodes(t *testing.T) {
 		t.Errorf("second problem = %+v", p)
 	}
 }
+
+func TestPerModeStars(t *testing.T) {
+	c := Default()
+	c.Rules.MinStars, c.Rules.MaxStars = 2, 6
+	c.Rules.ModeStars = map[string]StarRange{"mania": {Max: 4}, "taiko": {Min: 3}}
+	if min, max, per := c.Rules.StarLimits("mania"); min != 2 || max != 4 || !per {
+		t.Errorf("mania = %v %v %v", min, max, per)
+	}
+	if min, max, per := c.Rules.StarLimits("osu"); min != 2 || max != 6 || per {
+		t.Errorf("osu = %v %v %v", min, max, per)
+	}
+	c.Rules.ModeStars["fruits"] = StarRange{Min: 7} // 7 > global max 6
+	c.Rules.ModeStars["bogus"] = StarRange{}
+	var ve *ValidationError
+	if err := c.Validate(); !errors.As(err, &ve) || len(ve.Problems) != 2 {
+		t.Fatalf("want 2 problems, got %v", err)
+	}
+}

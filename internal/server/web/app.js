@@ -148,7 +148,12 @@ const T = {
   r_cooldown: ["cooldown", "ติดคูลดาวน์"], r_set_blacklisted: ["map blacklisted", "แมพถูกแบน"], r_mapper_blacklisted: ["mapper blacklisted", "แมพเปอร์ถูกแบน"],
   r_status: ["status not allowed", "สถานะไม่อนุญาต"], r_duplicate: ["already queued", "อยู่ในคิวแล้ว"], r_recently_played: ["played recently", "เพิ่งเล่นไป"],
   r_not_found: ["not found", "ไม่พบแมพ"], r_mode: ["mode not allowed", "โหมดไม่อนุญาต"], r_stars_low: ["too easy", "ดาวต่ำเกิน"], r_stars_high: ["too hard", "ดาวสูงเกิน"],
-  rejectedToast: ["rejected", "ถูกปฏิเสธ"],
+  rejectedToast: ["rejected", "ถูกปฏิเสธ"], r_no_convert: ["mode cannot be converted", "แปลงโหมดไม่ได้"],
+  convert: ["convert", "convert"], min: ["min ★", "ต่ำสุด ★"], max: ["max ★", "สูงสุด ★"], global: ["= overall", "= ค่ารวม"],
+  modeWarn: ["osu! is in {game} mode, but this map is {map}. Press {key} in song select to switch.", "osu! อยู่โหมด {game} แต่แมพนี้เป็น {map} กด {key} ที่หน้าเลือกเพลงเพื่อเปลี่ยนโหมด"],
+  e_mode_unknown: ["Unknown mode {mode} in stars per mode", "ไม่รู้จักโหมด {mode} ในดาวแยกตามโหมด"],
+  e_stars_negative: ["{mode}: stars cannot be negative", "{mode}: ดาวติดลบไม่ได้"],
+  e_stars_order_mode: ["{mode}: min stars is above max stars", "{mode}: ดาวขั้นต่ำมากกว่าดาวสูงสุด"],
   r_now_playing: ["playing right now", "กำลังเล่นอยู่ตอนนี้"],
   k_info: ["info", "ข้อมูล"], k_warn: ["warning", "คำเตือน"], k_error: ["error", "ผิดพลาด"],
   n_followUnknown: ["Followers-only is on, but TikFinity did not say whether @{u} follows; the request was let through.", "เปิดเฉพาะผู้ติดตามอยู่ แต่ TikFinity ไม่ได้บอกว่า @{u} ติดตามหรือไม่ จึงปล่อยคำขอผ่าน"],
@@ -250,6 +255,9 @@ const ago = iso => { const d = (Date.now() - new Date(iso)) / 1000; if (d < 60) 
 const timeOf = iso => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 const mb = n => n >= 1 << 20 ? (n / (1 << 20)).toFixed(1) + " MB" : Math.round(n / 1024) + " KB";
 const MODE = { osu: "osu!", taiko: "taiko", fruits: "catch", mania: "mania" };
+const MODE_KEY = { osu: 1, taiko: 2, fruits: 3, mania: 4 }; // Ctrl+N switches mode in osu!
+// modeText: "osu!", "taiko", "catch", "mania 7K", with "· convert" for a converted osu! map.
+const modeText = it => (MODE[it.mode] || it.mode) + (it.mode === "mania" && it.keys ? " " + it.keys + "K" : "") + (it.convert ? " · " + t("convert") : "");
 const coverOf = it => it.cover || `https://assets.ppy.sh/beatmaps/${it.setId}/covers/cover.jpg`;
 const setLink = it => `https://osu.ppy.sh/beatmapsets/${it.setId}` + (it.beatmapId ? `#${it.mode || "osu"}/${it.beatmapId}` : "");
 
@@ -335,7 +343,7 @@ function renderStatus(tf, ts) {
 function tagsFor(it) {
   return h("div", { class: "tags" },
     h("em", { class: "star", style: `background:${starColor(it.stars)};color:${it.stars >= 6.7 ? "#fff" : "#1c1726"}` }, it.stars >= 0 ? it.stars.toFixed(2) + "★" : "?★"),
-    h("em", {}, MODE[it.mode] || it.mode),
+    h("em", { class: "mode mode-" + it.mode }, modeText(it)),
     h("em", {}, clock(it.length)),
     it.status ? h("em", { class: "st-" + it.status }, it.status) : null,
     it.md5 ? h("em", { class: "md5-" + it.md5 }, "MD5 " + it.md5) : null,
@@ -399,7 +407,19 @@ function resultShort(r) {
 
 // The phase line under now playing: what tosu has seen of the map, and in
 // auto mode when the next one opens. Updated every second without a rebuild.
+// updateModeWarn: tosu says which mode osu! is in; if the map just opened is
+// for another mode, tell the streamer how to switch (Ctrl+1-4 in song select).
+function updateModeWarn() {
+  const el = $("#modeWarn");
+  if (!el || !S || !S.queue.now) return;
+  const n = S.queue.now, g = S.tosu && S.tosu.connected && S.tosu.game ? S.tosu.game.mode : "";
+  const show = !!g && !!n.mode && g !== n.mode && (n.playPhase || "waiting") === "waiting";
+  el.hidden = !show;
+  if (show) el.textContent = "⚠ " + t("modeWarn", { game: MODE[g] || g, map: modeText(n), key: "Ctrl+" + MODE_KEY[n.mode] });
+}
+
 function updatePhase() {
+  updateModeWarn();
   const el = $("#phase");
   if (!el || !S || !S.queue.now) return;
   const n = S.queue.now, auto = S.playMode === "auto";
@@ -435,7 +455,8 @@ function renderNow(n) {
         h("span", {}, `${n.artist} · [${n.version}] · ${t("mappedBy")} ${n.creator}`),
         h("small", {}, t("reqBy") + " ", h("span", { class: "req" }, "@" + n.user), n.nick && n.nick !== n.user ? ` (${n.nick})` : "", " · ", h("a", { class: "mlink", href: setLink(n), target: "_blank", rel: "noopener" }, "osu.ppy.sh"), mapLinks(n)),
         tagsFor(n),
-        h("span", { class: "phase", id: "phase" }, h("i"), h("span"))),
+        h("span", { class: "phase", id: "phase" }, h("i"), h("span")),
+        h("span", { class: "modewarn", id: "modeWarn", hidden: true })),
       h("div", { class: "npa" },
         h("button", { class: "btn", onclick: e => busy(e.currentTarget, () => act("/api/action/skip")) }, svg(ICON.skip), t("skip")),
         next))));
@@ -803,6 +824,7 @@ const SCHEMA = {
   rules: [
     F("rules.minStars", "number", "Min stars", "ดาวขั้นต่ำ", "0 = no limit", "0 = ไม่จำกัด", { step: 0.1, min: 0 }),
     F("rules.maxStars", "number", "Max stars", "ดาวสูงสุด", "0 = no limit", "0 = ไม่จำกัด", { step: 0.1, min: 0 }),
+    F("rules.modeStars", "modestars", "Stars per mode", "ดาวแยกตามโหมด", "Stars are not comparable between modes. Leave a box empty to use the min/max above for that mode. Converts use the stars of the mode they are played in.", "ดาวแต่ละโหมดเทียบกันไม่ได้ เว้นว่างเพื่อใช้ค่าต่ำสุด/สูงสุดด้านบน แมพ convert ใช้ดาวของโหมดที่เล่นจริง"),
     F("rules.maxLengthSec", "number", "Max length (s)", "ความยาวสูงสุด (วินาที)", "0 = no limit", "0 = ไม่จำกัด", { min: 0 }),
     F("rules.modes", "multi", "Allowed modes", "โหมดที่อนุญาต", null, null, { options: MODES }),
     F("rules.statuses", "multi", "Allowed statuses", "สถานะที่อนุญาต", null, null, { options: STATUSES.map(s => [s, s]) }),
@@ -946,6 +968,24 @@ function field(f) {
         h("a", { class: "btn sm", href: "/overlay", target: "_blank" }, L("Preview", "ดูตัวอย่าง"))));
     }
     case "sources": return sourcesField(f, text);
+    case "modestars": {
+      const grid = h("div", { class: "modestars" }, h("span"), h("small", {}, t("min")), h("small", {}, t("max")));
+      for (const [mode, name] of MODES) {
+        const num = key => {
+          const cur = ((draft.rules.modeStars || {})[mode] || {})[key];
+          const i = h("input", { type: "number", min: 0, step: 0.1, value: cur > 0 ? cur : "", placeholder: t("global"), "aria-label": name + " " + key });
+          i.addEventListener("input", () => {
+            const ms = draft.rules.modeStars = draft.rules.modeStars || {};
+            const r = ms[mode] = ms[mode] || { min: 0, max: 0 };
+            r[key] = i.value === "" ? 0 : Number(i.value);
+            if (!r.min && !r.max) delete ms[mode];
+          });
+          return i;
+        };
+        grid.append(h("b", {}, name), num("min"), num("max"));
+      }
+      return h("div", { class: "row stack" }, text, grid);
+    }
   }
   return h("div");
 }

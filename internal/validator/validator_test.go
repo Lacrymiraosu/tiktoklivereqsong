@@ -234,3 +234,40 @@ func TestFollowerAndSubscriberRules(t *testing.T) {
 		t.Errorf("exempt users skip the follower rule: %v", rej)
 	}
 }
+
+func convertSet() *osumeta.Set {
+	s := set()
+	s.Converts = []osumeta.Diff{{ID: 3, Version: "Insane", Mode: "mania", Stars: 3.4, Length: 120, Keys: 4, Convert: true}}
+	return s
+}
+
+func TestConvertUsesItsOwnStars(t *testing.T) {
+	r := rules()
+	r.MaxStars = 4 // the osu! Insane is 5.2★, its mania convert is 3.4★
+	d, rej := CheckMap(Input{Set: convertSet(), BeatmapID: 3, Mode: "mania"}, empty(), r, config.Queue{}, now)
+	if rej != nil || d.Stars != 3.4 || d.Mode != "mania" || !d.Convert || d.Keys != 4 {
+		t.Fatalf("mania convert: %+v %v", d, rej)
+	}
+	// no rating from osu!: stars unknown, so star limits cannot block it
+	d, rej = CheckMap(Input{Set: convertSet(), BeatmapID: 3, Mode: "taiko"}, empty(), r, config.Queue{}, now)
+	if rej != nil || d.Stars != -1 || d.Mode != "taiko" || !d.Convert {
+		t.Fatalf("taiko convert without rating: %+v %v", d, rej)
+	}
+	// only osu! maps convert
+	if _, rej := CheckMap(Input{Set: convertSet(), BeatmapID: 4, Mode: "osu"}, empty(), r, config.Queue{}, now); rej == nil || rej.Code != "no_convert" {
+		t.Fatalf("mania map as osu!: want no_convert, got %v", rej)
+	}
+}
+
+func TestPerModeStarLimits(t *testing.T) {
+	r := rules()
+	r.MaxStars = 6
+	r.ModeStars = map[string]config.StarRange{"mania": {Max: 2}}
+	if _, rej := CheckMap(Input{Set: set(), BeatmapID: 3}, empty(), r, config.Queue{}, now); rej != nil {
+		t.Errorf("osu! 5.2★ under the global 6★: %v", rej)
+	}
+	_, rej := CheckMap(Input{Set: set(), BeatmapID: 4}, empty(), r, config.Queue{}, now)
+	if rej == nil || rej.Code != "stars_high" || rej.Short != "2.50★ > 2.00★ (mania)" {
+		t.Errorf("mania 2.5★ over its own 2★: %+v", rej)
+	}
+}

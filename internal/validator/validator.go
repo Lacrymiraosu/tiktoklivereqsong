@@ -130,7 +130,19 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 			return nil, reject("not_found", "difficulty %d is not in set %d", in.BeatmapID, s.ID)
 		}
 		mode := d.Mode
-		if in.Mode != "" {
+		if in.Mode != "" && in.Mode != d.Mode {
+			// A #taiko/#fruits/#mania link to an osu! map: a convert. Only
+			// osu! maps convert; use osu!'s rating for that mode when it has one.
+			if d.Mode != "osu" {
+				return nil, reject("no_convert", "%s maps cannot be played as %s", d.Mode, in.Mode).with("%s → %s", d.Mode, in.Mode)
+			}
+			if c := s.Convert(d.ID, in.Mode); c != nil {
+				d = c
+			} else {
+				c := *d
+				c.Mode, c.Convert, c.Stars, c.Keys = in.Mode, true, -1, 0
+				d = &c
+			}
 			mode = in.Mode
 		}
 		if r := checkDiff(d, mode, rules); r != nil {
@@ -192,17 +204,32 @@ func checkDiff(d *osumeta.Diff, mode string, rules config.Rules) *Rejection {
 		return reject("mode", "mode %s is not allowed", mode).with("%s", mode)
 	}
 	if d.Stars >= 0 {
-		if rules.MinStars > 0 && d.Stars < rules.MinStars {
-			return reject("stars_low", "%.2f★ is below %.2f★", d.Stars, rules.MinStars).with("%.2f★ < %.2f★", d.Stars, rules.MinStars)
+		min, max, perMode := rules.StarLimits(mode)
+		tag := ""
+		if perMode {
+			tag = " (" + modeLabel(mode) + ")"
 		}
-		if rules.MaxStars > 0 && d.Stars > rules.MaxStars {
-			return reject("stars_high", "%.2f★ is above %.2f★", d.Stars, rules.MaxStars).with("%.2f★ > %.2f★", d.Stars, rules.MaxStars)
+		if min > 0 && d.Stars < min {
+			return reject("stars_low", "%.2f★ is below %.2f★%s", d.Stars, min, tag).with("%.2f★ < %.2f★%s", d.Stars, min, tag)
+		}
+		if max > 0 && d.Stars > max {
+			return reject("stars_high", "%.2f★ is above %.2f★%s", d.Stars, max, tag).with("%.2f★ > %.2f★%s", d.Stars, max, tag)
 		}
 	}
 	if d.Length >= 0 && rules.MaxLengthSec > 0 && d.Length > rules.MaxLengthSec {
 		return reject("too_long", "%s is longer than %s", clock(d.Length), clock(rules.MaxLengthSec)).with("%s > %s", clock(d.Length), clock(rules.MaxLengthSec))
 	}
 	return nil
+}
+
+func modeLabel(m string) string {
+	switch m {
+	case "osu":
+		return "osu!"
+	case "fruits":
+		return "catch"
+	}
+	return m
 }
 
 func clock(s int) string { return fmt.Sprintf("%d:%02d", s/60, s%60) }

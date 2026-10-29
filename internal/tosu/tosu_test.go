@@ -177,3 +177,16 @@ func TestClientFollowsGameState(t *testing.T) {
 	fake.mu.Unlock()
 	wait(func() bool { return !c.Connected() }, "disconnect")
 }
+
+func TestParseSelectedMode(t *testing.T) {
+	for raw, want := range map[string]string{
+		`{"state":{"name":"selectPlay"},"settings":{"mode":{"number":3,"name":"mania"}}}`: "mania",
+		`{"state":{"name":"selectPlay"},"settings":{"mode":{"number":0,"name":"osu"}}}`:   "osu",
+		`{"state":{"name":"selectPlay"},"settings":{"mode":{"name":"fruits"}}}`:           "fruits",
+		`{"state":{"name":"selectPlay"}}`:                                                 "",
+	} {
+		if g, _ := Parse([]byte(raw)); g.Mode != want {
+			t.Errorf("%s -> %q, want %q", raw, g.Mode, want)
+		}
+	}
+}

@@ -30,3 +30,24 @@ func TestParseOsuHeader(t *testing.T) {
 		t.Fatalf("got %v", h)
 	}
 }
+
+func TestParseConvertsAndManiaKeys(t *testing.T) {
+	s, err := ParsePageJSON([]byte(`{"id":1,"title":"T","artist":"A","creator":"C","status":"ranked",
+	"beatmaps":[{"id":10,"version":"Insane","mode":"osu","difficulty_rating":5.12,"total_length":233,"checksum":"AA","cs":4},
+	            {"id":11,"version":"7K Hard","mode":"mania","difficulty_rating":3.9,"total_length":233,"checksum":"BB","cs":7}],
+	"converts":[{"id":10,"mode":"mania","difficulty_rating":3.38,"total_length":233,"cs":4,"convert":true},
+	            {"id":10,"mode":"taiko","difficulty_rating":3.95,"total_length":233,"convert":true}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := s.Diff(11); d.Keys != 7 {
+		t.Errorf("mania keys = %d, want 7", d.Keys)
+	}
+	c := s.Convert(10, "mania")
+	if c == nil || c.Stars != 3.38 || !c.Convert || c.Keys != 4 || c.Checksum != "aa" || c.Version != "Insane" {
+		t.Fatalf("mania convert = %+v", c)
+	}
+	if s.Convert(10, "fruits") != nil || s.Convert(11, "taiko") != nil {
+		t.Error("only conversions osu! sent should exist")
+	}
+}

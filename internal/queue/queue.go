@@ -45,6 +45,8 @@ type Item struct {
 	Creator   string    `json:"creator"`
 	Version   string    `json:"version"`
 	Mode      string    `json:"mode"`
+	Keys      int       `json:"keys,omitempty"`    // mania key count
+	Convert   bool      `json:"convert,omitempty"` // osu! map played in Mode
 	Stars     float64   `json:"stars"`
 	Length    int       `json:"length"`
 	Status    string    `json:"status"`

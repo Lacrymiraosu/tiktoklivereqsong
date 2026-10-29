@@ -35,6 +35,7 @@ type Game struct {
 	BeatmapID int    `json:"beatmapId"`
 	Checksum  string `json:"checksum"`
 	Failed    bool   `json:"failed"`
+	Mode      string `json:"mode"`    // ruleset selected in osu! (settings.mode): osu | taiko | fruits | mania
 	Play      Score  `json:"play"`    // live numbers during gameplay
 	Results   Score  `json:"results"` // the results screen (only meaningful in state resultScreen)
 }
@@ -54,12 +55,13 @@ type Score struct {
 type Brief struct {
 	Client    string `json:"client"`
 	State     string `json:"state"`
+	Mode      string `json:"mode"`
 	SetID     int    `json:"setId"`
 	BeatmapID int    `json:"beatmapId"`
 }
 
 func (g Game) Brief() Brief {
-	return Brief{Client: g.Client, State: g.State, SetID: g.SetID, BeatmapID: g.BeatmapID}
+	return Brief{Client: g.Client, State: g.State, Mode: g.Mode, SetID: g.SetID, BeatmapID: g.BeatmapID}
 }
 
 type Status struct {
@@ -310,6 +312,12 @@ type v2 struct {
 		Mods v2mods `json:"mods"`
 		Hits v2hits `json:"hits"`
 	} `json:"resultsScreen"`
+	Settings struct {
+		Mode struct {
+			Number *int   `json:"number"`
+			Name   string `json:"name"`
+		} `json:"mode"`
+	} `json:"settings"`
 	Error string `json:"error"`
 }
 
@@ -333,6 +341,7 @@ func Parse(b []byte) (Game, bool) {
 	}
 	p, r := m.Play, m.Results
 	return Game{
+		Mode:   rulesetName(m.Settings.Mode.Number, m.Settings.Mode.Name),
 		Client: m.Client, State: name, SetID: m.Beatmap.Set, BeatmapID: m.Beatmap.ID,
 		Checksum: strings.ToLower(m.Beatmap.Checksum), Failed: p.Failed,
 		Play: Score{Accuracy: p.Accuracy, Rank: p.Rank.Current, MaxCombo: p.Combo.Max, Score: p.Score,
@@ -340,6 +349,24 @@ func Parse(b []byte) (Game, bool) {
 		Results: Score{Accuracy: r.Accuracy, Rank: r.Rank, MaxCombo: r.MaxCombo, Score: r.Score,
 			PP: r.PP.Current, Mods: r.Mods.Name, Misses: r.Hits.Miss},
 	}, true
+}
+
+// rulesetName maps tosu's settings.mode (0-3, or a name) to osu!'s mode names.
+func rulesetName(n *int, name string) string {
+	if n != nil && *n >= 0 && *n <= 3 {
+		return [...]string{"osu", "taiko", "fruits", "mania"}[*n]
+	}
+	switch strings.ToLower(name) {
+	case "osu", "standard", "std":
+		return "osu"
+	case "taiko":
+		return "taiko"
+	case "fruits", "catch", "ctb":
+		return "fruits"
+	case "mania":
+		return "mania"
+	}
+	return ""
 }
 
 // tosu's GameState enum, used when a payload carries only the number.

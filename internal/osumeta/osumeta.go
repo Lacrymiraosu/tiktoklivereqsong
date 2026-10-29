@@ -26,30 +26,46 @@ const base = "https://osu.ppy.sh"
 type Diff struct {
 	ID       int     `json:"id"`
 	Version  string  `json:"version"`
-	Mode     string  `json:"mode"`
+	Mode     string  `json:"mode"` // osu | taiko | fruits | mania
 	Stars    float64 `json:"stars"`
 	Length   int     `json:"length"` // seconds
 	Checksum string  `json:"checksum"`
 	Status   string  `json:"status"`
+	Keys     int     `json:"keys,omitempty"`    // mania key count (osu! sends it as cs)
+	Convert  bool    `json:"convert,omitempty"` // an osu! map played in another mode
 }
 
 type Set struct {
-	ID      int       `json:"id"`
-	Title   string    `json:"title"`
-	Artist  string    `json:"artist"`
-	Creator string    `json:"creator"`
-	Status  string    `json:"status"`
-	Video   bool      `json:"video"`
-	Cover   string    `json:"cover"`
-	Diffs   []Diff    `json:"diffs"`
-	Partial bool      `json:"partial"` // built from a raw .osu fallback; stars/length/status unknown
-	Fetched time.Time `json:"-"`
+	ID      int    `json:"id"`
+	Title   string `json:"title"`
+	Artist  string `json:"artist"`
+	Creator string `json:"creator"`
+	Status  string `json:"status"`
+	Video   bool   `json:"video"`
+	Cover   string `json:"cover"`
+	Diffs   []Diff `json:"diffs"`
+	// Converts are the osu! diffs as osu! rates them in taiko, catch and
+	// mania (same id and file, other mode and stars).
+	Converts []Diff    `json:"converts,omitempty"`
+	Partial  bool      `json:"partial"` // built from a raw .osu fallback; stars/length/status unknown
+	Fetched  time.Time `json:"-"`
 }
 
 func (s *Set) Diff(id int) *Diff {
 	for i := range s.Diffs {
 		if s.Diffs[i].ID == id {
 			return &s.Diffs[i]
+		}
+	}
+	return nil
+}
+
+// Convert returns diff id as osu! rates it in mode (a converted osu! map),
+// or nil when osu! did not send that conversion.
+func (s *Set) Convert(id int, mode string) *Diff {
+	for i := range s.Converts {
+		if s.Converts[i].ID == id && s.Converts[i].Mode == mode {
+			return &s.Converts[i]
 		}
 	}
 	return nil
@@ -154,15 +170,29 @@ type rawSet struct {
 	Covers  struct {
 		Cover string `json:"cover"`
 	} `json:"covers"`
-	Beatmaps []struct {
-		ID       int     `json:"id"`
-		Version  string  `json:"version"`
-		Mode     string  `json:"mode"`
-		Stars    float64 `json:"difficulty_rating"`
-		Length   int     `json:"total_length"`
-		Checksum string  `json:"checksum"`
-		Status   string  `json:"status"`
-	} `json:"beatmaps"`
+	Beatmaps []rawDiff `json:"beatmaps"`
+	Converts []rawDiff `json:"converts"`
+}
+
+type rawDiff struct {
+	ID       int     `json:"id"`
+	Version  string  `json:"version"`
+	Mode     string  `json:"mode"`
+	Stars    float64 `json:"difficulty_rating"`
+	Length   int     `json:"total_length"`
+	Checksum string  `json:"checksum"`
+	Status   string  `json:"status"`
+	CS       float64 `json:"cs"`
+	Convert  bool    `json:"convert"`
+}
+
+func (b rawDiff) diff() Diff {
+	d := Diff{ID: b.ID, Version: b.Version, Mode: b.Mode, Stars: b.Stars, Length: b.Length,
+		Checksum: strings.ToLower(b.Checksum), Status: b.Status, Convert: b.Convert}
+	if b.Mode == "mania" {
+		d.Keys = int(b.CS + 0.5)
+	}
+	return d
 }
 
 // ParsePageJSON parses the beatmapset JSON embedded in the osu! website.
@@ -176,7 +206,17 @@ func ParsePageJSON(b []byte) (*Set, error) {
 	}
 	s := &Set{ID: r.ID, Title: r.Title, Artist: r.Artist, Creator: r.Creator, Status: r.Status, Video: r.Video, Cover: r.Covers.Cover, Fetched: time.Now()}
 	for _, b := range r.Beatmaps {
-		s.Diffs = append(s.Diffs, Diff{ID: b.ID, Version: b.Version, Mode: b.Mode, Stars: b.Stars, Length: b.Length, Checksum: strings.ToLower(b.Checksum), Status: b.Status})
+		s.Diffs = append(s.Diffs, b.diff())
+	}
+	for _, b := range r.Converts {
+		c := b.diff()
+		c.Convert = true
+		if c.Checksum == "" || c.Version == "" { // fill in what osu! leaves out of converts
+			if d := s.Diff(c.ID); d != nil {
+				c.Checksum, c.Version = d.Checksum, d.Version
+			}
+		}
+		s.Converts = append(s.Converts, c)
 	}
 	return s, nil
 }

@@ -57,9 +57,34 @@ type Rules struct {
 	BlacklistSets   []int    `json:"blacklistSets"`
 	BlacklistMapper []string `json:"blacklistMappers"`
 	BlacklistUsers  []string `json:"blacklistUsers"`
-	ExemptUsers     []string `json:"exemptUsers"`            // no per-user limit or cooldown (streamer, mods)
-	FollowersOnly   bool     `json:"followersOnly"`          // reject viewers TikTok says do not follow
-	SubscriberLimit int      `json:"subscriberPerUserLimit"` // per-user limit for subscribers; 0 = same as everyone
+	ExemptUsers     []string `json:"exemptUsers"` // no per-user limit or cooldown (streamer, mods)
+	// ModeStars overrides MinStars/MaxStars per mode (osu, taiko, fruits,
+	// mania); a 0 keeps the global value. Stars of different modes are not
+	// comparable, so a mania streamer can allow 4.5★ while osu! stops at 6★.
+	ModeStars       map[string]StarRange `json:"modeStars,omitempty"`
+	FollowersOnly   bool                 `json:"followersOnly"`          // reject viewers TikTok says do not follow
+	SubscriberLimit int                  `json:"subscriberPerUserLimit"` // per-user limit for subscribers; 0 = same as everyone
+}
+
+// StarRange is a min/max star limit; 0 means "no override".
+type StarRange struct {
+	Min float64 `json:"min"`
+	Max float64 `json:"max"`
+}
+
+// StarLimits returns the star range for mode and whether a per-mode
+// override was used.
+func (r Rules) StarLimits(mode string) (min, max float64, perMode bool) {
+	min, max = r.MinStars, r.MaxStars
+	if o, ok := r.ModeStars[mode]; ok {
+		if o.Min > 0 {
+			min, perMode = o.Min, true
+		}
+		if o.Max > 0 {
+			max, perMode = o.Max, true
+		}
+	}
+	return min, max, perMode
 }
 
 type Queue struct {
@@ -263,6 +288,20 @@ func (c *Config) Validate() error {
 	}
 	if c.Rules.MaxStars > 0 && c.Rules.MinStars > c.Rules.MaxStars {
 		add("stars_order", nil, "min stars is above max stars")
+	}
+	for mode, r := range c.Rules.ModeStars {
+		switch mode {
+		case "osu", "taiko", "fruits", "mania":
+		default:
+			add("mode_unknown", map[string]string{"mode": mode}, "unknown mode %q in per-mode stars", mode)
+			continue
+		}
+		if r.Min < 0 || r.Max < 0 {
+			add("stars_negative", map[string]string{"mode": mode}, "%s stars cannot be negative", mode)
+		}
+		if min, max, _ := c.Rules.StarLimits(mode); max > 0 && min > max {
+			add("stars_order_mode", map[string]string{"mode": mode}, "%s: min stars is above max stars", mode)
+		}
 	}
 	if c.Queue.PlayMode != "manual" && c.Queue.PlayMode != "auto" {
 		add("play_mode", nil, "play mode must be manual or auto")

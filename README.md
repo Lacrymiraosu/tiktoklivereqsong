@@ -84,6 +84,9 @@ audio preview and one-click bans. Auto mode and play results were verified again
 * **MD5 verification** (`requested` or `strict`) against osu!'s current checksums; an outdated mirror copy is rejected.
 * **Import** by opening the `.osz` (stable + lazer), copying it into Songs, or extracting it (stable), plus **preload** of the next N maps.
 * **Play modes**: manual (**Next** button/hotkey) or **auto**, which uses tosu to see when the song has really ended.
+* **All four modes** (osu!, taiko, catch, mania): converts use osu!'s own star rating for the mode they are played in
+  (`#mania/<id>` of an osu! map is rated as mania), mania shows its key count (4K/7K), star limits can be set per mode,
+  mode tags on the dashboard and overlay, and a warning when osu! is in another mode than the opened map (via tosu).
 * **Play results** from tosu (accuracy, rank, combo, misses, pp, mods; passed/failed/quit) on the request, in history and on the overlay.
 * **Viewer feedback on the overlay**: since the helper cannot write in TikTok chat, pop-ups say when a request was added (with its place)
   or rejected (with the reason, e.g. "too hard · 5.88★ > 5.00★"), plus mod commands, gifts and results. English or Thai.
@@ -182,7 +185,10 @@ Mods are the users in **Settings → Command → Mods**, plus TikTok moderators 
    `checksum` (MD5 of the `.osu`). Fallback: `GET https://osu.ppy.sh/osu/{beatmapId}` and hash it locally. Stars, length and status are
    then unknown, so they are not checked and the item gets a warning. A bare number that is not found is retried with the other meaning (beatmap ↔ set).
 4. **Map rules** (`validator.CheckMap`): set/mapper blacklist, status, duplicate (queued or playing), no-repeat window, then mode, stars and length
-   on the requested diff. For whole-set requests, the hardest diff that passes is chosen, preferring the set's main mode (the mode most of its diffs use).
+   on the requested diff. A `#taiko/#fruits/#mania` link to an osu! diff is a **convert**: it is checked with osu!'s rating for that mode
+   (`converts` in the page JSON; unknown stars when osu! has none). Star limits come from `rules.modeStars` for that mode when set, else
+   `minStars`/`maxStars`. For whole-set requests, native diffs are tried mode by mode in the order of `rules.modes` (osu! first by default)
+   and the hardest one that passes is chosen.
 5. **Queue** (`internal/queue`): saved to `queue.json` and kept across restarts. A saved gift priority is applied right away (see [Gifts](#gift-priority)).
    The overlay gets an "added" or "rejected" pop-up for every request (`app.FeedEvent`).
 6. **Download** (`internal/downloader`), sources in configured order:
@@ -205,7 +211,7 @@ Mods are the users in **Settings → Command → Mods**, plus TikTok moderators 
 
 Rejection reason codes (shown translated on the dashboard): `user_blacklisted`, `queue_full`, `user_limit`, `cooldown`, `set_blacklisted`,
 `mapper_blacklisted`, `status`, `duplicate`, `recently_played`, `not_found`, `mode`, `stars_low`, `stars_high`, `too_long`, `meta_error`,
-`bad_input`, `requests_off`, `followers_only`. Each rejection also has a language-neutral `short` detail (e.g. `5.88★ > 5.00★`, `60s`, `2/2`) used by the overlay.
+`bad_input`, `requests_off`, `followers_only`, `now_playing`, `no_convert` (a taiko/catch/mania map requested in another mode: only osu! maps convert). Each rejection also has a language-neutral `short` detail (e.g. `5.88★ > 5.00★`, `60s`, `2/2`) used by the overlay.
 
 ### Gift priority
 
@@ -395,7 +401,8 @@ These are the assumptions most likely to break when a third party changes someth
 * WebSocket `ws://127.0.0.1:24050/websocket/v2` (configurable); tosu pushes the full state every poll (default 100 ms). Only changes are forwarded to the app.
 * Fields used: `client` (`stable`/`lazer`), `state.name` (or `state.number`), `beatmap.set`, `beatmap.id`, `beatmap.checksum`,
   `play.{failed, accuracy, score, combo.max, rank.current, pp.current, mods.name, hits."0"}` and
-  `resultsScreen.{accuracy, score, maxCombo, rank, pp.current, mods.name, hits."0"}` (types from `packages/tosu/src/api/types/v2.ts`). A payload with `error` is ignored.
+  `resultsScreen.{accuracy, score, maxCombo, rank, pp.current, mods.name, hits."0"}` and `settings.mode` (0-3: the mode selected in osu!,
+  used for the mode-mismatch warning) (types from `packages/tosu/src/api/types/v2.ts`). A payload with `error` is ignored.
 * `state` names follow tosu's `GameState` enum: `menu 0, edit 1, play 2, exit 3, selectEdit 4, selectPlay 5, selectDrawings 6, resultScreen 7, update 8,
   busy 9, unknown 10, lobby 11, matchSetup 12, selectMulti 13, rankingVs 14, onlineSelection 15, optionsOffsetWizard 16, rankingTagCoop 17, rankingTeam 18,
   beatmapImport 19, packageUpdater 20, benchmark 21, tourney 22, charts 23` (source: `tosuapp/tosu/packages/common/enums/osu.ts`).
@@ -517,6 +524,7 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `trustTikTokMods` | `true` | TikTok moderators count as mods (when TikFinity sends the flag) |
 | | `skipCmd` / `removeCmd` / `openCmd` / `closeCmd` | `!skip` / `!remove` / `!reqon` / `!reqoff` | empty turns a command off |
 | rules | `minStars` / `maxStars` | `0` / `0` | 0 = no limit |
+| | `modeStars` | empty | Per-mode star limits, e.g. `{"mania": {"min": 0, "max": 4}}`; 0 keeps the overall value |
 | | `maxLengthSec` | `0` | 0 = no limit |
 | | `modes` | all four | `osu`, `taiko`, `fruits`, `mania` |
 | | `statuses` | ranked, approved, qualified, loved | plus `pending`, `wip`, `graveyard` |
@@ -703,6 +711,7 @@ Read this before changing anything.
 | | `bb8e34f` | Audio preview and "open in beatmap viewer" links |
 | | `02449a6` | One-click bans from queue cards and the rejection log |
 | | `eb4b13b` | Followers-only and per-subscriber limits |
+| 1.3.6 | | All four modes: convert stars from osu!, mania key counts, per-mode star limits, mode tags, mode-mismatch warning |
 | 1.3.5 | | Click-through audit fixes: card ⋯ menu stays on screen (opens upward, never wider than the screen); card status shown first; overlay never cuts the reason; truthful test-panel feedback for commands and gifts; translated errors and settings validation; side-log titles on their own line; buttons and settings fit narrow screens |
 | 1.3.4 | | Settings open as a centred dialog; master volume (default 10%) with a speaker button in the top bar |
 | 1.3.3 | | Windows resources (icon, name, description, version, `asInvoker` manifest) and no symbol stripping, so Windows treats the exe as a normal app |

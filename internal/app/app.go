@@ -287,7 +287,7 @@ func (a *App) resolve(user, nick, input string, req parser.Request, o origin, ro
 	}
 	it := &queue.Item{
 		ID: queue.NewID(), User: user, Nick: nick, SetID: set.ID, BeatmapID: diff.ID, BySet: beatmapID == 0,
-		Title: set.Title, Artist: set.Artist, Creator: set.Creator, Version: diff.Version, Mode: mode,
+		Title: set.Title, Artist: set.Artist, Creator: set.Creator, Version: diff.Version, Mode: mode, Keys: diff.Keys, Convert: diff.Convert,
 		Stars: diff.Stars, Length: diff.Length, Status: set.Status, Cover: set.Cover, AddedAt: now, Test: o != fromChat, Simulated: o == fromSim,
 	}
 	if set.Partial {

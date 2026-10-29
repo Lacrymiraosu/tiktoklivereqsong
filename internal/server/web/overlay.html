@@ -29,6 +29,8 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 .np span{font-size:13px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .who{font-size:13px;margin-top:2px}
 .who em{font-style:normal;color:var(--acc);font-weight:600}
+.mode{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;margin-right:6px;vertical-align:1px;background:rgba(255,255,255,.14)}
+.mode-osu{background:rgba(255,102,170,.3)}.mode-taiko{background:rgba(255,128,104,.3)}.mode-fruits{background:rgba(124,255,79,.25)}.mode-mania{background:rgba(102,204,255,.3)}
 .star{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;color:#1c1726;margin-right:6px;vertical-align:1px}
 .up{display:flex;flex-direction:column;gap:5px}
 .row{display:flex;align-items:center;gap:10px;padding:7px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-size:13px;animation:in .4s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i) * 60ms)}
@@ -80,6 +82,9 @@ function starColor(s) {
   return "#18158e";
 }
 const star = it => `<span class="star" style="background:${starColor(it.stars)};color:${it.stars >= 6.7 ? "#fff" : "#1c1726"}">${it.stars >= 0 ? it.stars.toFixed(2) : "?"}★</span>`;
+// mode tag: "osu!", "taiko", "catch", "mania 7K" (+ convert), coloured per mode
+const MODE = { osu: "osu!", taiko: "taiko", fruits: "catch", mania: "mania" };
+const modeTag = it => it.mode ? `<span class="mode mode-${esc(it.mode)}">${MODE[it.mode] || esc(it.mode)}${it.mode === "mania" && it.keys ? " " + it.keys + "K" : ""}${it.convert ? " · convert" : ""}</span>` : "";
 
 // Viewer-facing text. Reasons are phrased for the person who asked.
 const TX = {
@@ -88,7 +93,7 @@ const TX = {
   r_user_blacklisted: ["can't request right now", "ขอเพลงไม่ได้ในตอนนี้"], r_queue_full: ["the queue is full", "คิวเต็มแล้ว"],
   r_user_limit: ["you already have requests waiting", "คุณมีคำขอรออยู่แล้ว"], r_cooldown: ["please wait before the next request", "รอสักครู่ก่อนขอใหม่"],
   r_set_blacklisted: ["this map is blocked", "แมพนี้ถูกบล็อก"], r_mapper_blacklisted: ["this mapper is blocked", "แมพเปอร์นี้ถูกบล็อก"],
-  r_status: ["map status not allowed", "สถานะแมพนี้ไม่รับ"], r_duplicate: ["already in the queue", "อยู่ในคิวแล้ว"], r_now_playing: ["that song is playing right now", "เพลงนี้กำลังเล่นอยู่ตอนนี้"],
+  r_status: ["map status not allowed", "สถานะแมพนี้ไม่รับ"], r_duplicate: ["already in the queue", "อยู่ในคิวแล้ว"], r_no_convert: ["that mode can't be converted", "แปลงเป็นโหมดนั้นไม่ได้"], r_now_playing: ["that song is playing right now", "เพลงนี้กำลังเล่นอยู่ตอนนี้"],
   r_recently_played: ["played recently", "เพิ่งเล่นไป"], r_not_found: ["map not found", "ไม่พบแมพ"], r_mode: ["this mode isn't accepted", "ไม่รับโหมดนี้"],
   r_stars_low: ["too easy", "ง่ายเกินไป"], r_stars_high: ["too hard", "ยากเกินไป"], r_too_long: ["too long", "ยาวเกินไป"],
   r_meta_error: ["couldn't check the map, try again", "ตรวจแมพไม่ได้ ลองใหม่อีกครั้ง"], r_bad_input: ["not a map ID or link", "ไม่ใช่ ID หรือลิงก์แมพ"],
@@ -165,7 +170,7 @@ function render(S) {
     const cover = esc(n.cover || `https://assets.ppy.sh/beatmaps/${n.setId}/covers/cover.jpg`);
     np = `<div class="np" style="background-image:url('${cover}')"><div class="npi">
       <div class="lab"><i></i>${tx("nowPlaying")}</div>
-      <b>${esc(n.title)}</b><span>${star(n)}${esc(n.artist)} · [${esc(n.version)}] · ${esc(n.creator)}</span>
+      <b>${esc(n.title)}</b><span>${star(n)}${modeTag(n)}${esc(n.artist)} · [${esc(n.version)}] · ${esc(n.creator)}</span>
       ${o.showRequester ? `<div class="who">${tx("reqBy")} <em>@${esc(n.user)}</em></div>` : ""}</div></div>`;
   }
   if (setHTML(npSlot, np) && npSlot.firstElementChild) {
@@ -176,7 +181,7 @@ function render(S) {
   npID = n ? n.id : "";
 
   const next = items.map((it, i) => {
-    const html = `<span class="n"${it.priority ? ' style="background:var(--gold);color:#1c1726"' : ""}>${it.priority ? "★" : i + 1}</span><span class="t">${star(it)}${esc(it.artist)} - ${esc(it.title)}</span>${o.showRequester ? `<span class="r">@${esc(it.user)}</span>` : ""}`;
+    const html = `<span class="n"${it.priority ? ' style="background:var(--gold);color:#1c1726"' : ""}>${it.priority ? "★" : i + 1}</span><span class="t">${star(it)}${modeTag(it)}${esc(it.artist)} - ${esc(it.title)}</span>${o.showRequester ? `<span class="r">@${esc(it.user)}</span>` : ""}`;
     let row = rows.get(it.id);
     if (!row) {
       row = document.createElement("div");
