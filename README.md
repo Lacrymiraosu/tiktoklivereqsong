@@ -717,26 +717,26 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
-| 1.0.0 | `c8d04c2` | First version: TikFinity chat, parser, osu! metadata, validation, queue, mirrors + MD5, import modes, preload, dashboard (EN/TH) and overlay, hotkeys, tests |
-| 1.0.1 | `8f71da2` | The map being played no longer counts toward the per-user limit; exempt users; bare number retried as set ID; osu! folder from the registry and `BeatmapDirectory`; pop-up on rejected chat requests |
-| 1.1.0 | `18c2ae7` | Test panel: simulated chat, quick add, dry run, clear test data |
-| 1.1.1 | `7f9678a` | Dashboard no longer flickers during downloads (incremental rendering) |
-| 1.2.0 | `a005593` | Auto mode detects the end of a song with tosu (no timer); tosu becomes a requirement; tosu status, banner and phase line |
-| 1.3.0 | `f40677a` | Overlay pop-ups for added/rejected requests (with reasons); whole-set requests prefer the main mode |
-| | `a877300` | Chat commands: `!remove`, and for mods `!skip`, `!remove @user`, `!reqon`, `!reqoff` |
-| | `a93897b` | Play results from tosu on requests, history, dashboard and overlay |
-| | `17561e1` | Gifts buy queue priority (opt-in) |
-| | `1878943` | System tray app (no console), second launch opens the running copy, Quit button (tray removed again in 1.3.1) |
-| | `08f1a10` | Audio preview and "open in beatmap viewer" links |
-| | `c9dbd5e` | One-click bans from queue cards and the rejection log |
-| | `e9d8a6c` | Followers-only and per-subscriber limits |
-| 1.3.7 | `708bcf9`, `849b101` | tosu launched from osureq opens in its own console window instead of running hidden; **Close tosu**, **Close TikFinity** and **Close everything** buttons in the Info box |
-| 1.3.6 | `5d0d259` | All four modes: convert stars from osu!, mania key counts, per-mode star limits, mode tags, mode-mismatch warning |
-| 1.3.5 | `b4ec4d5` | Click-through audit fixes: card ⋯ menu stays on screen (opens upward, never wider than the screen); card status shown first; overlay never cuts the reason; truthful test-panel feedback for commands and gifts; translated errors and settings validation; side-log titles on their own line; buttons and settings fit narrow screens |
-| 1.3.4 | `099fdb1`, `a9a809f` | Settings open as a centred dialog; master volume (default 10%) with a speaker button in the top bar |
-| 1.3.3 | `c9f7a47` | Windows resources (icon, name, description, version, `asInvoker` manifest) and no symbol stripping, so Windows treats the exe as a normal app |
-| 1.3.2 | `0c13270`, `5847e50` | UX/UI audit fixes: narrow layout, Info box, set mode order, now-playing reason, Thai text; compact status, folded test panel, card "⋯" menu, calmer overlay |
-| 1.3.1 | `fb2abc5` | Back to a console app: the CMD window shows the log (titled `osureq <version>`); no tray icon. Closing the window stops cleanly |
+| 1.0.0 | `d106295` | First version: TikFinity chat, parser, osu! metadata, validation, queue, mirrors + MD5, import modes, preload, dashboard (EN/TH) and overlay, hotkeys, tests |
+| 1.0.1 | `9fabc98` | The map being played no longer counts toward the per-user limit; exempt users; bare number retried as set ID; osu! folder from the registry and `BeatmapDirectory`; pop-up on rejected chat requests |
+| 1.1.0 | `15f15b3` | Test panel: simulated chat, quick add, dry run, clear test data |
+| 1.1.1 | `7508aa4` | Dashboard no longer flickers during downloads (incremental rendering) |
+| 1.2.0 | `5999bba` | Auto mode detects the end of a song with tosu (no timer); tosu becomes a requirement; tosu status, banner and phase line |
+| 1.3.0 | `644f884` | Overlay pop-ups for added/rejected requests (with reasons); whole-set requests prefer the main mode |
+| | `6ed5ce7` | Chat commands: `!remove`, and for mods `!skip`, `!remove @user`, `!reqon`, `!reqoff` |
+| | `1821882` | Play results from tosu on requests, history, dashboard and overlay |
+| | `a74d4b9` | Gifts buy queue priority (opt-in) |
+| | `a545bb4` | System tray app (no console), second launch opens the running copy, Quit button (tray removed again in 1.3.1) |
+| | `d12d958` | Audio preview and "open in beatmap viewer" links |
+| | `af89662` | One-click bans from queue cards and the rejection log |
+| | `0ecf47c` | Followers-only and per-subscriber limits |
+| 1.3.7 | `f8a1741`, `73bb778` | tosu launched from osureq opens in its own console window instead of running hidden; **Close tosu**, **Close TikFinity** and **Close everything** buttons in the Info box |
+| 1.3.6 | `b35a818` | All four modes: convert stars from osu!, mania key counts, per-mode star limits, mode tags, mode-mismatch warning |
+| 1.3.5 | `07db532` | Click-through audit fixes: card ⋯ menu stays on screen (opens upward, never wider than the screen); card status shown first; overlay never cuts the reason; truthful test-panel feedback for commands and gifts; translated errors and settings validation; side-log titles on their own line; buttons and settings fit narrow screens |
+| 1.3.4 | `f135452`, `10a3ba1` | Settings open as a centred dialog; master volume (default 10%) with a speaker button in the top bar |
+| 1.3.3 | `8fc0004` | Windows resources (icon, name, description, version, `asInvoker` manifest) and no symbol stripping, so Windows treats the exe as a normal app |
+| 1.3.2 | `272bd1c`, `6b37a4c` | UX/UI audit fixes: narrow layout, Info box, set mode order, now-playing reason, Thai text; compact status, folded test panel, card "⋯" menu, calmer overlay |
+| 1.3.1 | `fcbd95c` | Back to a console app: the CMD window shows the log (titled `osureq <version>`); no tray icon. Closing the window stops cleanly |
 
 ---
 
