@@ -25,7 +25,8 @@ type Connection struct {
 }
 
 type Osu struct {
-	Game         string `json:"game"` // stable | lazer
+	Game         string `json:"game"`           // stable | lazer
+	DetectGame   bool   `json:"detectGameTosu"` // switch Game to the client tosu reports
 	Folder       string `json:"folder"`
 	CacheFolder  string `json:"cacheFolder"`
 	DownloadsDir string `json:"downloadsFolder"`
@@ -199,6 +200,7 @@ func Default() Config {
 		},
 		Osu: Osu{
 			Game:         "stable",
+			DetectGame:   true,
 			Folder:       filepath.Join(local, "osu!"),
 			CacheFolder:  "cache",
 			DownloadsDir: filepath.Join(home, "Downloads"),
