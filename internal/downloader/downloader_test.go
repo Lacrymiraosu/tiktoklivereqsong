@@ -153,3 +153,43 @@ func TestProbe(t *testing.T) {
 		t.Errorf("a probe must not store anything: %v", entries)
 	}
 }
+
+func TestRedirects(t *testing.T) {
+	foreign := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("a non-whitelisted host must never be requested")
+	}))
+	t.Cleanup(foreign.Close)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/d/", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/storage/9.osz", http.StatusFound) })
+	mux.HandleFunc("/storage/", func(w http.ResponseWriter, r *http.Request) { w.Write(osz(good)) })
+	mux.HandleFunc("/evil/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, foreign.URL+"/x.osz", http.StatusFound)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	cfg := config.Default()
+	cfg.Download.Sources = []config.Source{
+		{Name: "evil", Enabled: true, URL: srv.URL + "/evil/{id}", TimeoutSec: 5},
+		{Name: "mirror", Enabled: true, URL: srv.URL + "/api/d/{id}", TimeoutSec: 5},
+	}
+	d := New(func() config.Config { return cfg }, t.TempDir(), func(string) error { return nil })
+	d.Allow = func(u string) bool { return strings.HasPrefix(u, srv.URL) }
+	var last []queue.Attempt
+	out, err := d.Get(context.Background(), Job{SetID: 9, Ref: ref()}, func(a []queue.Attempt) { last = a })
+	if err != nil || out.Source != "mirror" {
+		t.Fatalf("a redirect on the whitelist should work: %+v %v", out, err)
+	}
+	if last[0].Status != "failed" || !strings.Contains(last[0].Message, "not whitelisted") {
+		t.Errorf("redirect off the whitelist: %+v", last[0])
+	}
+}
+
+func TestOsuDirectStorageAllowed(t *testing.T) {
+	if !config.HostAllowed("https://storage.osu.direct/osudirect/osz/1.osz?X-Amz-Expires=15") {
+		t.Error("osu.direct serves its downloads from storage.osu.direct")
+	}
+	if config.HostAllowed("https://storage.osu.direct.evil.example/x") {
+		t.Error("only the exact host is allowed")
+	}
+}
