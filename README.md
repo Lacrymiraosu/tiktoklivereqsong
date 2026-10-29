@@ -1,86 +1,88 @@
-# osureq: ขอเพลง osu! จากแชท TikTok LIVE
+# osureq: osu! song requests from TikTok LIVE chat
 
-โปรแกรมช่วยสตรีมเมอร์ osu! บน Windows ให้ผู้ชม TikTok LIVE ขอแมพผ่านแชทได้ด้วย `!req <ID หรือลิงก์>`
-osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไฟล์ แล้วเปิดแมพใน osu! ให้ทีละเพลง พร้อมแดชบอร์ดคุมคิว (ไทย/อังกฤษ) และ overlay สำหรับ OBS
-ทั้งหมดอยู่ใน `osureq.exe` ไฟล์เดียว ไม่ต้องติดตั้ง
+**English** · [Thai](docs/README.th.md)
+
+A Windows helper for osu! streamers that lets TikTok LIVE viewers request maps in chat with `!req <ID or link>`.
+osureq checks the rules, downloads the map, verifies the file and opens the maps in osu! one at a time. It comes with a
+dashboard for managing the queue (English/Thai) and an overlay for OBS. Everything lives in a single `osureq.exe`, with no installer.
 
 [![build](https://github.com/Lacrymiraosu/tiktoklivereqsong/actions/workflows/build.yml/badge.svg)](https://github.com/Lacrymiraosu/tiktoklivereqsong/actions/workflows/build.yml)
 
-## ความสามารถ
+## Features
 
-* รับคำขอจากแชท TikTok ผ่าน TikFinity รองรับทั้ง ID และลิงก์ osu! ทุกรูปแบบ
-* ตรวจกฎ: ช่วงดาว (ตั้งแยกตามโหมดได้) ความยาว โหมด สถานะแมพ จำนวนคำขอต่อคน คูลดาวน์ แมพซ้ำ รายชื่อแบน เฉพาะผู้ติดตาม
-* ดาวน์โหลดจาก mirror (catboy.best → osu.direct → เว็บ osu! ทางการ) และตรวจ MD5 ให้ตรงกับเวอร์ชันล่าสุดบน osu!
-* เปิดแมพเข้า osu! (stable และ lazer) เมื่อกด **ถัดไป** หรือเปิดเองอัตโนมัติเมื่อเพลงก่อนหน้าเล่นจบ (ดูจาก tosu)
-* รองรับครบ 4 โหมด: osu!, taiko, catch, mania (แมพ convert ใช้ดาวของโหมดนั้นจาก osu!)
-* overlay บอกผู้ชมว่าคำขอเข้าคิวหรือถูกปฏิเสธเพราะอะไร แสดงเพลงที่เล่นอยู่ คิวถัดไป และผลการเล่น
-* คำสั่งม็อด (`!skip`, `!remove`, `!reqon`, `!reqoff`), คิวพิเศษจากของขวัญ, แบนคลิกเดียว, ฟังตัวอย่างเพลง
-* แผงทดสอบ: จำลองแชทและของขวัญ และโหมดทดลองที่ไม่เปิดเกมจริง
-* ปิด tosu, TikFinity หรือปิดทุกอย่างได้จากแดชบอร์ด
+* Takes requests from TikTok chat through TikFinity, as IDs or any common osu! link
+* Rules: star range (per mode if you like), length, mode, ranked status, requests per viewer, cooldown, duplicates, bans, followers only
+* Downloads from mirrors (catboy.best → osu.direct → the official site) and checks the MD5 against the current version on osu!
+* Opens the map in osu! (stable and lazer) when you press **Next**, or automatically once the previous song has ended (seen through tosu)
+* All four modes: osu!, taiko, catch and mania (converts use osu!'s star rating for that mode)
+* The overlay tells viewers whether a request was added or why it was rejected, and shows now playing, the upcoming queue and play results
+* Mod commands (`!skip`, `!remove`, `!reqon`, `!reqoff`), queue priority for gifts, one-click bans, audio previews
+* Test panel: simulated chat and gifts, and a dry run that never touches the game
+* Close tosu, TikFinity or everything from the dashboard
 
-## สิ่งที่ต้องมี
+## Requirements
 
-* Windows 10/11 64 บิต
-* osu! **stable** หรือ **lazer**
-* [**TikFinity Desktop**](https://tikfinity.zerody.one/) เชื่อมกับบัญชี TikTok และเปิดไว้ตอนไลฟ์ (osureq รับแชทผ่าน TikFinity)
-* [**tosu**](https://github.com/tosuapp/tosu/releases/latest) เปิดไว้ตอนไลฟ์ (ใช้ดูว่าเพลงเล่นจบหรือยัง และเก็บผลการเล่น)
-* OBS หรือ TikTok LIVE Studio ถ้าจะใช้ overlay
+* Windows 10/11, 64-bit
+* osu! **stable** or **lazer**
+* [**TikFinity Desktop**](https://tikfinity.zerody.one/), connected to the TikTok account and running while you are live (osureq reads chat through it)
+* [**tosu**](https://github.com/tosuapp/tosu/releases/latest), running while you are live (tells when a song has ended and records results)
+* OBS or TikTok LIVE Studio, for the overlay
 
-## เริ่มใช้งาน
+## Getting started
 
-1. ดาวน์โหลด `osureq-<เวอร์ชัน>-windows-x64.zip` จาก [Releases](https://github.com/Lacrymiraosu/tiktoklivereqsong/releases/latest)
-   แตกไฟล์ไว้ในโฟลเดอร์ของมันเอง เช่น `C:\osureq\` (โปรแกรมจะสร้าง `config.json`, `queue.json`, `osureq.log` และโฟลเดอร์ `cache\` ไว้ข้าง ๆ)
-2. เปิด TikFinity, tosu และ osu!
-3. ดับเบิลคลิก `osureq.exe` จะมีหน้าต่าง CMD แสดง log (ปิดหน้าต่างนี้ = ปิดโปรแกรม) และแดชบอร์ดเปิดที่ <http://127.0.0.1:21280/>
-4. ไปที่ **ตั้งค่า → osu!** เลือก stable หรือ lazer แล้วตั้งกฎต่าง ๆ ตามต้องการ
-5. ถ้าจะใช้ overlay ให้เพิ่ม **Browser Source** ใน OBS เป็น `http://127.0.0.1:21280/overlay` (พื้นหลังโปร่งใส)
+1. Download `osureq-<version>-windows-x64.zip` from [Releases](https://github.com/Lacrymiraosu/tiktoklivereqsong/releases/latest)
+   and unzip it into a folder of its own, e.g. `C:\osureq\` (it creates `config.json`, `queue.json`, `osureq.log` and a `cache\` folder next to itself).
+2. Start TikFinity, tosu and osu!.
+3. Double-click `osureq.exe`. A CMD window shows the log (closing it stops osureq) and the dashboard opens at <http://127.0.0.1:21280/>.
+4. In **Settings → osu!**, choose stable or lazer, then set the rules you want.
+5. For the overlay, add a **Browser Source** in OBS with `http://127.0.0.1:21280/overlay` (transparent background).
 
-ลองทั้งระบบก่อนไลฟ์จริงได้ที่แผง **ทดสอบ** บนแดชบอร์ด
+Use the **Test** panel on the dashboard to try the whole chain before you go live.
 
-### ผู้ชมพิมพ์อะไรได้บ้าง
+### What viewers type
 
 ```
-!req 2096297                                      ← ID ของ diff (ถ้าไม่เจอจะลองเป็น ID ของเซ็ต)
+!req 2096297                                      ← difficulty ID (tried as a set ID if no such difficulty exists)
 !req https://osu.ppy.sh/beatmapsets/962870#mania/2096297
-!req https://osu.ppy.sh/beatmapsets/962870        ← ทั้งเซ็ต: เลือก diff ที่ยากที่สุดที่ผ่านกฎ
-!remove                                           ← ลบคำขอล่าสุดของตัวเอง
+!req https://osu.ppy.sh/beatmapsets/962870        ← whole set: the hardest difficulty that passes the rules
+!remove                                           ← removes your own latest request
 ```
 
-ม็อดใช้ `!skip` (ข้ามเพลงที่เล่นอยู่), `!remove @ชื่อ`, `!reqon` / `!reqoff` (เปิด/ปิดรับคำขอ) ได้
-ชื่อคำสั่งทั้งหมดเปลี่ยนได้ในการตั้งค่า
+Mods can also use `!skip` (skip the song being played), `!remove @user` and `!reqon` / `!reqoff` (open/close requests).
+Every command name can be changed in the settings.
 
-## การทำงาน
+## How it works
 
 ```
-แชท TikTok ──► TikFinity ──WebSocket──► osureq ──► osu.ppy.sh (ข้อมูลแมพ, MD5)
-                                          │
-                                          ├──► catboy.best / osu.direct (ดาวน์โหลด .osz) ──► cache\
-                                          ├──► osu! (เปิด .osz หรือคัดลอกเข้า Songs)
-          tosu ──WebSocket (สถานะเกม)────►│
-                                          └──► แดชบอร์ด + overlay (http://127.0.0.1:21280)
+TikTok chat ──► TikFinity ──WebSocket──► osureq ──► osu.ppy.sh (map info, MD5)
+                                           │
+                                           ├──► catboy.best / osu.direct (download .osz) ──► cache\
+                                           ├──► osu! (opens the .osz or copies it into Songs)
+           tosu ──WebSocket (game state)──►│
+                                           └──► dashboard + overlay (http://127.0.0.1:21280)
 ```
 
-1. **รับแชท**: TikFinity ส่งข้อความแชทและของขวัญมาทาง WebSocket (`ws://127.0.0.1:21213/`)
-   osureq สนใจเฉพาะข้อความที่ขึ้นต้นด้วยคำสั่ง เช่น `!req`
-2. **ตรวจผู้ขอ**: เช็กรายชื่อแบน คิวเต็มหรือยัง จำนวนคำขอต่อคน และคูลดาวน์ โดยไม่ต้องใช้เน็ต
-3. **อ่านข้อมูลแมพ**: ดึงหน้าแมพจาก osu.ppy.sh (ไม่ต้องใช้ API key) เพื่อเอาชื่อเพลง ดาว ความยาว โหมด สถานะ และ MD5 ของแต่ละ diff
-4. **ตรวจกฎแมพ**: ดาว ความยาว โหมด สถานะ แมพซ้ำ และแมพที่เพิ่งเล่นไป
-   ถ้าไม่ผ่าน overlay จะขึ้นเหตุผลให้ผู้ชมเห็น เพราะ TikFinity เขียนกลับลงแชท TikTok ไม่ได้
-5. **เข้าคิว**: คิวถูกบันทึกใน `queue.json` ปิดเปิดโปรแกรมใหม่คิวก็ยังอยู่ ส่วนคนที่ส่งของขวัญครบจะได้คิวพิเศษ (ถ้าเปิดไว้)
-6. **ดาวน์โหลดและตรวจไฟล์**: โหลด `.osz` จาก mirror ตามลำดับที่ตั้งไว้ ทีละแมพ แล้วตรวจ MD5 ของไฟล์ `.osu` ข้างในกับข้อมูลจาก osu!
-   ถ้า mirror มีไฟล์เวอร์ชันเก่าจะลองแหล่งถัดไป แมพถัด ๆ ไปจะโหลดล่วงหน้าไว้ให้กดเล่นได้ทันที
-7. **เปิดแมพ**: กด **ถัดไป** บนแดชบอร์ดหรือคีย์ลัด osureq จะเปิด `.osz` ให้ osu! นำเข้าแล้วกระโดดไปที่แมพนั้น
-8. **โหมดอัตโนมัติ**: osureq ติดตามสถานะเกมจาก tosu เมื่อแมพที่เปิดถูกเล่นจริงแล้วผู้เล่นออกจากหน้าผลคะแนน
-   แมพถัดไปจะเปิดเองหลังรอไม่กี่วินาที ผลการเล่น (ความแม่น อันดับ คอมโบ miss pp mods) จะถูกเก็บไว้และขึ้นบน overlay
-   ถ้า tosu หลุด โหมดอัตโนมัติจะหยุดรอ ไม่มีการเดาด้วยตัวจับเวลา
+1. **Chat in**: TikFinity sends chat messages and gifts over WebSocket (`ws://127.0.0.1:21213/`).
+   osureq only looks at messages that start with a command such as `!req`.
+2. **Requester checks**: ban list, full queue, requests per viewer and cooldown, all without network access.
+3. **Map info**: the map's page on osu.ppy.sh is read (no API key needed) for title, stars, length, mode, status and the MD5 of every difficulty.
+4. **Map rules**: stars, length, mode, status, duplicates and recently played maps.
+   A rejected request shows its reason on the overlay, because TikFinity cannot write back into TikTok chat.
+5. **Queue**: saved in `queue.json`, so it survives a restart. Viewers whose gifts add up to enough coins get priority (when turned on).
+6. **Download and verify**: the `.osz` is downloaded from the mirrors in the configured order, one map at a time, and the MD5 of every
+   `.osu` inside is compared with osu!. An outdated mirror copy makes it try the next source. The next maps are preloaded so they open instantly.
+7. **Open**: press **Next** on the dashboard (or the hotkey) and osureq opens the `.osz`; osu! imports it and jumps to the map.
+8. **Auto mode**: osureq follows the game state from tosu. Once the opened map has really been played and the player leaves the results
+   screen, the next map opens after a few seconds. The play result (accuracy, rank, combo, misses, pp, mods) is saved and shown on the overlay.
+   If tosu disconnects, auto mode waits; there is no timer guesswork.
 
-เซิร์ฟเวอร์ของ osureq ฟังแค่ `127.0.0.1` เครื่องอื่นในเครือข่ายเข้าไม่ได้ และดาวน์โหลดได้เฉพาะโดเมนที่อนุญาตไว้เท่านั้น
+The osureq server only listens on `127.0.0.1`, so other devices on the network cannot reach it, and it only downloads from whitelisted hosts.
 
-รายละเอียดเชิงลึก (โครงสร้างโค้ด, API, การตั้งค่าทุกตัว, การทดสอบ) อยู่ใน [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
+The details (code layout, API, every setting, testing) are in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-## วิธี build
+## Building
 
-ต้องมี [Go](https://go.dev/dl/) 1.23 ขึ้นไปบน Windows (`winget install GoLang.Go`)
+You need [Go](https://go.dev/dl/) 1.23 or newer on Windows (`winget install GoLang.Go`).
 
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
@@ -88,8 +90,8 @@ cd tiktoklivereqsong
 .\build.ps1 -Version 1.3.7
 ```
 
-`build.ps1` จะรัน `go vet` และ `go test` ก่อน สร้างไฟล์ resource ของ Windows (ไอคอน ชื่อ เวอร์ชัน) แล้ว build ออกมาเป็น `dist\osureq.exe`
-ถ้า PowerShell ไม่ยอมรันสคริปต์ ให้ build เองด้วย:
+`build.ps1` runs `go vet` and `go test`, generates the Windows resources (icon, name, version) and builds `dist\osureq.exe`.
+If PowerShell refuses to run scripts, build by hand:
 
 ```powershell
 $env:CGO_ENABLED = "0"
@@ -97,27 +99,26 @@ go run ./tools/winres -version 1.3.7
 go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
 ```
 
-### Build และ release อัตโนมัติด้วย GitHub Actions
+### Automatic builds and releases (GitHub Actions)
 
-* ทุกครั้งที่ push เข้า `main` หรือเปิด pull request, GitHub จะ vet, test และ build ให้ ไฟล์ exe อยู่ในหน้า Actions 14 วัน
-* ปล่อยเวอร์ชันใหม่: อัปเดตเลขเวอร์ชันใน `build.ps1` แล้ว push tag
+* Every push to `main` and every pull request is vetted, tested and built; the exe stays on the Actions page for 14 days.
+* To release a new version, update the version number in `build.ps1`, then push a tag:
 
   ```powershell
   git tag v1.3.7
   git push origin v1.3.7
   ```
 
-  GitHub จะ build ด้วยเลขเวอร์ชันจาก tag แล้วสร้าง Release พร้อม `osureq-<เวอร์ชัน>-windows-x64.zip` และไฟล์ `.sha256`
+  GitHub builds with the tag's version and publishes a release with `osureq-<version>-windows-x64.zip` and its `.sha256`.
 
-## เครดิต
+## Credits
 
-* **osureq** เขียนโดย [Lacrymira](https://github.com/Lacrymiraosu)
-* [osu!](https://osu.ppy.sh) โดย ppy: เกม และข้อมูลแมพจาก osu.ppy.sh
-* [TikFinity](https://tikfinity.zerody.one/) โดย zerody: ส่งแชทและของขวัญจาก TikTok LIVE
-* [tosu](https://github.com/tosuapp/tosu): อ่านสถานะเกม osu! แบบสด
-* Mirror ดาวน์โหลดแมพ: [catboy.best](https://catboy.best) และ [osu.direct](https://osu.direct)
-* ไลบรารี Go: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys),
+* [osu!](https://osu.ppy.sh) by ppy: the game, and beatmap data from osu.ppy.sh
+* [TikFinity](https://tikfinity.zerody.one/) by zerody: chat and gifts from TikTok LIVE
+* [tosu](https://github.com/tosuapp/tosu): live osu! game state
+* Beatmap mirrors: [catboy.best](https://catboy.best) and [osu.direct](https://osu.direct)
+* Go libraries: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys),
   [tc-hib/winres](https://github.com/tc-hib/winres), [nfnt/resize](https://github.com/nfnt/resize), [golang.org/x/image](https://pkg.go.dev/golang.org/x/image)
-* ฟอนต์: [Varela Round](https://fonts.google.com/specimen/Varela+Round) และ [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) จาก Google Fonts
+* Fonts: [Varela Round](https://fonts.google.com/specimen/Varela+Round) and [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) from Google Fonts
 
-osureq เป็นโปรเจกต์ของแฟนเกม ไม่มีส่วนเกี่ยวข้องกับ ppy, TikTok, TikFinity หรือ tosu
+osureq is a fan project and is not affiliated with ppy, TikTok, TikFinity or tosu.
