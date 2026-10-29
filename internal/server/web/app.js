@@ -60,6 +60,8 @@ const T = {
   hintQuick: ["Adds a map straight to the queue. Only map rules apply (no per-user limit or cooldown).", "เพิ่มแมพเข้าคิวทันที ใช้แค่กฎแมพ (ไม่นับจำนวนต่อคนและคูลดาวน์)"],
   hintDry: [" Dry run is on: Next and Play move the queue but never open osu! or copy into Songs.", " เปิดโหมดทดลองอยู่: กด ถัดไป/เล่น จะเลื่อนคิวแต่ไม่เปิด osu! และไม่คัดลอกเข้า Songs"],
   quit: ["Quit osureq", "ออกจาก osureq"],
+  pvPlay: ["preview", "ฟังตัวอย่าง"], pvStop: ["stop", "หยุด"], pvFail: ["Could not play the preview", "เล่นตัวอย่างเพลงไม่ได้"],
+  viewer: ["viewer", "viewer"], viewerTitle: ["Open in the beatmap viewer", "เปิดใน beatmap viewer"],
   confirmQuit: ["Stop osureq? Requests will not be taken until you start it again.", "ปิด osureq? จะไม่รับคำขอจนกว่าจะเปิดใหม่"],
   quitDone: ["osureq stopped. You can close this tab.", "ปิด osureq แล้ว ปิดแท็บนี้ได้เลย"],
   trayHint: ["osureq runs in the system tray (bottom-right, next to the clock). Right-click the pink icon for options.", "osureq ทำงานอยู่ที่ถาดระบบ (มุมขวาล่างข้างนาฬิกา) คลิกขวาที่ไอคอนสีชมพูเพื่อดูเมนู"],
@@ -280,6 +282,37 @@ function renderTosuBanner(ts) {
     acts));
 }
 
+/* ---------- audio preview & beatmap viewer ---------- */
+const preview = new Audio();
+let previewSet = 0;
+try { preview.volume = Math.min(1, Math.max(0, +(localStorage.getItem("osureq.pvVol") || 0.5))); } catch { preview.volume = 0.5; }
+function syncPreview() {
+  document.querySelectorAll("[data-pv]").forEach(b => {
+    const on = +b.dataset.pv === previewSet && !preview.paused;
+    b.textContent = on ? "❚❚ " + t("pvStop") : "♪ " + t("pvPlay");
+    b.classList.toggle("on", on);
+  });
+}
+["play", "pause", "ended"].forEach(ev => preview.addEventListener(ev, syncPreview));
+function togglePreview(setId) {
+  if (previewSet === setId && !preview.paused) { preview.pause(); return; }
+  if (previewSet !== setId) { preview.src = `https://b.ppy.sh/preview/${setId}.mp3`; previewSet = setId; }
+  preview.play().catch(() => toast(t("pvFail"), true));
+}
+// mapLinks: " · ♪ preview · viewer ↗" after the osu! link (viewer hidden when no URL is set).
+function mapLinks(it) {
+  const pv = h("button", { class: "mlink pv", type: "button", "data-pv": it.setId, onclick: e => { e.stopPropagation(); togglePreview(it.setId); } });
+  const out = [" · ", pv];
+  if (S && S.viewerUrl) {
+    const u = new URL(S.viewerUrl);
+    u.searchParams.set("s", it.setId);
+    if (it.beatmapId) u.searchParams.set("b", it.beatmapId);
+    out.push(" · ", h("a", { class: "mlink", href: u.toString(), target: "_blank", rel: "noopener", title: t("viewerTitle") }, t("viewer") + " ↗"));
+  }
+  queueMicrotask(syncPreview);
+  return out;
+}
+
 // resultShort mirrors app.ResultShort: "98.52% S · 812x · 2 miss · 301pp · HDHR".
 function resultShort(r) {
   if (!r) return "";
@@ -312,7 +345,7 @@ setInterval(updatePhase, 1000);
 
 function renderNow(n) {
   const box = $("#np");
-  if (same(box, JSON.stringify([n, LANG]))) return;
+  if (same(box, JSON.stringify([n, LANG, S.viewerUrl]))) return;
   box.replaceChildren();
   const next = h("button", { class: "btn main", onclick: e => busy(e.currentTarget, () => act("/api/action/next")) }, svg(ICON.next), t("next"));
   if (!n) {
@@ -326,7 +359,7 @@ function renderNow(n) {
         h("span", { class: "lab" }, t("nowPlaying")),
         h("b", {}, n.title),
         h("span", {}, `${n.artist} · [${n.version}] · ${t("mappedBy")} ${n.creator}`),
-        h("small", {}, t("reqBy") + " ", h("span", { class: "req" }, "@" + n.user), n.nick && n.nick !== n.user ? ` (${n.nick})` : "", " · ", h("a", { class: "mlink", href: setLink(n), target: "_blank", rel: "noopener" }, "osu.ppy.sh")),
+        h("small", {}, t("reqBy") + " ", h("span", { class: "req" }, "@" + n.user), n.nick && n.nick !== n.user ? ` (${n.nick})` : "", " · ", h("a", { class: "mlink", href: setLink(n), target: "_blank", rel: "noopener" }, "osu.ppy.sh"), mapLinks(n)),
         tagsFor(n),
         h("span", { class: "phase", id: "phase" }, h("i"), h("span"))),
       h("div", { class: "npa" },
@@ -356,7 +389,7 @@ function renderQueue(items) {
   list.dataset.key = "";
   const next = items.map((it, i) => {
     const { attempts: _, ...rest } = it;
-    const key = JSON.stringify([rest, i, items.length, LANG, ago(it.addedAt)]);
+    const key = JSON.stringify([rest, i, items.length, LANG, ago(it.addedAt), S.viewerUrl]);
     let card = cards.get(it.id);
     if (!card || card.dataset.key !== key) {
       card = buildCard(it, i, items.length);
@@ -384,7 +417,7 @@ function buildCard(it, i, total) {
       h("b", {}, it.title),
       h("span", {}, `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}`),
       h("small", {}, h("span", { class: "req" }, "@" + it.user), " · " + ago(it.addedAt) + " · ", h("span", { class: "s-" + it.state }, t("st_" + it.state)), " · ",
-        h("a", { class: "mlink", href: setLink(it), target: "_blank", rel: "noopener" }, it.setId)),
+        h("a", { class: "mlink", href: setLink(it), target: "_blank", rel: "noopener" }, it.setId), mapLinks(it)),
       tagsFor(it)),
     h("div", { class: "cact" },
       it.state === "failed" ? btn(ICON.retry, L("Retry", "ลองใหม่"), () => q("retry")) : btn(ICON.play, L("Play now", "เล่นเลย"), () => q("play"), "go"),
@@ -576,6 +609,7 @@ const SCHEMA = {
     F("osu.folder", "text", "osu! folder", "โฟลเดอร์ osu!", "stable: the folder with osu!.exe and Songs.", "stable: โฟลเดอร์ที่มี osu!.exe และ Songs"),
     F("osu.cacheFolder", "text", "Cache folder", "โฟลเดอร์แคช", "Relative paths are next to the exe.", "ถ้าเป็นพาธสัมพัทธ์จะอยู่ข้าง exe"),
     F("osu.downloadsFolder", "text", "Browser Downloads folder", "โฟลเดอร์ดาวน์โหลดของเบราว์เซอร์", "Watched for official osu! downloads.", "ใช้รอไฟล์ที่ดาวน์โหลดจาก osu! โดยตรง"),
+    F("osu.viewerUrl", "text", "Beatmap viewer URL", "URL ของ beatmap viewer", "Queue cards get a \"viewer ↗\" link to ?s={set}&b={map} on this site. Empty hides it.", "การ์ดในคิวจะมีลิงก์ \"viewer ↗\" ไปที่ ?s={set}&b={map} ของเว็บนี้ เว้นว่างเพื่อซ่อน"),
     F("osu.useOsuDb", "switch", "Skip maps already in osu!", "ข้ามแมพที่มีใน osu! แล้ว", "stable only: reads osu!.db and opens osu://b/{id} instead of downloading. Best effort.", "เฉพาะ stable: อ่าน osu!.db แล้วเปิด osu://b/{id} แทนการดาวน์โหลด"),
   ],
   command: [

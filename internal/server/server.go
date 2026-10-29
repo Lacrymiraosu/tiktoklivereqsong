@@ -57,6 +57,7 @@ type State struct {
 	Command   string                        `json:"command"`
 	Lang      string                        `json:"lang"`
 	PlayMode  string                        `json:"playMode"`
+	ViewerURL string                        `json:"viewerUrl"`
 	DryRun    bool                          `json:"dryRun"`
 	Raw       []tikfinity.RawEvent          `json:"raw,omitempty"`
 	FirstRaw  map[string]tikfinity.RawEvent `json:"firstRaw,omitempty"`
@@ -70,7 +71,7 @@ func (s *Server) state() State {
 		Version: s.Version, TikFinity: s.App.TF.Status(), Tosu: s.App.Tosu.Status(), AutoGap: cfg.Queue.AutoGapSec, Queue: s.App.Queue.Snapshot(),
 		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(), Feed: s.App.Feed(),
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name,
-		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
+		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
 	}
 	if s.Extra != nil {
 		st.Extra = s.Extra()

@@ -29,7 +29,8 @@ type Osu struct {
 	Folder       string `json:"folder"`
 	CacheFolder  string `json:"cacheFolder"`
 	DownloadsDir string `json:"downloadsFolder"`
-	UseOsuDB     bool   `json:"useOsuDb"` // stable: skip download when osu!.db already has the map
+	UseOsuDB     bool   `json:"useOsuDb"`  // stable: skip download when osu!.db already has the map
+	ViewerURL    string `json:"viewerUrl"` // beatmap viewer opened with ?s={set}&b={map}; empty hides the button
 }
 
 type Command struct {
@@ -165,6 +166,7 @@ func Default() Config {
 			CacheFolder:  "cache",
 			DownloadsDir: filepath.Join(home, "Downloads"),
 			UseOsuDB:     false,
+			ViewerURL:    "https://osu-beatmap-viewer.vercel.app/",
 		},
 		Command: Command{Name: "!req", Aliases: []string{"!request", "!r"}, Enabled: true, BareNumberAs: "beatmap",
 			TrustTikTokMods: true, SkipCmd: "!skip", RemoveCmd: "!remove", OpenCmd: "!reqon", CloseCmd: "!reqoff"},
@@ -207,6 +209,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Connection.ReconnectSec < 1 {
 		c.Connection.ReconnectSec = 1
+	}
+	if v := c.Osu.ViewerURL; v != "" && !strings.HasPrefix(v, "https://") && !strings.HasPrefix(v, "http://localhost") && !strings.HasPrefix(v, "http://127.0.0.1") {
+		add("viewer URL must start with https:// (or http://localhost for a local copy)")
 	}
 	if c.Osu.Game != "stable" && c.Osu.Game != "lazer" {
 		add("game must be stable or lazer")
