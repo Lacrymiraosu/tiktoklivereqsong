@@ -27,6 +27,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/server"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/update"
 )
 
 var version = "dev"
@@ -188,6 +189,7 @@ func main() {
 	go tf.Run(ctx)
 	go ts.Run(ctx)
 	go a.Run(ctx)
+	go update.Run(ctx, version, func() bool { return store.Get().Connection.CheckUpdates }, a.SetUpdate)
 	<-ctx.Done()
 	hk.Stop()
 	q.Flush()

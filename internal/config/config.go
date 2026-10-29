@@ -22,6 +22,7 @@ type Connection struct {
 	TosuURL        string `json:"tosuUrl"`
 	TosuPath       string `json:"tosuPath"` // filled in automatically once tosu is seen running
 	AutoLaunchTosu bool   `json:"autoLaunchTosu"`
+	CheckUpdates   bool   `json:"checkUpdates"` // ask GitHub for a newer release
 }
 
 type Osu struct {
@@ -197,6 +198,7 @@ func Default() Config {
 			ReconnectSec:  5,
 			OpenDashboard: true,
 			TosuURL:       "ws://127.0.0.1:24050/websocket/v2",
+			CheckUpdates:  true,
 		},
 		Osu: Osu{
 			Game:         "stable",
