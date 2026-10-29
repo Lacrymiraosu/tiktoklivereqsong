@@ -64,6 +64,8 @@ type State struct {
 	DryRun         bool                          `json:"dryRun"`
 	VoteSkip       app.VoteSkip                  `json:"voteSkip"`
 	Update         *update.Release               `json:"update,omitempty"`
+	Summary        queue.Summary                 `json:"summary"`
+	SummaryShown   int64                         `json:"summaryShown"`
 	Raw            []tikfinity.RawEvent          `json:"raw,omitempty"`
 	FirstRaw       map[string]tikfinity.RawEvent `json:"firstRaw,omitempty"`
 	Extra          map[string]any                `json:"extra,omitempty"`
@@ -77,7 +79,7 @@ func (s *Server) state() State {
 		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(), Feed: s.App.Feed(),
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name,
 		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, Volume: cfg.MasterVolume, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
-		VoteSkip: s.App.Votes(), Update: s.App.Update(),
+		VoteSkip: s.App.Votes(), Update: s.App.Update(), Summary: s.App.Queue.Summary(), SummaryShown: s.App.SummaryShown(),
 	}
 	if s.Extra != nil {
 		st.Extra = s.Extra()
@@ -270,6 +272,10 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 			a.Say("info", "quit", nil, "quit from the dashboard")
 			go func() { time.Sleep(300 * time.Millisecond); s.Quit() }()
 		}
+	case "showSummary":
+		a.ShowSummary()
+	case "newSession":
+		a.NewSession()
 	case "toggleDryRun":
 		a.ToggleDryRun()
 	case "clearTest":
