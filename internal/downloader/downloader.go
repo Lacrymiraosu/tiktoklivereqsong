@@ -52,19 +52,20 @@ type Downloader struct {
 }
 
 func New(cfg func() config.Config, cacheDir string, openURL func(string) error) *Downloader {
-	return &Downloader{
-		Cfg: cfg, CacheDir: cacheDir, OpenURL: openURL,
-		HTTP: &http.Client{
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) > 5 {
-					return errors.New("too many redirects")
-				}
-				return nil
-			},
+	d := &Downloader{Cfg: cfg, CacheDir: cacheDir, OpenURL: openURL, Allow: config.HostAllowed, verified: map[string]bool{}}
+	d.HTTP = &http.Client{
+		// Every hop must stay on a whitelisted host, not only the last one.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) > 5 {
+				return errors.New("too many redirects")
+			}
+			if !d.Allow(req.URL.String()) {
+				return fmt.Errorf("redirected to a host that is not whitelisted: %s", req.URL.Host)
+			}
+			return nil
 		},
-		Allow:    config.HostAllowed,
-		verified: map[string]bool{},
 	}
+	return d
 }
 
 // Trusted reports whether path is an archive this helper downloaded and checked.
