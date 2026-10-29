@@ -55,6 +55,7 @@ type Item struct {
 	Test      bool      `json:"test,omitempty"`      // added from the dashboard's test panel
 	Simulated bool      `json:"simulated,omitempty"` // simulated chat: counts for cooldown/limits like a real one
 	Priority  bool      `json:"priority,omitempty"`  // bought with gifts: kept at the top of the queue
+	Avatar    string    `json:"avatar,omitempty"`    // requester's TikTok picture
 
 	State     State     `json:"state"`
 	File      string    `json:"file,omitempty"`

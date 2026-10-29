@@ -23,11 +23,15 @@ type FeedEvent struct {
 	Pos     int       `json:"pos,omitempty"` // queue position (1 = next)
 	Target  string    `json:"target,omitempty"`
 	Test    bool      `json:"test,omitempty"`
+	Avatar  string    `json:"avatar,omitempty"` // User's TikTok picture, when TikFinity sent one
 }
 
 const maxFeed = 30
 
 func (a *App) emit(e FeedEvent) {
+	if e.Avatar == "" && e.Kind != "result" {
+		e.Avatar = a.avatar(e.User)
+	}
 	a.mu.Lock()
 	a.feedSeq++
 	e.ID = a.feedSeq

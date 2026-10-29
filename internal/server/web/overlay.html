@@ -54,6 +54,8 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 .toast b i{font-style:normal;flex:0 0 auto;max-width:100%}
 .toast span{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .toast em{font-style:normal;color:var(--c);font-weight:600}
+.av{width:20px;height:20px;border-radius:50%;object-fit:cover;flex:0 0 auto;background:rgba(255,255,255,.12);box-shadow:0 0 0 1.5px var(--c,var(--acc))}
+.who .av{width:18px;height:18px;vertical-align:-4px;margin-right:5px}
 .toast.added{--c:var(--ok)}
 .toast.rejected{--c:var(--err)}
 .toast.command{--c:var(--sky)}
@@ -164,6 +166,10 @@ function showSummary(S) {
   sumT = setTimeout(() => { const c = sumEl.firstElementChild; if (c) c.classList.add("out"); sumT = setTimeout(() => sumEl.replaceChildren(), 500); }, 20000);
 }
 
+// av is a viewer's TikTok picture (only https URLs on TikTok's CDN reach the
+// overlay; see tikfinity.Avatar); a picture that fails to load just disappears.
+const av = (url, o) => url && o.avatars ? `<img class="av" src="${esc(url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : "";
+
 let lastID = -1, cfgO = null;
 function showToasts(feed, o) {
   if (lastID < 0 || (feed.length && feed[0].id < lastID)) { lastID = feed.length ? feed[0].id : 0; return; } // first load or helper restarted: don't replay history
@@ -175,7 +181,7 @@ function showToasts(feed, o) {
     if (!parts) continue;
     const el = document.createElement("div");
     el.className = "toast " + e.kind;
-    el.innerHTML = `<span class="ic">${parts[0]}</span><span class="tx"><b><em>${parts[1]}</em><i>${parts[2]}</i></b>${parts[3] ? `<span>${parts[3]}</span>` : ""}</span>`;
+    el.innerHTML = `<span class="ic">${parts[0]}</span><span class="tx"><b>${e.kind === "result" ? "" : av(e.avatar, o)}<em>${parts[1]}</em><i>${parts[2]}</i></b>${parts[3] ? `<span>${parts[3]}</span>` : ""}</span>`;
     toasts.prepend(el);
     while (toasts.children.length > 3) toasts.lastChild.remove();
     setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 450); }, Math.max(2, o.feedbackSec || 7) * 1000);
@@ -216,7 +222,7 @@ function render(S) {
     np = `<div class="np" style="background-image:url('${cover}')"><div class="npi">
       <div class="lab"><i></i>${tx("nowPlaying")}</div>
       <b>${esc(n.title)}</b><span>${star(n)}${modeTag(n)}${esc(n.artist)} · [${esc(n.version)}] · ${esc(n.creator)}</span>
-      ${o.showRequester ? `<div class="who">${tx("reqBy")} <em>@${esc(n.user)}</em></div>` : ""}</div></div>`;
+      ${o.showRequester ? `<div class="who">${tx("reqBy")} ${av(n.avatar, o)}<em>@${esc(n.user)}</em></div>` : ""}</div></div>`;
   }
   if (setHTML(npSlot, np) && npSlot.firstElementChild) {
     const card = npSlot.firstElementChild;

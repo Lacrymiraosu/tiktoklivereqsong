@@ -55,8 +55,9 @@ type App struct {
 	infoAt     map[string]time.Time // user|command -> last !pos / !np answered
 	voteID     string               // now-playing item the skip votes are for
 	voters     map[string]bool
-	latest     *update.Release // a newer osureq release, if GitHub has one
-	summaryN   int64           // bumped each time the overlay should show the session summary
+	latest     *update.Release   // a newer osureq release, if GitHub has one
+	summaryN   int64             // bumped each time the overlay should show the session summary
+	avatars    map[string]string // user -> profile picture, from their last command or gift
 }
 
 type Notice struct {
@@ -133,6 +134,9 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 	if !a.TF.Accepting() {
 		return
 	}
+	if strings.HasPrefix(ch.Comment, "!") {
+		a.rememberAvatar(ch.User, ch.Avatar)
+	}
 	if a.command(ch, false) != cmdNone {
 		return
 	}
@@ -149,6 +153,27 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 		a.warnOnce("followUnknown", map[string]string{"u": ch.User}, "followers-only is on, but TikFinity did not say whether @%s follows; letting the request through", ch.User)
 	}
 	go a.submit(ch.User, ch.Nick, ch.Comment, req, fromChat, validator.Roles{Follower: int8(ch.Follower), Subscriber: int8(ch.Subscriber)})
+}
+
+// rememberAvatar keeps a viewer's picture for their requests and pop-ups.
+// Only viewers who use a command or send a gift are kept, and the map starts
+// over if a very busy stream fills it.
+func (a *App) rememberAvatar(user, url string) {
+	if url == "" {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.avatars == nil || len(a.avatars) >= 5000 {
+		a.avatars = map[string]string{}
+	}
+	a.avatars[strings.ToLower(user)] = url
+}
+
+func (a *App) avatar(user string) string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.avatars[strings.ToLower(user)]
 }
 
 // origin says where a request came from.
@@ -327,6 +352,7 @@ func (a *App) resolve(user, nick, input string, req parser.Request, o origin, ro
 		ID: queue.NewID(), User: user, Nick: nick, SetID: set.ID, BeatmapID: diff.ID, BySet: beatmapID == 0,
 		Title: set.Title, Artist: set.Artist, Creator: set.Creator, Version: diff.Version, Mode: mode, Keys: diff.Keys, Convert: diff.Convert,
 		Stars: diff.Stars, Length: diff.Length, Status: set.Status, Cover: set.Cover, AddedAt: now, Test: o != fromChat, Simulated: o == fromSim,
+		Avatar: a.avatar(user),
 	}
 	if set.Partial {
 		it.Warning = "osu! page unavailable; star rating, length and status were not checked"
