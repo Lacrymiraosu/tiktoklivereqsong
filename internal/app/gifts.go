@@ -13,22 +13,34 @@ import (
 // waiting request to the top, or is kept for their next request.
 func (a *App) HandleGift(g tikfinity.Gift) { a.gift(g, false) }
 
-// SimulateGift is the test panel's version of HandleGift.
-func (a *App) SimulateGift(user string, coins int) (tokens int, err error) {
-	if !a.Cfg.Get().Gifts.Enabled {
-		return 0, uerr("gifts_off", "gift priority is off (Settings → Queue)", nil)
+// SimulateGift is the test panel's version of HandleGift. It returns the
+// priorities and paid requests the gift earned.
+func (a *App) SimulateGift(user string, coins int) (tokens, requests int, err error) {
+	if c := a.Cfg.Get().Gifts; !c.Enabled && c.RequestCoins == 0 {
+		return 0, 0, uerr("gifts_off", "gift priority and gift-only requests are off (Settings → Queue)", nil)
 	}
 	user = testUser(user, "viewer")
-	return a.gift(tikfinity.Gift{User: user, Nick: user, Name: "test gift", Coins: coins}, true), nil
+	tokens, requests = a.gift(tikfinity.Gift{User: user, Nick: user, Name: "test gift", Coins: coins}, true)
+	return tokens, requests, nil
 }
 
-func (a *App) gift(g tikfinity.Gift, test bool) int {
+// gift counts the coins toward paid requests (gifts.requestCoins) and toward
+// priority (gifts.enabled), each on its own.
+func (a *App) gift(g tikfinity.Gift, test bool) (earned, requests int) {
 	cfg := a.Cfg.Get().Gifts
-	if !cfg.Enabled {
-		return 0
-	}
 	now := time.Now()
-	earned := a.Queue.AddCoins(g.User, g.Coins, cfg.CoinsPerPriority, time.Duration(cfg.CreditMinutes)*time.Minute, test, now)
+	ttl := time.Duration(cfg.CreditMinutes) * time.Minute
+	if cfg.RequestCoins > 0 {
+		if requests = a.Queue.AddRequestCoins(g.User, g.Coins, cfg.RequestCoins, ttl, test, now); requests > 0 {
+			left, _ := a.Queue.Requests(g.User, now)
+			log.Printf("gift: @%s sent %s (%d coins), %d request(s) earned", g.User, g.Name, g.Coins, requests)
+			a.emit(FeedEvent{Kind: "gift", Code: "requests", User: g.User, Nick: g.Nick, Short: fmt.Sprintf("%d coins", g.Coins), Pos: left, Test: test})
+		}
+	}
+	if !cfg.Enabled {
+		return 0, requests
+	}
+	earned = a.Queue.AddCoins(g.User, g.Coins, cfg.CoinsPerPriority, ttl, test, now)
 	log.Printf("gift: @%s sent %s (%d coins), %d priority earned", g.User, g.Name, g.Coins, earned)
 	for i := 0; i < earned; i++ {
 		ev := FeedEvent{Kind: "gift", User: g.User, Nick: g.Nick, Short: fmt.Sprintf("%d coins", g.Coins), Test: test}
@@ -40,7 +52,7 @@ func (a *App) gift(g tikfinity.Gift, test bool) int {
 		}
 		a.emit(ev)
 	}
-	return earned
+	return earned, requests
 }
 
 // applyCredit gives a just-added request the priority its owner already paid for.

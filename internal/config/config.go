@@ -160,7 +160,10 @@ type Hotkeys struct {
 type Gifts struct {
 	Enabled          bool `json:"enabled"`
 	CoinsPerPriority int  `json:"coinsPerPriority"` // coins (added up per viewer) for one priority request
-	CreditMinutes    int  `json:"creditMinutes"`    // how long an unused priority waits for a request
+	CreditMinutes    int  `json:"creditMinutes"`    // how long an unused priority (or paid request) waits
+	// RequestCoins > 0 makes requests gift-only: each request costs this many
+	// gift coins (added up per viewer). Works with or without priority.
+	RequestCoins int `json:"requestCoins"`
 }
 
 // Test holds the dashboard's test-panel switches.
@@ -296,6 +299,9 @@ func (c *Config) Validate() error {
 		if mc != "" && (!strings.HasPrefix(mc, "!") || len(mc) < 2 || strings.ContainsAny(mc, " \t")) {
 			add("mod_cmd", map[string]string{"cmd": mc}, "mod command %q must start with ! and contain no spaces", mc)
 		}
+	}
+	if c.Gifts.RequestCoins < 0 {
+		add("request_coins", nil, "coins per request cannot be negative")
 	}
 	if c.Command.VoteSkipVotes < 0 {
 		add("vote_skip", nil, "votes to skip cannot be negative")

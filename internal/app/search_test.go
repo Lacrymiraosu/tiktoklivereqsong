@@ -107,3 +107,44 @@ func TestSongNameRejections(t *testing.T) {
 		t.Errorf("with search off a name is not a request, got %v", kind)
 	}
 }
+
+func TestGiftOnlyRequests(t *testing.T) {
+	web := &fakeWeb{sets: map[int]string{1: set(1, "Easy Song", 2), 2: set(2, "Hard Song", 9)}}
+	a := searchApp(t, web, func(c *config.Config) {
+		c.Gifts.RequestCoins = 30
+		c.Queue.CooldownSec, c.Queue.PerUserLimit = 0, 0
+		c.Rules.MaxStars = 5
+		c.Rules.ExemptUsers = []string{"streamer"}
+	})
+	req := func(user string, set int) string {
+		_, rej, _ := a.SimulateChat(user, fmt.Sprintf("!req https://osu.ppy.sh/beatmapsets/%d", set))
+		if rej != nil {
+			return rej.Code + " " + rej.Short
+		}
+		return "ok"
+	}
+	if got := req("fan", 1); got != "needs_gift 0/30 coins" {
+		t.Fatalf("without a gift: %s", got)
+	}
+	if _, n, err := a.SimulateGift("fan", 40); err != nil || n != 1 {
+		t.Fatalf("40 coins should pay for 1 request: %d %v", n, err)
+	}
+	if f := a.Feed()[0]; f.Kind != "gift" || f.Code != "requests" || f.Pos != 1 {
+		t.Errorf("gift event: %+v", f)
+	}
+	if got := req("fan", 2); got != "stars_high 9.00★ > 5.00★" {
+		t.Fatalf("too hard: %s", got)
+	}
+	if got := req("fan", 1); got != "ok" {
+		t.Fatalf("the rejected map must not use up the paid request: %s", got)
+	}
+	if got := req("fan", 1); got != "needs_gift 10/30 coins" {
+		t.Errorf("paid request used up, 10 coins left over: %s", got)
+	}
+	if got := req("streamer", 1); strings.HasPrefix(got, "needs_gift") {
+		t.Errorf("exempt users need no gift: %s", got)
+	}
+	if it, rej := a.TestRequest("dashboard", "https://osu.ppy.sh/beatmapsets/1"); rej != nil && rej.Code == "needs_gift" {
+		t.Errorf("quick add from the dashboard needs no gift: %+v %+v", it, rej)
+	}
+}

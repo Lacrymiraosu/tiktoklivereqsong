@@ -261,7 +261,7 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin, rol
 	return it, nil
 }
 
-func (a *App) resolve(user, nick, input string, req parser.Request, o origin, roles validator.Roles) (*queue.Item, *validator.Rejection) {
+func (a *App) resolve(user, nick, input string, req parser.Request, o origin, roles validator.Roles) (_ *queue.Item, rej *validator.Rejection) {
 	cfg := a.Cfg.Get()
 	now := time.Now()
 	st := a.Queue.ValidationState(user)
@@ -272,6 +272,20 @@ func (a *App) resolve(user, nick, input string, req parser.Request, o origin, ro
 		}
 	} else if cfg.Queue.MaxSize > 0 && st.QueueLen >= cfg.Queue.MaxSize {
 		return nil, &validator.Rejection{Code: "queue_full", Detail: fmt.Sprintf("queue is full (%d)", cfg.Queue.MaxSize)}
+	}
+	// Gift-only requests: a paid request is taken now and given back if the
+	// map is then rejected, so two quick requests cannot share one payment.
+	if need := cfg.Gifts.RequestCoins; need > 0 && o != fromQuick && !validator.Exempt(cfg.Rules, user) {
+		if !a.Queue.TakeRequest(user, now) {
+			_, coins := a.Queue.Requests(user, now)
+			return nil, &validator.Rejection{Code: "needs_gift", Detail: fmt.Sprintf("requests cost %d gift coins (@%s has %d)", need, user, coins),
+				Short: fmt.Sprintf("%d/%d coins", coins, need)}
+		}
+		defer func() {
+			if rej != nil {
+				a.Queue.RefundRequest(user)
+			}
+		}()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(max(cfg.MD5.MetaTimeoutSec, 5))*time.Second)
