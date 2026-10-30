@@ -413,8 +413,12 @@ func (s *Server) supportFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="osureq-support-`+now.Format("20060102-1504")+`.zip"`)
 	w.Header().Set("Cache-Control", "no-store")
+	cfg := s.App.Cfg.Get()
+	if cfg.Remote.PIN != "" {
+		cfg.Remote.PIN = "(hidden)" // the file is meant to be shared
+	}
 	err := support.Write(w, support.Input{Version: s.Version, LogPath: s.LogPath, Home: home, Now: now,
-		Config: s.App.Cfg.Get(), State: s.state(), Raw: map[string]any{"first": first, "recent": raw}})
+		Config: cfg, State: s.state(), Raw: map[string]any{"first": first, "recent": raw}})
 	if err != nil {
 		log.Printf("support file: %v", err)
 	}
