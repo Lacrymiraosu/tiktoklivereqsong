@@ -126,7 +126,10 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 			return nil, reject("mapper_blacklisted", "maps by %s are blacklisted", s.Creator).with("%s", s.Creator)
 		}
 	}
-	if entry, ok := SongBanned(rules.BlacklistSongs, s.Artist, s.Title); ok {
+	if entry, ok := SongBanned(rules.BlacklistSongs, Song{Artist: s.Artist, Title: s.Title, ArtistUnicode: s.ArtistUnicode, TitleUnicode: s.TitleUnicode}); ok {
+		if r, _ := config.ParseSongRule(entry); r.Title == "" {
+			return nil, reject("artist_blacklisted", "songs by %s are blacklisted (%s)", s.Artist, entry).with("%s", s.Artist)
+		}
 		return nil, reject("song_blacklisted", "%s - %s is blacklisted (%s)", s.Artist, s.Title, entry).with("%s", s.Title)
 	}
 	if !s.Partial && len(rules.Statuses) > 0 && !contains(rules.Statuses, s.Status) {
@@ -243,24 +246,76 @@ func squash(s string) string {
 	return b.String()
 }
 
-// SongBanned reports which blacklist entry matches the song. An entry
-// "Artist - Title" needs both to match; a bare "Title" matches any artist.
-func SongBanned(list []string, artist, title string) (string, bool) {
-	key := SongKey(artist, title)
-	_, titleKey, _ := strings.Cut(key, "|")
+// Song is what a song rule is matched against: the names osu! has for a set,
+// in Latin letters and in their own script.
+type Song struct {
+	Artist, Title               string
+	ArtistUnicode, TitleUnicode string
+}
+
+// SongBanned reports which blacklist entry (config.ParseSongRule) matches.
+// A title matches after SongKey's clean-up, so every version of the song is
+// caught. An artist matches as whole words, so artist="xi" catches "xi" and
+// "xi remixed by cosMo" but not "xinxin", and artist="Camellia" catches
+// "Camellia feat. Nanahira". Both are tried against the Latin and the
+// original-script names.
+func SongBanned(list []string, s Song) (string, bool) {
 	for _, e := range list {
-		a, t, both := strings.Cut(strings.TrimSpace(e), " - ")
-		if !both {
-			if k := SongKey("", a); k != "|" && strings.TrimPrefix(k, "|") == titleKey {
-				return e, true
-			}
+		r, ok := config.ParseSongRule(e)
+		if !ok {
 			continue
 		}
-		if k := SongKey(a, t); k != "|" && k == key {
+		artistOK := r.Artist == "" || wordsIn(r.Artist, s.Artist) || wordsIn(r.Artist, s.ArtistUnicode)
+		titleOK := r.Title == "" || sameTitle(r.Title, s.Title) || sameTitle(r.Title, s.TitleUnicode)
+		if artistOK && titleOK {
 			return e, true
 		}
 	}
 	return "", false
+}
+
+// RuleKey normalizes a song rule, so `xi - FREEDOM DiVE` and
+// `artist="Xi" title="Freedom Dive"` count as the same rule. "" if invalid.
+func RuleKey(entry string) string {
+	r, ok := config.ParseSongRule(entry)
+	if !ok {
+		return ""
+	}
+	_, t, _ := strings.Cut(SongKey("", r.Title), "|")
+	return strings.Join(words(r.Artist), " ") + "|" + t
+}
+
+func sameTitle(rule, title string) bool {
+	_, a, _ := strings.Cut(SongKey("", rule), "|")
+	_, b, _ := strings.Cut(SongKey("", title), "|")
+	return a != "" && a == b
+}
+
+// wordsIn reports whether the words of rule appear in name, in a row.
+func wordsIn(rule, name string) bool {
+	want, have := words(rule), words(name)
+	if len(want) == 0 {
+		return false
+	}
+	for i := 0; i+len(want) <= len(have); i++ {
+		match := true
+		for j, w := range want {
+			if have[i+j] != w {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+func words(s string) []string {
+	return strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r) && !unicode.Is(unicode.Mn, r) && !unicode.Is(unicode.Mc, r)
+	})
 }
 
 func checkDiff(d *osumeta.Diff, mode, modStr string, rules config.Rules) *Rejection {

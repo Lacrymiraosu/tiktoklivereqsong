@@ -64,3 +64,23 @@ func TestBanSong(t *testing.T) {
 		t.Errorf("the same song is listed once: %v", l)
 	}
 }
+
+func TestBanArtist(t *testing.T) {
+	a := newTestApp(t, nil)
+	now := time.Now()
+	a.Queue.Add(&queue.Item{ID: "a", User: "u1", SetID: 1, Artist: "a_hisa", Title: "One", AddedAt: now})
+	a.Queue.Add(&queue.Item{ID: "b", User: "u2", SetID: 2, Artist: "a_hisa feat. x", Title: "Two", AddedAt: now})
+	a.Queue.Add(&queue.Item{ID: "c", User: "u3", SetID: 3, Artist: "xi", Title: "Three", AddedAt: now})
+	if n, err := a.Ban("artist", "a_hisa"); err != nil || n != 2 {
+		t.Fatalf("ban artist: %d %v", n, err)
+	}
+	if got := ids(a); len(got) != 1 || got[0] != "c" {
+		t.Errorf("queue: %v", got)
+	}
+	if l := a.Cfg.Get().Rules.BlacklistSongs; len(l) != 1 || l[0] != `artist="a_hisa"` {
+		t.Errorf("stored rule: %v", l)
+	}
+	if _, err := a.Ban("song", `artist=""`); err == nil {
+		t.Error("an invalid rule should be refused")
+	}
+}
