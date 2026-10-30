@@ -242,6 +242,15 @@ const T = {
   r_bad_mods: ["unknown or clashing mods", "mod ไม่ถูกต้องหรือใช้ด้วยกันไม่ได้"], r_mods_off: ["mods not allowed", "ไม่รับคำขอที่มี mod"],
   r_mod_not_allowed: ["mod not allowed", "mod นี้ไม่อนุญาต"], r_mod_stars: ["too hard with that mod", "ยากเกินไปเมื่อใส่ mod นี้"],
   e_hard_mod_stars: ["The star limit for DT/HR cannot be negative", "ดาวสูงสุดสำหรับ DT/HR ติดลบไม่ได้"], e_banned_mod: ["{mod} is not a mod", "{mod} ไม่ใช่ mod"],
+  tab_tts: ["Chat TTS", "อ่านแชท"],
+  ttsStart: ["Start TTS", "เริ่มอ่านแชท"], ttsOn: ["TTS on", "อ่านแชทอยู่"],
+  ttsTitleOff: ["Browsers only speak after a click: click to start reading chat in this tab.", "เบราว์เซอร์จะพูดได้หลังคลิกเท่านั้น: คลิกเพื่อเริ่มอ่านแชทในแท็บนี้"],
+  ttsTitleOn: ["Reading chat aloud in this tab (commands are skipped). Click to stop.", "กำลังอ่านแชทในแท็บนี้ (ข้ามคำสั่ง) คลิกเพื่อหยุด"], ttsSkip: ["Skip this message", "ข้ามข้อความนี้"],
+  ttsNoVoice: ["This browser has no voice for {lang}. In Windows: Settings → Time & language → Speech → add a voice.", "เบราว์เซอร์นี้ไม่มีเสียงภาษา {lang} ใน Windows: การตั้งค่า → เวลาและภาษา → คำพูด → เพิ่มเสียง"],
+  ttsSays_en: ["{name} says {text}", "{name} says {text}"], ttsSays_th: ["{name} บอกว่า {text}", "{name} บอกว่า {text}"],
+  ttsSample: ["This is how chat will sound.", "เสียงอ่านแชทจะเป็นแบบนี้"], ttsAuto: ["best for the language", "เลือกให้ตามภาษา"],
+  e_tts_lang: ["TTS language must be auto, Thai or English", "ภาษาอ่านแชทต้องเป็น auto ไทย หรืออังกฤษ"],
+  e_tts_range: ["TTS: speed 0.5-2, volume 0-100, max length 10-500", "อ่านแชท: ความเร็ว 0.5-2 ระดับเสียง 0-100 ความยาว 10-500"],
   n_gameDetected: ["tosu sees osu! {game} running, so Settings → osu! → Game is now {game}", "tosu เห็นว่าเปิด osu! {game} อยู่ จึงเปลี่ยน ตั้งค่า → osu! → เกม เป็น {game} ให้"],
   n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
   e_vote_skip: ["Votes to skip cannot be negative", "จำนวนโหวตข้ามเพลงติดลบไม่ได้"],
@@ -354,6 +363,7 @@ function render() {
   if (!volEditing) showVolume(S.masterVolume ?? 10);
   $("#dryRunSw").checked = S.dryRun;
   $("#dryPill").hidden = !S.dryRun;
+  renderTTS();
   const up = $("#updPill");
   up.hidden = !S.update;
   if (S.update) { up.href = S.update.url; up.textContent = t("updAvail", { v: S.update.version }); up.title = t("updTitle", { v: S.update.version }); }
@@ -787,6 +797,7 @@ function connect() {
   ws.onmessage = e => {
     const prev = S;
     S = JSON.parse(e.data);
+    handleSpeech();
     // Chat rejections are easy to miss in the side panel; flash the newest one.
     const r = (S.queue.rejected || [])[0], p = prev && (prev.queue.rejected || [])[0];
     if (prev && r && !r.test && (!p || r.at !== p.at)) toast(`@${r.user} ${t("rejectedToast")}: ${t("r_" + r.code)}${r.short ? " (" + r.short + ")" : ""}`, true);
@@ -825,6 +836,69 @@ $("#quitAllBtn").addEventListener("click", async () => {
 });
 $("#rmLastBtn").addEventListener("click", () => act("/api/action/removeLast"));
 $("#clearBtn").addEventListener("click", () => { if (confirm(t("confirmClear"))) act("/api/action/clear"); });
+/* ---------- chat TTS ---------- */
+// The helper sends chat to read (S.speech, newest first, commands already
+// left out, see app.speakChat). Browsers only speak after a click, so the
+// streamer starts it once per tab with the top-bar button.
+let ttsOn = false, ttsSeen = -1, ttsBusy = false;
+const ttsQueue = [], ttsWarned = {};
+const hasThai = s => /[\u0E00-\u0E7F]/.test(s);
+function ttsVoice(lang, voiceName) {
+  const voices = speechSynthesis.getVoices();
+  if (voiceName) { const v = voices.find(v => v.name === voiceName); if (v) return v; }
+  const m = voices.filter(v => v.lang.toLowerCase().startsWith(lang));
+  return m.find(v => /natural|online/i.test(v.name)) || m.find(v => v.localService) || m[0] || null;
+}
+function ttsUtter(text, name, cfg) {
+  const lang = cfg.lang !== "auto" ? cfg.lang : hasThai(text + " " + (name || "")) ? "th" : "en";
+  const line = cfg.readName && name ? (T["ttsSays_" + lang][0]).replace("{name}", name).replace("{text}", text) : text;
+  const u = new SpeechSynthesisUtterance(line);
+  const v = ttsVoice(lang, cfg.voice);
+  if (v) u.voice = v;
+  else if (!ttsWarned[lang]) { ttsWarned[lang] = true; toast(t("ttsNoVoice", { lang: lang === "th" ? "ไทย" : "English" }), true); }
+  u.lang = v ? v.lang : lang === "th" ? "th-TH" : "en-US";
+  u.rate = cfg.rate || 1;
+  u.volume = Math.max(0, Math.min(1, (cfg.volume ?? 80) / 100));
+  return u;
+}
+function ttsNext() {
+  if (ttsBusy || !ttsOn || !ttsQueue.length) return;
+  const s = ttsQueue.shift(), u = ttsUtter(s.text, s.name, S.tts);
+  ttsBusy = true;
+  u.onend = u.onerror = () => { ttsBusy = false; renderTTS(); ttsNext(); };
+  speechSynthesis.speak(u);
+  renderTTS();
+}
+function handleSpeech() {
+  const list = S.speech || [];
+  if (ttsSeen < 0 || (list.length && list[0].id < ttsSeen)) { ttsSeen = list.length ? list[0].id : 0; return; } // first load or restart: no backlog
+  const fresh = list.filter(s => s.id > ttsSeen).reverse();
+  if (fresh.length) ttsSeen = fresh[fresh.length - 1].id;
+  if (!S.tts || !S.tts.enabled || !ttsOn) return;
+  ttsQueue.push(...fresh);
+  while (ttsQueue.length > 5) ttsQueue.shift(); // a busy chat: keep up instead of falling behind
+  ttsNext();
+}
+function renderTTS() {
+  const on = !!(S && S.tts && S.tts.enabled);
+  $("#ttsWrap").hidden = !on || !("speechSynthesis" in window);
+  if (!on && ttsOn) { ttsOn = false; ttsQueue.length = 0; speechSynthesis.cancel(); }
+  const p = $("#ttsPill");
+  p.textContent = ttsOn ? "🔊 " + t("ttsOn") : "🔈 " + t("ttsStart");
+  p.title = t(ttsOn ? "ttsTitleOn" : "ttsTitleOff");
+  p.classList.toggle("off", !ttsOn);
+  $("#ttsSkip").hidden = !ttsOn || !ttsBusy;
+  $("#ttsSkip").title = t("ttsSkip");
+}
+$("#ttsPill").addEventListener("click", () => {
+  ttsOn = !ttsOn;
+  if (!ttsOn) { ttsQueue.length = 0; speechSynthesis.cancel(); ttsBusy = false; }
+  else speechSynthesis.speak(new SpeechSynthesisUtterance("")); // the click unlocks speech in this tab
+  renderTTS();
+});
+$("#ttsSkip").addEventListener("click", () => speechSynthesis.cancel());
+if ("speechSynthesis" in window) speechSynthesis.addEventListener("voiceschanged", () => { if (!$("#settings").hidden && tab === "tts") renderSettings(); });
+
 /* ---------- master volume ---------- */
 // One volume (0-100, default 10%) for every sound the dashboard plays. It is
 // stored in config.json; the slider applies it at once and saves shortly after.
@@ -1067,6 +1141,19 @@ const SCHEMA = {
     F("remote.port", "number", "Port", "พอร์ต", null, null, { min: 1024, max: 65535 }),
     F("", "remoteinfo", "Address", "ที่อยู่"),
   ],
+  tts: [
+    F("tts.enabled", "switch", "Read chat aloud (without commands)", "อ่านแชทออกเสียง (ไม่อ่านคำสั่ง)", "Reads TikTok chat in this dashboard with the voices of Windows, and never reads messages starting with ! (!req, !np…), links or emoji. Turn off TikFinity's own TTS so chat is not read twice. Browsers only speak after a click: press the TTS button at the top once per tab. OBS picks it up as desktop audio.", "อ่านแชท TikTok ในแดชบอร์ดนี้ด้วยเสียงของ Windows และไม่อ่านข้อความที่ขึ้นต้นด้วย ! (!req, !np…) ลิงก์ หรืออีโมจิ ให้ปิด TTS ของ TikFinity เพื่อไม่ให้อ่านซ้ำ เบราว์เซอร์จะพูดได้หลังคลิกเท่านั้น: กดปุ่ม TTS ด้านบนหนึ่งครั้งต่อแท็บ OBS จับเสียงได้ผ่าน Desktop Audio"),
+    F("tts.lang", "seg", "Language", "ภาษา", "auto picks Thai or English for each message by its letters.", "auto เลือกไทยหรืออังกฤษตามตัวอักษรของแต่ละข้อความ", { options: [["auto", "auto"], ["th", "ไทย"], ["en", "English"]] }),
+    F("tts.voice", "voice", "Voice", "เสียง", "Voices come from Windows and the browser (Edge has natural ones). Add Thai in Windows: Settings → Time & language → Speech.", "เสียงมาจาก Windows และเบราว์เซอร์ (Edge มีเสียงแบบธรรมชาติ) เพิ่มเสียงไทยใน Windows: การตั้งค่า → เวลาและภาษา → คำพูด"),
+    F("tts.rate", "number", "Speed", "ความเร็ว", null, null, { min: 0.5, max: 2, step: 0.1 }),
+    F("tts.volume", "number", "Volume (%)", "ระดับเสียง (%)", null, null, { min: 0, max: 100 }),
+    F("tts.readName", "switch", "Say who wrote it", "บอกชื่อคนพิมพ์", "\"name says …\"", "\"ชื่อ บอกว่า …\""),
+    F("tts.maxLength", "number", "Max letters per message", "ความยาวสูงสุดต่อข้อความ", "Longer messages are cut.", "ข้อความที่ยาวกว่านี้จะถูกตัด", { min: 10, max: 500 }),
+    F("tts.cooldownSec", "number", "Per-viewer cooldown (s)", "คูลดาวน์ต่อคน (วินาที)", "A viewer's next message within this time is not read.", "ข้อความถัดไปของคนเดิมภายในเวลานี้จะไม่ถูกอ่าน", { min: 0 }),
+    F("tts.followersOnly", "switch", "Followers only", "เฉพาะผู้ติดตาม", "When TikFinity says the viewer does not follow.", "เมื่อ TikFinity แจ้งว่าผู้ชมยังไม่ได้ติดตาม"),
+    F("tts.blockedWords", "list", "Blocked words", "คำต้องห้าม", "Comma separated. Messages containing one are not read.", "คั่นด้วยจุลภาค ข้อความที่มีคำเหล่านี้จะไม่ถูกอ่าน"),
+    F("", "ttstest", "Test the voice", "ทดลองเสียง"),
+  ],
   hotkeys: [
     F("hotkeys.enabled", "switch", "Global hotkeys", "ปุ่มลัดทั้งระบบ", "Work while osu! is focused. Format: Ctrl+Alt+N, Shift+F5, F9…", "ใช้ได้แม้กำลังอยู่ใน osu! รูปแบบ: Ctrl+Alt+N, Shift+F5, F9…"),
     F("hotkeys.next", "hotkey", "Next", "ถัดไป"),
@@ -1170,6 +1257,18 @@ function field(f) {
       const gen = h("button", { class: "btn sm", type: "button", onclick: () => { i.value = newPin(); set(i.value); } }, t("genPin"));
       return h("div", { class: "row" }, text, h("div", { class: "ovlink" }, i, gen));
     }
+    case "voice": {
+      const voices = "speechSynthesis" in window ? speechSynthesis.getVoices() : [];
+      const s = h("select", { "aria-label": lbl(f.label) }, h("option", { value: "" }, t("ttsAuto")),
+        ...voices.filter(x => /^(th|en)/i.test(x.lang)).map(x => h("option", { value: x.name }, `${x.name} (${x.lang})`)));
+      s.value = v || ""; s.addEventListener("change", () => set(s.value));
+      return h("div", { class: "row stack" }, text, s);
+    }
+    case "ttstest":
+      return h("div", { class: "row" }, text, h("button", { class: "btn sm", type: "button", onclick: () => {
+        speechSynthesis.cancel();
+        speechSynthesis.speak(ttsUtter(t("ttsSample"), "osureq", draft.tts));
+      } }, "▶ " + lbl(f.label)));
     case "remoteinfo": {
       const r = S && S.extra && S.extra.remote;
       const body = !r || !r.enabled ? h("small", { class: "hint" }, r && r.error ? r.error : t("modNoUrl"))
@@ -1225,7 +1324,7 @@ $("#setClose").addEventListener("click", closeSettings);
 $("#scrim").addEventListener("click", closeSettings);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#settings").hidden) closeSettings(); });
 $("#setReset").addEventListener("click", () => {
-  const key = { connection: "connection", osu: "osu", command: "command", rules: "rules", queue: "queue", download: "download", md5: "md5", import: "import", overlay: "overlay", remote: "remote", hotkeys: "hotkeys" }[tab];
+  const key = { connection: "connection", osu: "osu", command: "command", rules: "rules", queue: "queue", download: "download", md5: "md5", import: "import", overlay: "overlay", remote: "remote", tts: "tts", hotkeys: "hotkeys" }[tab];
   draft[key] = structuredClone(defaults[key]);
   renderSettings();
 });

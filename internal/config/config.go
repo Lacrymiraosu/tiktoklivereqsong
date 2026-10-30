@@ -193,6 +193,21 @@ type Remote struct {
 	PIN     string `json:"pin"` // 6-12 digits
 }
 
+// TTS reads chat aloud in the dashboard, without commands ("!req …"),
+// which TikFinity's own TTS cannot skip.
+type TTS struct {
+	Enabled       bool     `json:"enabled"`
+	Lang          string   `json:"lang"`  // auto (by the message's letters) | th | en
+	Voice         string   `json:"voice"` // a voice name from the browser; empty = best for the language
+	Rate          float64  `json:"rate"`  // 0.5-2
+	Volume        int      `json:"volume"`
+	ReadName      bool     `json:"readName"`    // "name says …"
+	MaxLength     int      `json:"maxLength"`   // longer messages are cut
+	CooldownSec   int      `json:"cooldownSec"` // per viewer
+	FollowersOnly bool     `json:"followersOnly"`
+	BlockedWords  []string `json:"blockedWords"` // messages containing one are not read
+}
+
 // Test holds the dashboard's test-panel switches.
 type Test struct {
 	DryRun bool `json:"dryRun"` // Next/Play move the queue but never open or copy anything into osu!
@@ -215,6 +230,7 @@ type Config struct {
 	Test         Test       `json:"test"`
 	Gifts        Gifts      `json:"gifts"`
 	Remote       Remote     `json:"remote"`
+	TTS          TTS        `json:"tts"`
 }
 
 func Default() Config {
@@ -264,6 +280,7 @@ func Default() Config {
 		Overlay: Overlay{Visible: 5, Requester: true, Theme: "pink", Scale: 100, Position: "top-left", Feedback: true, FeedbackSec: 7, Lang: "auto", Avatars: true},
 		Gifts:   Gifts{Enabled: false, CoinsPerPriority: 30, CreditMinutes: 60},
 		Remote:  Remote{Port: 21281},
+		TTS:     TTS{Lang: "auto", Rate: 1, Volume: 80, ReadName: true, MaxLength: 120, CooldownSec: 3},
 		Hotkeys: Hotkeys{Enabled: false, Next: "Ctrl+Alt+N", Skip: "Ctrl+Alt+S", Remove: "Ctrl+Alt+Backspace", Toggle: "Ctrl+Alt+R"},
 	}
 }
@@ -341,6 +358,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Remote.Enabled && !GoodPIN(c.Remote.PIN) {
 		add("remote_pin", nil, "mod panel PIN must be 6-12 digits, not all the same and not a simple run like 123456")
+	}
+	if t := c.TTS; t.Lang != "auto" && t.Lang != "th" && t.Lang != "en" {
+		add("tts_lang", nil, "TTS language must be auto, th or en")
+	}
+	if t := c.TTS; t.Rate < 0.5 || t.Rate > 2 || t.Volume < 0 || t.Volume > 100 || t.MaxLength < 10 || t.MaxLength > 500 || t.CooldownSec < 0 {
+		add("tts_range", nil, "TTS: speed 0.5-2, volume 0-100, max length 10-500, cooldown 0 or more")
 	}
 	if c.Command.BareNumberAs != "beatmap" && c.Command.BareNumberAs != "set" {
 		add("bare_number", nil, "bare number must be beatmap or set")
