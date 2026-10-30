@@ -63,6 +63,9 @@ type App struct {
 	autoClosed bool              // requests were closed by autoCloseAt, so they may reopen by themselves
 	lastLen    int               // queue length at the previous auto-close check (-1 before the first)
 	lastTick   time.Time         // previous closeAt check
+	speech     []Speech          // chat for the dashboard to read aloud, newest first
+	speechSeq  int64
+	ttsAt      map[string]time.Time // user -> last message read (TTS cooldown)
 }
 
 type Notice struct {
@@ -142,6 +145,7 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 	if strings.HasPrefix(ch.Comment, "!") {
 		a.rememberAvatar(ch.User, ch.Avatar)
 	}
+	a.speakChat(ch, false)
 	if a.command(ch, false) != cmdNone {
 		return
 	}
@@ -219,6 +223,7 @@ const (
 func (a *App) SimulateChat(user, comment string) (it *queue.Item, rej *validator.Rejection, kind SimKind) {
 	cfg := a.Cfg.Get()
 	user = testUser(user, "viewer")
+	a.speakChat(tikfinity.Chat{User: user, Nick: user, Comment: comment}, true)
 	switch a.command(tikfinity.Chat{User: user, Nick: user, Comment: comment}, true) {
 	case cmdDone:
 		return nil, nil, SimCmdDone
