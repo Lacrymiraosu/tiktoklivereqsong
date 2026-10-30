@@ -800,13 +800,17 @@ go build -trimpath -ldflags "-X main.version=1.4.0" -o dist\osureq.exe .
 
 `.github/workflows/build.yml` runs on every push to `main` and every pull request: `go vet`, `go test` and a build on
 `windows-latest`; the exe is kept as a workflow artifact for 14 days (version `0.0.0-dev+<commit>`).
-To publish a release, bump the version (Changelog row, Version row, `build.ps1` default), commit, then tag and push:
+To publish a release, bump the version (Changelog row, Version row, `build.ps1` default) and merge it into `main`, then
+either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.0`) or tag and push:
 
 ```powershell
 git tag v1.4.0
 git push origin v1.4.0
 ```
 
+Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
+creates the tag `v1.4.0` on that commit together with the release (a tag made by the workflow does not start another run).
+The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 The tag build uses the tag's number for `main.version` and the Windows resources, and publishes a GitHub release with
 `osureq-<version>-windows-x64.zip` (`osureq.exe`, `LICENSE`, `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
 When a new module ends up in the exe (`go list -deps -f '{{if not .Standard}}{{.Module.Path}}{{end}}' .`), add its license to `THIRD_PARTY_LICENSES.txt`.
