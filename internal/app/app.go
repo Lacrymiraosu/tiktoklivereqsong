@@ -284,7 +284,8 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin, rol
 		rr := queue.RejectedFrom(user, input, rej)
 		rr.Test = o != fromChat
 		a.Queue.Reject(rr)
-		a.emit(FeedEvent{Kind: "rejected", User: user, Nick: nick, Code: rej.Code, Short: rej.Short, Test: o != fromChat})
+		a.emit(FeedEvent{Kind: "rejected", User: user, Nick: nick, Code: rej.Code, Short: rej.Short, Test: o != fromChat,
+			Title: rej.Vars["title"], Artist: rej.Vars["artist"], Mapper: rej.Vars["mapper"], Version: rej.Vars["diff"], Mods: req.Mods, Vars: rej.Vars})
 		log.Printf("rejected @%s %q: %s", user, input, rej.Detail)
 		return nil, rej
 	}
@@ -295,7 +296,7 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin, rol
 	}
 	a.applyCredit(user, nick, o != fromChat)
 	a.emit(FeedEvent{Kind: "added", User: user, Nick: nick, Title: it.Title, Artist: it.Artist, Version: it.Version,
-		Stars: it.Stars, Mods: it.Mods, Pos: a.Queue.Position(it.ID), Test: o != fromChat})
+		Mapper: it.Creator, Stars: it.Stars, Mods: it.Mods, Pos: a.Queue.Position(it.ID), Test: o != fromChat})
 	log.Printf("queued @%s: %s - %s [%s] +%s (%d)", user, it.Artist, it.Title, it.Version, it.Mods, it.SetID)
 	return it, nil
 }
@@ -360,7 +361,7 @@ func (a *App) resolve(user, nick, input string, req parser.Request, o origin, ro
 	}
 	diff, rej := validator.CheckMap(validator.Input{Set: set, BeatmapID: beatmapID, Mode: req.Mode, Mods: req.Mods}, st, cfg.Rules, cfg.Queue, now)
 	if rej != nil {
-		return nil, rej
+		return nil, rej.WithMap(set)
 	}
 	mode := diff.Mode
 	if req.Mode != "" {
@@ -411,7 +412,7 @@ func (a *App) find(ctx context.Context, query, mods string, st validator.State, 
 				if !strings.Contains(short, set.Title) { // song bans already name it
 					short = strings.TrimSuffix(set.Title+" · "+short, " · ")
 				}
-				first = &validator.Rejection{Code: rej.Code, Detail: set.Title + ": " + rej.Detail, Short: short}
+				first = (&validator.Rejection{Code: rej.Code, Detail: set.Title + ": " + rej.Detail, Short: short, Vars: rej.Vars}).WithMap(set)
 			}
 			continue
 		}
@@ -612,7 +613,9 @@ func (a *App) OnGame(g tosu.Game) {
 	if res != nil {
 		log.Printf("result for @%s: %s %s", now.User, res.Outcome, ResultShort(res))
 		a.emit(FeedEvent{Kind: "result", User: now.User, Nick: now.Nick, Code: res.Outcome, Short: ResultShort(res),
-			Title: now.Title, Artist: now.Artist, Version: now.Version, Test: now.Test})
+			Title: now.Title, Artist: now.Artist, Version: now.Version, Mapper: now.Creator, Test: now.Test, Vars: map[string]string{
+				"acc": strconv.FormatFloat(res.Accuracy, 'f', 2, 64), "rank": res.Rank, "combo": strconv.Itoa(res.MaxCombo),
+				"misses": strconv.Itoa(res.Misses), "pp": strconv.Itoa(int(res.PP + 0.5)), "mods": res.Mods}})
 	}
 	if phase == tosu.Ended {
 		a.Say("info", "finished", map[string]string{"title": now.Artist + " - " + now.Title, "u": now.User}, "finished: %s - %s (@%s)", now.Artist, now.Title, now.User)
@@ -861,6 +864,7 @@ func (a *App) play(id, result string) error {
 		return err
 	}
 	a.Queue.Promote(id, result)
+	a.announcePlaying(it)
 	log.Printf("now playing: %s - %s [%s] for @%s", it.Artist, it.Title, it.Version, it.User)
 	return nil
 }

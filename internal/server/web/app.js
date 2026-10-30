@@ -242,7 +242,17 @@ const T = {
   r_bad_mods: ["unknown or clashing mods", "mod ไม่ถูกต้องหรือใช้ด้วยกันไม่ได้"], r_mods_off: ["mods not allowed", "ไม่รับคำขอที่มี mod"],
   r_mod_not_allowed: ["mod not allowed", "mod นี้ไม่อนุญาต"], r_mod_stars: ["too hard with that mod", "ยากเกินไปเมื่อใส่ mod นี้"],
   e_hard_mod_stars: ["The star limit for DT/HR cannot be negative", "ดาวสูงสุดสำหรับ DT/HR ติดลบไม่ได้"], e_banned_mod: ["{mod} is not a mod", "{mod} ไม่ใช่ mod"],
-  tab_tts: ["Chat TTS", "อ่านแชท"],
+  tab_tts: ["TTS", "เสียงอ่าน"],
+  tplHelp: ["Placeholders: {user} {title} {artist} {mapper} {diff} {mods} {stars} {pos}; rejections also {reason} {max} {min} {length} {wait}; results {acc} {rank} {combo} {misses} {pp}; gifts {coins} {gift}. Empty or - = say nothing. A rejection without its own line uses \"Rejected (any other reason)\". Try them with Simulate chat in the Test panel.", "ตัวแปร: {user} {title} {artist} {mapper} {diff} {mods} {stars} {pos} การปฏิเสธมี {reason} {max} {min} {length} {wait} ผลการเล่นมี {acc} {rank} {combo} {misses} {pp} ของขวัญมี {coins} {gift} เว้นว่างหรือใส่ - = ไม่พูด การปฏิเสธที่ไม่มีบรรทัดของตัวเองจะใช้ \"ถูกปฏิเสธ (เหตุผลอื่น)\" ลองได้ด้วย จำลองแชท ในแผงทดสอบ"],
+  tplThai: ["Thai examples", "ตัวอย่างภาษาไทย"], tplEnglish: ["English examples", "ตัวอย่างภาษาอังกฤษ"], tplSilent: ["(say nothing)", "(ไม่พูด)"],
+  tpl_added: ["Request added", "ขอเพลงสำเร็จ"], tpl_rejected: ["Rejected (any other reason)", "ถูกปฏิเสธ (เหตุผลอื่น)"],
+  tpl_rejected_stars_high: ["Rejected: too hard", "ถูกปฏิเสธ: ยากเกินไป"], tpl_rejected_stars_low: ["Rejected: too easy", "ถูกปฏิเสธ: ง่ายเกินไป"],
+  tpl_rejected_mod_stars: ["Rejected: too hard with DT/HR", "ถูกปฏิเสธ: ยากเกินไปเมื่อใส่ DT/HR"], tpl_rejected_too_long: ["Rejected: too long", "ถูกปฏิเสธ: ยาวเกินไป"],
+  tpl_rejected_duplicate: ["Rejected: already in the queue", "ถูกปฏิเสธ: อยู่ในคิวแล้ว"], tpl_rejected_recently_played: ["Rejected: played recently", "ถูกปฏิเสธ: เพิ่งเล่นไป"],
+  tpl_rejected_cooldown: ["Rejected: cooldown", "ถูกปฏิเสธ: ติดคูลดาวน์"], tpl_rejected_user_limit: ["Rejected: too many requests", "ถูกปฏิเสธ: ขอเกินจำนวน"],
+  tpl_rejected_search_none: ["Rejected: no map with that name", "ถูกปฏิเสธ: ไม่พบแมพชื่อนี้"],
+  tpl_nowplaying: ["Next map opens", "เปิดเพลงถัดไป"], tpl_result_passed: ["Result: cleared", "ผลการเล่น: ผ่าน"], tpl_result_failed: ["Result: failed", "ผลการเล่น: ไม่ผ่าน"],
+  tpl_gift: ["Gift", "ของขวัญ"], tpl_voteskip: ["Vote skip passed", "โหวตข้ามเพลงสำเร็จ"], tpl_auto_off: ["Requests closed (queue full or time)", "ปิดรับคำขอ (คิวเต็มหรือถึงเวลา)"], tpl_auto_on: ["Requests open again", "เปิดรับคำขออีกครั้ง"],
   ttsStart: ["Start TTS", "เริ่มอ่านแชท"], ttsOn: ["TTS on", "อ่านแชทอยู่"],
   ttsTitleOff: ["Browsers only speak after a click: click to start reading chat in this tab.", "เบราว์เซอร์จะพูดได้หลังคลิกเท่านั้น: คลิกเพื่อเริ่มอ่านแชทในแท็บนี้"],
   ttsTitleOn: ["Reading chat aloud in this tab (commands are skipped). Click to stop.", "กำลังอ่านแชทในแท็บนี้ (ข้ามคำสั่ง) คลิกเพื่อหยุด"], ttsSkip: ["Skip this message", "ข้ามข้อความนี้"],
@@ -874,13 +884,13 @@ function handleSpeech() {
   if (ttsSeen < 0 || (list.length && list[0].id < ttsSeen)) { ttsSeen = list.length ? list[0].id : 0; return; } // first load or restart: no backlog
   const fresh = list.filter(s => s.id > ttsSeen).reverse();
   if (fresh.length) ttsSeen = fresh[fresh.length - 1].id;
-  if (!S.tts || !S.tts.enabled || !ttsOn) return;
+  if (!S.tts || !(S.tts.enabled || S.tts.announce) || !ttsOn) return;
   ttsQueue.push(...fresh);
   while (ttsQueue.length > 5) ttsQueue.shift(); // a busy chat: keep up instead of falling behind
   ttsNext();
 }
 function renderTTS() {
-  const on = !!(S && S.tts && S.tts.enabled);
+  const on = !!(S && S.tts && (S.tts.enabled || S.tts.announce));
   $("#ttsWrap").hidden = !on || !("speechSynthesis" in window);
   if (!on && ttsOn) { ttsOn = false; ttsQueue.length = 0; speechSynthesis.cancel(); }
   const p = $("#ttsPill");
@@ -1153,6 +1163,26 @@ const SCHEMA = {
     F("tts.followersOnly", "switch", "Followers only", "เฉพาะผู้ติดตาม", "When TikFinity says the viewer does not follow.", "เมื่อ TikFinity แจ้งว่าผู้ชมยังไม่ได้ติดตาม"),
     F("tts.blockedWords", "list", "Blocked words", "คำต้องห้าม", "Comma separated. Messages containing one are not read.", "คั่นด้วยจุลภาค ข้อความที่มีคำเหล่านี้จะไม่ถูกอ่าน"),
     F("", "ttstest", "Test the voice", "ทดลองเสียง"),
+    F("tts.announce", "switch", "Announce requests", "ประกาศคำขอด้วยเสียง", "Says what happens to requests with the lines below, e.g. \"test1 ขอเพลง …\" or \"เพลง … ยากเกินไป 7.25 ดาว\". Uses the same voice settings and the same TTS button at the top; works with chat reading on or off.", "พูดว่าเกิดอะไรกับคำขอตามข้อความด้านล่าง เช่น \"test1 ขอเพลง …\" หรือ \"เพลง … ยากเกินไป 7.25 ดาว\" ใช้การตั้งค่าเสียงและปุ่มเสียงด้านบนเดียวกัน ใช้ได้ทั้งตอนเปิดหรือปิดการอ่านแชท"),
+    F("", "tplpreset", "Announcement lines", "ข้อความที่ประกาศ", "tplHelp"),
+    F("tts.templates.added", "template", "", ""),
+    F("tts.templates.rejected", "template", "", ""),
+    F("tts.templates.rejected_stars_high", "template", "", ""),
+    F("tts.templates.rejected_stars_low", "template", "", ""),
+    F("tts.templates.rejected_mod_stars", "template", "", ""),
+    F("tts.templates.rejected_too_long", "template", "", ""),
+    F("tts.templates.rejected_duplicate", "template", "", ""),
+    F("tts.templates.rejected_recently_played", "template", "", ""),
+    F("tts.templates.rejected_cooldown", "template", "", ""),
+    F("tts.templates.rejected_user_limit", "template", "", ""),
+    F("tts.templates.rejected_search_none", "template", "", ""),
+    F("tts.templates.nowplaying", "template", "", ""),
+    F("tts.templates.result_passed", "template", "", ""),
+    F("tts.templates.result_failed", "template", "", ""),
+    F("tts.templates.gift", "template", "", ""),
+    F("tts.templates.voteskip", "template", "", ""),
+    F("tts.templates.auto_off", "template", "", ""),
+    F("tts.templates.auto_on", "template", "", ""),
   ],
   hotkeys: [
     F("hotkeys.enabled", "switch", "Global hotkeys", "ปุ่มลัดทั้งระบบ", "Work while osu! is focused. Format: Ctrl+Alt+N, Shift+F5, F9…", "ใช้ได้แม้กำลังอยู่ใน osu! รูปแบบ: Ctrl+Alt+N, Shift+F5, F9…"),
@@ -1263,6 +1293,19 @@ function field(f) {
         ...voices.filter(x => /^(th|en)/i.test(x.lang)).map(x => h("option", { value: x.name }, `${x.name} (${x.lang})`)));
       s.value = v || ""; s.addEventListener("change", () => set(s.value));
       return h("div", { class: "row stack" }, text, s);
+    }
+    case "tplpreset": {
+      const preset = which => api("GET", "/api/config").then(j => { draft.tts.templates = structuredClone(j.announcements[which]); renderSettings(); });
+      return h("div", { class: "row stack" }, h("div", { class: "swt" }, h("b", {}, lbl(f.label)), h("small", {}, t(f.hint[0]))),
+        h("div", { class: "ovlink" }, h("button", { class: "btn sm", type: "button", onclick: () => preset("th") }, t("tplThai")),
+          h("button", { class: "btn sm", type: "button", onclick: () => preset("en") }, t("tplEnglish"))));
+    }
+    case "template": {
+      const ev = f.path.split(".").pop();
+      draft.tts.templates = draft.tts.templates || {};
+      const i = h("input", { type: "text", value: draft.tts.templates[ev] ?? "", placeholder: t("tplSilent"), "aria-label": t("tpl_" + ev), spellcheck: "false" });
+      i.addEventListener("input", () => { draft.tts.templates[ev] = i.value; });
+      return h("div", { class: "row stack" }, h("div", { class: "swt" }, h("b", {}, t("tpl_" + ev))), i);
     }
     case "ttstest":
       return h("div", { class: "row" }, text, h("button", { class: "btn sm", type: "button", onclick: () => {

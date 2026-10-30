@@ -17,6 +17,7 @@ type Speech struct {
 	Name string    `json:"name"` // display name, cleaned for speaking
 	Text string    `json:"text"`
 	Test bool      `json:"test,omitempty"`
+	Kind string    `json:"kind"` // chat (a viewer's message) | say (an announcement)
 }
 
 const maxSpeech = 20
@@ -60,12 +61,20 @@ func (a *App) speakChat(ch tikfinity.Chat, test bool) {
 		return
 	}
 	a.ttsAt[key] = now
+	a.addSpeechLocked(Speech{User: ch.User, Name: speakName(ch.Nick, ch.User), Text: text, Test: test, Kind: "chat"})
+}
+
+// queueSpeech adds something for the dashboard to say.
+func (a *App) queueSpeech(s Speech) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.addSpeechLocked(s)
+}
+
+func (a *App) addSpeechLocked(s Speech) {
 	a.speechSeq++
-	name := SpeakableText(ch.Nick, 40)
-	if name == "" {
-		name = ch.User
-	}
-	a.speech = append([]Speech{{ID: a.speechSeq, At: now, User: ch.User, Name: name, Text: text, Test: test}}, a.speech...)
+	s.ID, s.At = a.speechSeq, time.Now()
+	a.speech = append([]Speech{s}, a.speech...)
 	if len(a.speech) > maxSpeech {
 		a.speech = a.speech[:maxSpeech]
 	}
