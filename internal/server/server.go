@@ -128,7 +128,8 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, s.state()) })
 	mux.HandleFunc("GET /ws", s.ws)
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{"config": s.App.Cfg.Get(), "defaults": config.Default()})
+		writeJSON(w, map[string]any{"config": s.App.Cfg.Get(), "defaults": config.Default(),
+			"announcements": map[string]any{"th": config.ThaiAnnouncements(), "en": config.EnglishAnnouncements()}})
 	})
 	mux.HandleFunc("PUT /api/config", s.putConfig)
 	mux.HandleFunc("POST /api/action/{name}", s.action)

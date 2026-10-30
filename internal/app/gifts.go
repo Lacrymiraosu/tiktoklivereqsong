@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
@@ -28,6 +29,7 @@ func (a *App) SimulateGift(user string, coins int) (tokens, requests int, err er
 // priority (gifts.enabled), each on its own.
 func (a *App) gift(g tikfinity.Gift, test bool) (earned, requests int) {
 	a.rememberAvatar(g.User, g.Avatar)
+	a.announce(FeedEvent{Kind: "giftthanks", User: g.User, Nick: g.Nick, Test: test, Vars: map[string]string{"coins": strconv.Itoa(g.Coins), "gift": g.Name}})
 	cfg := a.Cfg.Get().Gifts
 	now := time.Now()
 	ttl := time.Duration(cfg.CreditMinutes) * time.Minute
@@ -35,7 +37,8 @@ func (a *App) gift(g tikfinity.Gift, test bool) (earned, requests int) {
 		if requests = a.Queue.AddRequestCoins(g.User, g.Coins, cfg.RequestCoins, ttl, test, now); requests > 0 {
 			left, _ := a.Queue.Requests(g.User, now)
 			log.Printf("gift: @%s sent %s (%d coins), %d request(s) earned", g.User, g.Name, g.Coins, requests)
-			a.emit(FeedEvent{Kind: "gift", Code: "requests", User: g.User, Nick: g.Nick, Short: fmt.Sprintf("%d coins", g.Coins), Pos: left, Test: test})
+			a.emit(FeedEvent{Kind: "gift", Code: "requests", User: g.User, Nick: g.Nick, Short: fmt.Sprintf("%d coins", g.Coins), Pos: left, Test: test,
+				Vars: map[string]string{"coins": strconv.Itoa(g.Coins)}})
 		}
 	}
 	if !cfg.Enabled {
@@ -44,7 +47,7 @@ func (a *App) gift(g tikfinity.Gift, test bool) (earned, requests int) {
 	earned = a.Queue.AddCoins(g.User, g.Coins, cfg.CoinsPerPriority, ttl, test, now)
 	log.Printf("gift: @%s sent %s (%d coins), %d priority earned", g.User, g.Name, g.Coins, earned)
 	for i := 0; i < earned; i++ {
-		ev := FeedEvent{Kind: "gift", User: g.User, Nick: g.Nick, Short: fmt.Sprintf("%d coins", g.Coins), Test: test}
+		ev := FeedEvent{Kind: "gift", User: g.User, Nick: g.Nick, Short: fmt.Sprintf("%d coins", g.Coins), Test: test, Vars: map[string]string{"coins": strconv.Itoa(g.Coins)}}
 		if it, ok := a.Queue.UseToken(g.User, now); ok {
 			ev.Code, ev.Title, ev.Artist, ev.Version = "priority", it.Title, it.Artist, it.Version
 			a.Say("info", "giftMoved", map[string]string{"u": g.User, "title": it.Artist + " - " + it.Title}, "@%s's gift moved %s - %s up", g.User, it.Artist, it.Title)

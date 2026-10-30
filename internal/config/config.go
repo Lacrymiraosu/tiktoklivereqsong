@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -206,6 +207,65 @@ type TTS struct {
 	CooldownSec   int      `json:"cooldownSec"` // per viewer
 	FollowersOnly bool     `json:"followersOnly"`
 	BlockedWords  []string `json:"blockedWords"` // messages containing one are not read
+	// Announce speaks what happens to requests from Templates (event ->
+	// text with {placeholders}; see app.Announcements). Empty or "-" = silent.
+	Announce  bool              `json:"announce"`
+	Templates map[string]string `json:"templates"`
+}
+
+// AnnounceEvents are the events that can be spoken, in the order the
+// settings show them. "rejected" is used for any rejection without its own
+// "rejected_<code>" template.
+var AnnounceEvents = []string{"added", "rejected", "rejected_stars_high", "rejected_stars_low", "rejected_mod_stars", "rejected_too_long",
+	"rejected_duplicate", "rejected_recently_played", "rejected_cooldown", "rejected_user_limit", "rejected_search_none",
+	"nowplaying", "result_passed", "result_failed", "gift", "voteskip", "auto_off", "auto_on"}
+
+// ThaiAnnouncements are the default templates.
+func ThaiAnnouncements() map[string]string {
+	return map[string]string{
+		"added":                    "{user} ขอเพลง {title} ของ {artist} แมพโดย {mapper} ระดับ {diff} {mods}",
+		"rejected":                 "{user} ขอเพลงไม่ได้ {reason}",
+		"rejected_stars_high":      "เพลง {title} ยากเกินไป {stars} ดาว",
+		"rejected_stars_low":       "เพลง {title} ง่ายเกินไป {stars} ดาว",
+		"rejected_mod_stars":       "เพลง {title} ยากเกินไปสำหรับ {mods}",
+		"rejected_too_long":        "เพลง {title} ยาวเกินไป",
+		"rejected_duplicate":       "เพลง {title} อยู่ในคิวแล้ว",
+		"rejected_recently_played": "เพลง {title} เพิ่งเล่นไป",
+		"rejected_cooldown":        "-",
+		"rejected_user_limit":      "-",
+		"rejected_search_none":     "ไม่เจอเพลงที่ {user} ขอ",
+		"nowplaying":               "ต่อไปเพลง {title} ที่ {user} ขอ",
+		"result_passed":            "ผ่านเพลง {title} ความแม่นยำ {acc} เปอร์เซ็นต์",
+		"result_failed":            "-",
+		"gift":                     "ขอบคุณ {user} สำหรับของขวัญ",
+		"voteskip":                 "ผู้ชมโหวตข้ามเพลง {title}",
+		"auto_off":                 "คิวเต็มแล้ว พักรับคำขอก่อนนะ",
+		"auto_on":                  "เปิดรับคำขอแล้ว",
+	}
+}
+
+// EnglishAnnouncements are the same templates in English.
+func EnglishAnnouncements() map[string]string {
+	return map[string]string{
+		"added":                    "{user} requested {title} by {artist}, mapped by {mapper}, {diff} {mods}",
+		"rejected":                 "{user}, that request did not work: {reason}",
+		"rejected_stars_high":      "{title} is too hard, {stars} stars",
+		"rejected_stars_low":       "{title} is too easy, {stars} stars",
+		"rejected_mod_stars":       "{title} is too hard with {mods}",
+		"rejected_too_long":        "{title} is too long",
+		"rejected_duplicate":       "{title} is already in the queue",
+		"rejected_recently_played": "{title} was played recently",
+		"rejected_cooldown":        "-",
+		"rejected_user_limit":      "-",
+		"rejected_search_none":     "No map found for {user}",
+		"nowplaying":               "Next up, {title}, requested by {user}",
+		"result_passed":            "Cleared {title} with {acc} percent",
+		"result_failed":            "-",
+		"gift":                     "Thank you {user} for the gift",
+		"voteskip":                 "Chat voted to skip {title}",
+		"auto_off":                 "The queue is full, requests are paused",
+		"auto_on":                  "Requests are open again",
+	}
 }
 
 // Test holds the dashboard's test-panel switches.
@@ -280,7 +340,7 @@ func Default() Config {
 		Overlay: Overlay{Visible: 5, Requester: true, Theme: "pink", Scale: 100, Position: "top-left", Feedback: true, FeedbackSec: 7, Lang: "auto", Avatars: true},
 		Gifts:   Gifts{Enabled: false, CoinsPerPriority: 30, CreditMinutes: 60},
 		Remote:  Remote{Port: 21281},
-		TTS:     TTS{Lang: "auto", Rate: 1, Volume: 80, ReadName: true, MaxLength: 120, CooldownSec: 3},
+		TTS:     TTS{Lang: "auto", Rate: 1, Volume: 80, ReadName: true, MaxLength: 120, CooldownSec: 3, Templates: ThaiAnnouncements()},
 		Hotkeys: Hotkeys{Enabled: false, Next: "Ctrl+Alt+N", Skip: "Ctrl+Alt+S", Remove: "Ctrl+Alt+Backspace", Toggle: "Ctrl+Alt+R"},
 	}
 }
@@ -364,6 +424,13 @@ func (c *Config) Validate() error {
 	}
 	if t := c.TTS; t.Rate < 0.5 || t.Rate > 2 || t.Volume < 0 || t.Volume > 100 || t.MaxLength < 10 || t.MaxLength > 500 || t.CooldownSec < 0 {
 		add("tts_range", nil, "TTS: speed 0.5-2, volume 0-100, max length 10-500, cooldown 0 or more")
+	}
+	for k, v := range c.TTS.Templates {
+		if !slices.Contains(AnnounceEvents, k) {
+			add("tts_template", map[string]string{"event": k}, "unknown announcement %q", k)
+		} else if len([]rune(v)) > 300 {
+			add("tts_template_long", map[string]string{"event": k}, "announcement %q is longer than 300 letters", k)
+		}
 	}
 	if c.Command.BareNumberAs != "beatmap" && c.Command.BareNumberAs != "set" {
 		add("bare_number", nil, "bare number must be beatmap or set")
