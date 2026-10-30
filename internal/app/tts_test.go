@@ -2,6 +2,7 @@ package app
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
@@ -109,7 +110,9 @@ func TestTTSAllowGroups(t *testing.T) {
 		t.Errorf("Activity should say the flag is missing: %+v", n)
 	}
 
-	a.NewSession()
+	// A session started after the gift (explicitly later: Windows' clock can
+	// give the gift and an immediate NewSession the same timestamp).
+	a.Queue.NewSession(time.Now().Add(time.Second))
 	if read(tikfinity.Chat{User: "giver", Comment: "again"}) {
 		t.Error("a gift from before the session started does not count")
 	}
