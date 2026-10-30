@@ -24,6 +24,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/platform"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/remote"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/search"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/server"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
@@ -138,8 +139,13 @@ func main() {
 	}
 	applyHotkeys(cfg)
 
+	mods := remote.New(a, func() config.Remote { return store.Get().Remote })
+
 	prev := cfg
 	store.OnChange(func(c config.Config) {
+		if c.Remote != prev.Remote {
+			mods.Apply(c.Remote)
+		}
 		if c.Hotkeys != prev.Hotkeys {
 			applyHotkeys(c)
 		}
@@ -160,7 +166,7 @@ func main() {
 		for k, v := range hkErrs {
 			errs[k] = v
 		}
-		return map[string]any{"hotkeyErrors": errs, "baseDir": base, "cacheDir": dl.CacheDir}
+		return map[string]any{"hotkeyErrors": errs, "baseDir": base, "cacheDir": dl.CacheDir, "remote": mods.Status()}
 	}
 
 	// Ctrl+C, or closing the CMD window (Go reports that as SIGTERM), stops cleanly.
@@ -189,11 +195,13 @@ func main() {
 		platform.ShellOpen(url)
 	}
 
+	mods.Apply(cfg.Remote)
 	go tf.Run(ctx)
 	go ts.Run(ctx)
 	go a.Run(ctx)
 	go update.Run(ctx, version, func() bool { return store.Get().Connection.CheckUpdates }, a.SetUpdate)
 	<-ctx.Done()
+	mods.Apply(config.Remote{}) // stop the mod panel
 	hk.Stop()
 	q.Flush()
 	log.Printf("bye")

@@ -177,6 +177,13 @@ type Gifts struct {
 	RequestCoins int `json:"requestCoins"`
 }
 
+// Remote is the mod panel for a phone on the same network (package remote).
+type Remote struct {
+	Enabled bool   `json:"enabled"`
+	Port    int    `json:"port"`
+	PIN     string `json:"pin"` // 6-12 digits
+}
+
 // Test holds the dashboard's test-panel switches.
 type Test struct {
 	DryRun bool `json:"dryRun"` // Next/Play move the queue but never open or copy anything into osu!
@@ -198,6 +205,7 @@ type Config struct {
 	Hotkeys      Hotkeys    `json:"hotkeys"`
 	Test         Test       `json:"test"`
 	Gifts        Gifts      `json:"gifts"`
+	Remote       Remote     `json:"remote"`
 }
 
 func Default() Config {
@@ -245,6 +253,7 @@ func Default() Config {
 		Import:  Import{Mode: "open", Preload: true, PreloadCount: 2},
 		Overlay: Overlay{Visible: 5, Requester: true, Theme: "pink", Scale: 100, Position: "top-left", Feedback: true, FeedbackSec: 7, Lang: "auto", Avatars: true},
 		Gifts:   Gifts{Enabled: false, CoinsPerPriority: 30, CreditMinutes: 60},
+		Remote:  Remote{Port: 21281},
 		Hotkeys: Hotkeys{Enabled: false, Next: "Ctrl+Alt+N", Skip: "Ctrl+Alt+S", Remove: "Ctrl+Alt+Backspace", Toggle: "Ctrl+Alt+R"},
 	}
 }
@@ -317,6 +326,12 @@ func (c *Config) Validate() error {
 	if c.Command.VoteSkipVotes < 0 {
 		add("vote_skip", nil, "votes to skip cannot be negative")
 	}
+	if p := c.Remote.Port; p < 1024 || p > 65535 || p == c.Connection.DashboardPort {
+		add("remote_port", nil, "mod panel port must be 1024-65535 and not the dashboard port")
+	}
+	if c.Remote.Enabled && !GoodPIN(c.Remote.PIN) {
+		add("remote_pin", nil, "mod panel PIN must be 6-12 digits, not all the same and not a simple run like 123456")
+	}
 	if c.Command.BareNumberAs != "beatmap" && c.Command.BareNumberAs != "set" {
 		add("bare_number", nil, "bare number must be beatmap or set")
 	}
@@ -374,6 +389,26 @@ func (c *Config) Validate() error {
 		return &ValidationError{Problems: probs}
 	}
 	return nil
+}
+
+// GoodPIN accepts 6-12 digits that are not all the same digit and not a
+// plain run up or down (123456, 987654).
+func GoodPIN(pin string) bool {
+	if len(pin) < 6 || len(pin) > 12 {
+		return false
+	}
+	same, up, down := true, true, true
+	for i := 0; i < len(pin); i++ {
+		if pin[i] < '0' || pin[i] > '9' {
+			return false
+		}
+		if i > 0 {
+			same = same && pin[i] == pin[0]
+			up = up && pin[i] == pin[i-1]+1
+			down = down && pin[i] == pin[i-1]-1
+		}
+	}
+	return !same && !up && !down
 }
 
 // ClockTime parses "HH:MM" (24 h) into minutes after midnight.
