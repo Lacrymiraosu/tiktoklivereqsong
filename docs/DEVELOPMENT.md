@@ -174,8 +174,10 @@ Command-line flags: `-dir <folder>` keeps config, queue, cache and log somewhere
 ```
 
 Mods (`internal/mods`): NF EZ HD HR SD DT HT NC FL SO PF FI MR, written back in osu!'s order (`HDHR`, `HDDT`). NC includes DT and PF includes SD.
-Clashes (EZ+HR, HT+DT/NC, NF+SD/PF, FI+HD, FL+FI) and unknown mods are rejected as `bad_mods` when the word was meant as mods
-(starts with `+` or is in capitals); other words after an ID ("please") are still ignored. A lower-case word at the end of a song name is part of the name.
+After an ID or link, mods are read when everything after it is mods in any case (`hd hr`), or when the first word starts with `+` or
+is in capitals made only of mod codes (`HDDT pls`); other words ("please", "so good", "OK") are ignored as before. Clashes (EZ+HR,
+HT+DT/NC, NF+SD/PF, FI+HD, FL+FI) and unknown codes in a `+` word are rejected as `bad_mods`. A lower-case word at the end of a song
+name is part of the name.
 
 An ID or osu! link in the first word wins and anything after it is ignored. Otherwise the text (3-80 characters) is a song name;
 anything that looks like a link to another site is never searched and is ignored, as is everything when search is off.
