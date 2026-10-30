@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -139,6 +140,7 @@ type Source struct {
 
 type Download struct {
 	Sources      []Source `json:"sources"`
+	SourcesRev   int      `json:"sourcesRev"` // which DefaultSources the list was made from
 	NoVideo      bool     `json:"noVideo"`
 	CacheLimitMB int      `json:"cacheLimitMb"`
 	AutoCleanup  bool     `json:"autoCleanup"`
@@ -344,12 +346,9 @@ func Default() Config {
 		},
 		Queue: Queue{MaxSize: 30, PerUserLimit: 2, CooldownSec: 60, NoRepeatMin: 60, PlayMode: "manual", AutoGapSec: 5},
 		Download: Download{
-			Sources: []Source{
-				{Name: "catboy", Enabled: true, URL: "https://catboy.best/d/{id}", NoVideoURL: "https://catboy.best/d/{id}n", Referer: "https://catboy.best/", TimeoutSec: 60},
-				{Name: "osu.direct", Enabled: true, URL: "https://osu.direct/api/d/{id}", NoVideoURL: "https://osu.direct/api/d/{id}?noVideo=1", TimeoutSec: 60},
-				{Name: "official", Enabled: true, URL: "https://osu.ppy.sh/beatmapsets/{id}/download", NoVideoURL: "https://osu.ppy.sh/beatmapsets/{id}/download?noVideo=1", TimeoutSec: 180, Official: true},
-			},
-			NoVideo: true, CacheLimitMB: 2048, AutoCleanup: true,
+			Sources:    DefaultSources(),
+			SourcesRev: sourcesRev,
+			NoVideo:    true, CacheLimitMB: 2048, AutoCleanup: true,
 		},
 		MD5:     MD5{Enabled: true, Level: "requested", VerifyCache: true, OnAllFail: "skip", MetaTimeoutSec: 15},
 		Import:  Import{Mode: "open", Preload: true, PreloadCount: 2},
@@ -361,9 +360,33 @@ func Default() Config {
 	}
 }
 
-// AllowedHosts are the only hosts the downloader may fetch from.
-// storage.osu.direct is where osu.direct redirects every download.
-var AllowedHosts = []string{"catboy.best", "osu.direct", "storage.osu.direct", "osu.ppy.sh"}
+// DefaultSources are the download mirrors, tried in order: the order
+// kiki-bm.app uses, then the official site. beatconnect cannot leave the
+// video out. Nerinyan is left out: it answered 404 for every map (2026-10).
+func DefaultSources() []Source {
+	return []Source{
+		{Name: "hinai", Enabled: true, URL: "https://mirror.hinamizawa.ai/api/v1/hinai/d/{id}", NoVideoURL: "https://mirror.hinamizawa.ai/api/v1/hinai/d/{id}?noVideo=1", TimeoutSec: 60},
+		{Name: "nekoha", Enabled: true, URL: "https://mirror.nekoha.moe/api/download/{id}", NoVideoURL: "https://mirror.nekoha.moe/api/download/{id}?noVideo=1", TimeoutSec: 60},
+		{Name: "beatconnect", Enabled: true, URL: "https://beatconnect.io/b/{id}/", TimeoutSec: 60},
+		{Name: "osu.direct", Enabled: true, URL: "https://osu.direct/api/d/{id}", NoVideoURL: "https://osu.direct/api/d/{id}?noVideo=1", TimeoutSec: 60},
+		{Name: "catboy", Enabled: true, URL: "https://catboy.best/d/{id}", NoVideoURL: "https://catboy.best/d/{id}n", Referer: "https://catboy.best/", TimeoutSec: 60},
+		{Name: "sayobot", Enabled: true, URL: "https://dl.sayobot.cn/beatmaps/download/full/{id}", NoVideoURL: "https://dl.sayobot.cn/beatmaps/download/novideo/{id}", TimeoutSec: 60},
+		{Name: "official", Enabled: true, URL: "https://osu.ppy.sh/beatmapsets/{id}/download", NoVideoURL: "https://osu.ppy.sh/beatmapsets/{id}/download?noVideo=1", TimeoutSec: 180, Official: true},
+	}
+}
+
+// sourcesRev is bumped when DefaultSources gains mirrors; a config.json
+// saved with an older list gets them (mergeSources).
+const sourcesRev = 2
+
+// AllowedHosts are the only hosts the downloader may fetch from. An entry
+// starting with "." also allows its subdomains. storage.osu.direct is
+// where osu.direct redirects every download, and Sayobot sends downloads
+// to numbered servers such as tc1.sayobot.cn:25225.
+var AllowedHosts = []string{
+	"mirror.hinamizawa.ai", "mirror.nekoha.moe", "beatconnect.io", "osu.direct", "storage.osu.direct",
+	"catboy.best", "dl.sayobot.cn", ".sayobot.cn", "osu.ppy.sh",
+}
 
 // Problem is one invalid setting. Code and Vars let the dashboard say it in
 // the viewer's language (T["e_"+code]); Msg is the English text.
@@ -633,8 +656,21 @@ func HostAllowed(raw string) bool {
 	}
 	host, _, _ := strings.Cut(rest, "/")
 	host, _, _ = strings.Cut(host, "?")
+	if strings.Contains(host, "@") {
+		return false // user info: "https://osu.ppy.sh@evil.example/"
+	}
+	if h, port, ok := strings.Cut(host, ":"); ok {
+		if _, err := strconv.Atoi(port); err != nil {
+			return false
+		}
+		host = h
+	}
+	host = strings.ToLower(host)
+	if host == "" || strings.HasPrefix(host, ".") || strings.Contains(host, "..") {
+		return false
+	}
 	for _, h := range AllowedHosts {
-		if host == h {
+		if host == h || (strings.HasPrefix(h, ".") && strings.HasSuffix(host, h) && len(host) > len(h)) {
 			return true
 		}
 	}
@@ -666,6 +702,16 @@ func Load(path string) (*Store, error) {
 		return nil, fmt.Errorf("config.json: %w", err)
 	}
 	s.cfg.TTS.fillTemplates()
+	var saved struct {
+		Download struct {
+			SourcesRev int `json:"sourcesRev"`
+		} `json:"download"`
+	}
+	json.Unmarshal(b, &saved)
+	if saved.Download.SourcesRev < sourcesRev {
+		s.cfg.Download.Sources = mergeSources(s.cfg.Download.Sources)
+		s.cfg.Download.SourcesRev = sourcesRev
+	}
 	if s.cfg.TTS.FollowersOnly && len(s.cfg.TTS.Allow) == 0 {
 		s.cfg.TTS.Allow, s.cfg.TTS.FollowersOnly = []string{"follower"}, false
 	}
@@ -673,6 +719,33 @@ func Load(path string) (*Store, error) {
 		return nil, fmt.Errorf("config.json: %w", err)
 	}
 	return s, nil
+}
+
+// mergeSources adds the mirrors of a newer DefaultSources to a saved list.
+// The list takes the default order; a mirror the streamer already had keeps
+// their settings (switched off stays off), and mirrors they added
+// themselves come after the defaults.
+func mergeSources(saved []Source) []Source {
+	byName := map[string]Source{}
+	for _, s := range saved {
+		byName[strings.ToLower(s.Name)] = s
+	}
+	var out []Source
+	known := map[string]bool{}
+	for _, d := range DefaultSources() {
+		key := strings.ToLower(d.Name)
+		known[key] = true
+		if s, ok := byName[key]; ok {
+			d = s
+		}
+		out = append(out, d)
+	}
+	for _, s := range saved {
+		if !known[strings.ToLower(s.Name)] {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // fillTemplates gives announcements added in a newer version their default
@@ -703,6 +776,7 @@ func (s *Store) Set(c Config) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
+	c.Download.SourcesRev = sourcesRev // the list is what the streamer chose
 	s.mu.Lock()
 	s.cfg = c
 	err := s.save()

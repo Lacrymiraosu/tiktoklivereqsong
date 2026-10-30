@@ -25,7 +25,7 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
 
 * รับคำขอจากแชท TikTok ผ่าน TikFinity รองรับทั้ง ID ลิงก์ osu! ทุกรูปแบบ และ**ชื่อเพลง** (`!req freedom dive`) ขอพร้อม **mod** ได้ (`!req 2096297 HDHR`)
 * ตรวจกฎ: ช่วงดาว (ตั้งแยกตามโหมดได้) ความยาว โหมด สถานะแมพ จำนวนคำขอต่อคน คูลดาวน์ แมพซ้ำ รายชื่อแบน เฉพาะผู้ติดตาม
-* ดาวน์โหลดจาก mirror (catboy.best → osu.direct → เว็บ osu! ทางการ) และตรวจ MD5 ให้ตรงกับเวอร์ชันล่าสุดบน osu!
+* ดาวน์โหลดจาก mirror (hinai → Nekoha → beatconnect → osu.direct → catboy.best → Sayobot → เว็บ osu! ทางการ ถ้าเจ้าไหนล่มจะไปเจ้าถัดไป) และตรวจ MD5 ให้ตรงกับเวอร์ชันล่าสุดบน osu!
 * เปิดแมพเข้า osu! (stable และ lazer) เมื่อกด **ถัดไป** หรือเปิดเองอัตโนมัติเมื่อเพลงก่อนหน้าเล่นจบ (ดูจาก tosu)
 * รองรับครบ 4 โหมด: osu!, taiko, catch, mania (แมพ convert ใช้ดาวของโหมดนั้นจาก osu!)
 * overlay บอกผู้ชมว่าคำขอเข้าคิวหรือถูกปฏิเสธเพราะอะไร แสดงเพลงที่เล่นอยู่ คิวถัดไป และผลการเล่น
@@ -80,7 +80,7 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
 ```
 แชท TikTok ──► TikFinity ──WebSocket──► osureq ──► osu.ppy.sh (ข้อมูลแมพ, MD5)
                                           │
-                                          ├──► catboy.best / osu.direct (ดาวน์โหลด .osz) ──► cache\
+                                          ├──► mirror: hinai, Nekoha, … (ดาวน์โหลด .osz) ──► cache\
                                           ├──► osu! (เปิด .osz หรือคัดลอกเข้า Songs)
           tosu ──WebSocket (สถานะเกม)────►│
                                           └──► แดชบอร์ด + overlay (http://127.0.0.1:21280)
@@ -90,7 +90,7 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
    osureq สนใจเฉพาะข้อความที่ขึ้นต้นด้วยคำสั่ง เช่น `!req`
 2. **ตรวจผู้ขอ**: เช็กรายชื่อแบน คิวเต็มหรือยัง จำนวนคำขอต่อคน และคูลดาวน์ โดยไม่ต้องใช้เน็ต
 3. **อ่านข้อมูลแมพ**: ดึงหน้าแมพจาก osu.ppy.sh (ไม่ต้องใช้ API key) เพื่อเอาชื่อเพลง ดาว ความยาว โหมด สถานะ และ MD5 ของแต่ละ diff
-   ถ้าขอด้วยชื่อเพลง จะค้นใน catboy.best ก่อน แล้วลองแมพที่ชื่อตรงที่สุด (เล่นเยอะสุดก่อน) จนกว่าจะเจอแมพที่ผ่านกฎ
+   ถ้าขอด้วยชื่อเพลง จะค้นใน mirror ก่อน (hinai ถ้าล่มไป Nekoha, osu.direct, catboy.best) แล้วลองแมพที่ชื่อตรงที่สุด (เล่นเยอะสุดก่อน) จนกว่าจะเจอแมพที่ผ่านกฎ
 4. **ตรวจกฎแมพ**: ดาว ความยาว โหมด สถานะ แมพซ้ำ และแมพที่เพิ่งเล่นไป
    ถ้าไม่ผ่าน overlay จะขึ้นเหตุผลให้ผู้ชมเห็น เพราะ TikFinity เขียนกลับลงแชท TikTok ไม่ได้
 5. **เข้าคิว**: คิวถูกบันทึกใน `queue.json` ปิดเปิดโปรแกรมใหม่คิวก็ยังอยู่ ส่วนคนที่ส่งของขวัญครบจะได้คิวพิเศษ (ถ้าเปิดไว้)
@@ -151,7 +151,7 @@ go build -trimpath -ldflags "-X main.version=1.4.2" -o dist\osureq.exe .
 * [osu!](https://osu.ppy.sh) โดย ppy Pty Ltd: ตัวเกม
 * [TikFinity](https://tikfinity.zerody.one/) โดย zerody: ส่งแชทและของขวัญจาก TikTok LIVE
 * [tosu](https://github.com/tosuapp/tosu): อ่านสถานะเกม osu! แบบสด
-* Mirror ดาวน์โหลดแมพ: [catboy.best](https://catboy.best) และ [osu.direct](https://osu.direct) ใช้ดาวน์โหลดไฟล์ `.osz` (catboy.best ใช้ค้นหาเพลงด้วย)
+* Mirror ดาวน์โหลดไฟล์ `.osz`: [hinai](https://mirror.hinamizawa.ai), [Nekoha](https://mirror.nekoha.moe), [beatconnect](https://beatconnect.io), [osu.direct](https://osu.direct), [catboy.best](https://catboy.best) และ [Sayobot](https://osu.sayobot.cn) (hinai, Nekoha, osu.direct และ catboy.best ใช้ค้นหาเพลงด้วย)
 * ไลบรารี Go: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys),
   [tc-hib/winres](https://github.com/tc-hib/winres), [nfnt/resize](https://github.com/nfnt/resize), [golang.org/x/image](https://pkg.go.dev/golang.org/x/image)
 * ฟอนต์: [Varela Round](https://fonts.google.com/specimen/Varela+Round) และ [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) จาก Google Fonts

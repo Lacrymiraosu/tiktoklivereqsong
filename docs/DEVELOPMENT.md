@@ -55,7 +55,7 @@ Thai: see [README.th.md](README.th.md).
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
 
 **Verified for real on the developer's PC:** TikFinity detection, WebSocket connection and `config` handshake;
-osu! metadata scraping; catboy downloads; MD5 verification (single diff and whole set); rejections; preload copy;
+osu! metadata scraping; mirror downloads; MD5 verification (single diff and whole set); rejections; preload copy;
 osu! folder auto-detection from the registry; the dashboard, settings and overlay; simulated chat; dry run;
 the anti-flicker rendering, overlay pop-ups, mod commands and gifts through simulated chat, second launch and Quit,
 audio preview and one-click bans. Auto mode and play results were verified against a **fake** tosu server.
@@ -70,11 +70,11 @@ pre-stream check, the osu.direct fix and the update check were also run against 
 ## Features
 
 * **Chat requests** via TikFinity only (`!req` + aliases, configurable), accepting IDs, every common osu! link form and **song names**
-  (`!req freedom dive`, searched on catboy.best and re-ranked by title match and play count).
+  (`!req freedom dive`, searched on the mirrors (hinai → Nekoha → osu.direct → catboy.best) and re-ranked by title match and play count).
 * **Validation**: star range, max length, modes, ranked statuses, set/mapper/user blacklists, queue size,
   per-user limit (the map being played does not count), cooldown, duplicates, no-repeat window, no-limit (exempt) users.
 * **Metadata and reference MD5** scraped from osu.ppy.sh (no API key), with a raw `.osu` fallback.
-* **Downloads** from catboy.best → osu.direct → official site (browser + Downloads folder), each optional and reorderable,
+* **Downloads** from hinai → Nekoha → beatconnect → osu.direct → catboy.best → Sayobot → official site (browser + Downloads folder), each optional and reorderable,
   with per-source timeouts, ZIP checks, a cache, size limit and auto-cleanup.
 * **MD5 verification** (`requested` or `strict`) against osu!'s current checksums; an outdated mirror copy is rejected.
 * **Import** by opening the `.osz` (stable + lazer), copying it into Songs, or extracting it (stable), plus **preload** of the next N maps.
@@ -220,11 +220,12 @@ Mods are the users in **Settings → Command → Mods**, plus TikTok moderators 
    (`Queue.AddFair`: a viewer's n-th waiting request is in round n; priority requests stay on top), else to the end. A saved gift priority is applied right away (see [Gifts](#gift-priority)).
    The overlay gets an "added" or "rejected" pop-up for every request (`app.FeedEvent`).
 6. **Download** (`internal/downloader`), sources in configured order:
-   1. `https://catboy.best/d/{setId}` (no video: `…/d/{setId}n`, sent with `Referer: https://catboy.best/`)
-   2. `https://osu.direct/api/d/{setId}` (no video: `?noVideo=1`)
-   3. **official**: opens `https://osu.ppy.sh/beatmapsets/{setId}/download` in the default browser and waits for `{setId} *.osz` in the Downloads folder. Only used when MD5 checking is on. The osu! password is never asked for or stored.
+   1. the mirrors, in the order of [Mirrors](#mirrors-internaldownloader-url-templates-in-config): hinai, Nekoha, beatconnect, osu.direct, catboy, Sayobot
+   2. **official**: opens `https://osu.ppy.sh/beatmapsets/{setId}/download` in the default browser and waits for `{setId} *.osz` in the Downloads folder. Only used when MD5 checking is on. The osu! password is never asked for or stored.
 
-   The cache is checked first. Each source has its own timeout, and the response must be a real ZIP.
+   The cache is checked first. Each source has its own timeout, and the response must be a real ZIP. A refused download shows the mirror's own
+   message (`HTTP 403: you have been banned…`); after HTTP 429 that mirror rests for its `Retry-After` (60 s when it gives none, at most an hour);
+   hinai's `404` with `code: "content_removed"` (taken down for the rights holder) stops the request instead of asking the other mirrors.
 7. **MD5 check** (`internal/verifier`): unzip in memory and hash every `.osu`:
    * `requested`: the requested difficulty must match (every difficulty when the request was a whole set).
    * `strict`: every difficulty on osu! must match, and the archive may not contain extra `.osu` files.
@@ -393,7 +394,7 @@ TikFinity Desktop ─ws──►│                                    ▼      
                         │                                    │                               │
                         │   app.Run/tick (every 2 s or on wake): preload, auto mode          │
                         │                                    ▼                               │
-                        │      downloader ─► verifier ─► cache\{setId}[n].osz                │──https──► catboy.best / osu.direct
+                        │      downloader ─► verifier ─► cache\{setId}[n].osz                │──https──► mirrors (hinai, Nekoha, …)
                         │                                    │                               │           (official: browser + Downloads)
                         │                                    ▼                               │
 osu! ◄──ShellExecute────│                               importer (open / copy / extract)    │
@@ -449,12 +450,12 @@ tiktoklivereqsong/
     │                 ban.go (+_test)       one-click bans (blacklist + drop matching requests)
     │                 preflight.go (+_test) pre-stream check
     │                 results_test.go       tosu → play result tests, stable/lazer detection
-    │                 search_test.go        song-name and gift-only requests against a fake catboy + osu!
+    │                 search_test.go        song-name and gift-only requests against a fake mirror + osu!
     ├── config/       config.go             config.json schema, defaults, validation, store with change subscribers
     ├── parser/       parser.go (+_test)    "!req …" → Request{Kind, SetID, BeatmapID, Mode, Bare}
     ├── osumeta/      osumeta.go (+_test)   osu.ppy.sh scraping: set metadata, reference MD5, beatmap→set, raw .osu fallback
     ├── mods/         mods.go (+_test)      mod parsing, clashes, speed, "played without"
-    ├── search/       search.go (+_test)    catboy.best song search, re-ranking by title match and plays
+    ├── search/       search.go (+_test)    song search on the mirrors, re-ranking by title match and plays
     │   └── testdata/                       a real (trimmed) search response
     ├── update/       update.go (+_test)    GitHub "latest release" check
     ├── support/      support.go (+_test)   the support zip
@@ -492,7 +493,7 @@ tiktoklivereqsong/
 | `internal/app/ban.go` | ~70 | Adds to a blacklist and removes matching waiting requests | `Ban` |
 | `internal/app/preflight.go` | ~180 | The pre-stream check | `Preflight`, `PreflightEnv`, `Check` |
 | `internal/gtts/gtts.go` | ~150 | Google Translate's voice for TTS when the browser has none for the language: 180-letter pieces joined as one MP3, last 30 lines cached | `Client`, `Speak`, `Split` |
-| `internal/search/search.go` | ~230 | catboy.best search (status filter, 1 request/s, 10 min cache), `Playable` (mode filter incl. converts), `Rank` | `Client`, `Find`, `Parse`, `Rank`, `Result` |
+| `internal/search/search.go` | ~420 | search on hinai → Nekoha → osu.direct → catboy (status filter, 429 rest, 1 request/s, 10 min cache), `Playable` (mode filter incl. converts), `Rank` | `Client`, `Mirror`, `Find`, `Parse`, `Rank`, `Result` |
 | `internal/update/update.go` | ~150 | Release check: `Newer` compares x.y.z, dev builds and pre-releases are never offered, links and zip/sha256 assets only from this repo's releases | `Run`, `Latest`, `Newer`, `Release` |
 | `internal/update/install.go` | ~200 | Automatic update: download the zip, check SHA-256, stage `osureq.update-<v>.exe` next to the exe, swap it in (`osureq.exe.old` kept until the next start), start the new copy in the same console | `Download`, `Staged`, `Install`, `Cleanup`, `Relaunch` |
 | `internal/mods/mods.go` | ~120 | Mod words → canonical string, clash rules, `Rate`, `Harder` (DT/NC/HR), `Missing` | `Parse`, `Has`, `Rate`, `Harder`, `Missing`, `Error` |
@@ -576,20 +577,41 @@ User-Agent `osureq/1.0 (TikTok LIVE request helper)`. Never embed osu! OAuth sec
 
 | Source | URL | No-video URL | Notes |
 |---|---|---|---|
-| catboy | `https://catboy.best/d/{id}` | `https://catboy.best/d/{id}n` | send `Referer: https://catboy.best/` (verified working) |
-| osu.direct | `https://osu.direct/api/d/{id}` | `https://osu.direct/api/d/{id}?noVideo=1` | answers with a 302 to a signed `storage.osu.direct` URL (verified); the no-video parameter is a best guess |
+In the order kiki-bm.app uses (`config.DefaultSources`), all checked live on 2026-10-30:
+
+| Source | URL | No-video URL | Notes |
+|---|---|---|---|
+| hinai | `https://mirror.hinamizawa.ai/api/v1/hinai/d/{id}` | `…?noVideo=1` | serves the file itself; 1000 `.osz`/min per IP; `503` + `Retry-After` when its sources are down for a set, `404 content_removed` for a takedown |
+| nekoha | `https://mirror.nekoha.moe/api/download/{id}` | `…?noVideo=1` | `404` = not downloaded yet, `410` = DMCA / no audio |
+| beatconnect | `https://beatconnect.io/b/{id}/` | none | always includes the video |
+| osu.direct | `https://osu.direct/api/d/{id}` | `…?noVideo=1` | 302 to a signed `storage.osu.direct` URL; 120 requests/min, 200 downloads/h, 8 GiB/day per IP |
+| catboy | `https://catboy.best/d/{id}` | `https://catboy.best/d/{id}n` | send `Referer: https://catboy.best/`; refuses requests without an identifying User-Agent |
+| sayobot | `https://dl.sayobot.cn/beatmaps/download/full/{id}` | `…/download/novideo/{id}` | 302 to a numbered server such as `tc1.sayobot.cn:25225` |
 | official | `https://osu.ppy.sh/beatmapsets/{id}/download` | `…?noVideo=1` | opened in the browser; the file is picked up from Downloads |
 
-nerinyan is deliberately not used (it was not working). Allowed hosts: `catboy.best`, `osu.direct`, `storage.osu.direct`, `osu.ppy.sh`
-(`config.AllowedHosts`). Every redirect hop is checked against the list (`CheckRedirect`), not only the final URL.
+Nerinyan is left out (530 on search and 404 for every map on 2026-10-30). Allowed hosts (`config.AllowedHosts`): `mirror.hinamizawa.ai`,
+`mirror.nekoha.moe`, `beatconnect.io`, `osu.direct`, `storage.osu.direct`, `catboy.best`, `dl.sayobot.cn`, subdomains of `sayobot.cn`, `osu.ppy.sh`;
+HTTPS only, any port, no user info. Every redirect hop is checked against the list (`CheckRedirect`), not only the final URL.
 
-### catboy.best search (`internal/search`)
+`download.sourcesRev` records which default list a saved `sources` was made from. A `config.json` from before these mirrors gets them on load
+(`mergeSources`: default order, mirrors the streamer already had keep their settings, their own mirrors come last); a list saved from the
+dashboard counts as chosen, so a mirror removed there stays removed.
 
-* `GET https://catboy.best/api/v2/search?q=<text>&limit=50&status=<n>…` with osu!'s numeric statuses (`graveyard -2, wip -1, pending 0,
-  ranked 1, approved 2, qualified 3, loved 4`) from `rules.statuses`. Answers a JSON array of beatmapsets (`id`, `artist`, `title`,
-  `creator`, `status`, `play_count`, `beatmaps[].mode`). **Verified** against the live API; a trimmed real response is the test fixture.
-* catboy refuses requests without an identifying User-Agent. `sort` is ignored by the API and its own order favours obscure uploads and
-  tag matches, hence `Rank`: title contains every word → artist + title contains every word, each by play count; results that match only
+### Song search (`internal/search`)
+
+The mirrors are asked in order (`search.DefaultMirrors`); one that fails, is resting after HTTP 429, or finds nothing hands over to the next
+(hinai answers `200 []` when its own sources are down). Statuses come from `rules.statuses` (osu!'s numbers: `graveyard -2, wip -1, pending 0,
+ranked 1, approved 2, qualified 3, loved 4`). `[` and `]` are dropped from the query: they start a filter block on hinai and osu.direct.
+
+| Mirror | Request | Notes |
+|---|---|---|
+| hinai | `GET https://mirror.hinamizawa.ai/api/v2/search?q=&amount=100&sort=play_count:desc[&status=n]` | only the first status is searched, so with several none is sent and the results are filtered here (ranked counts approved) |
+| nekoha | `GET https://mirror.nekoha.moe/api/search?q=&status=ranked,loved…` | status names; answers `{"beatmapsets": [...]}`, 100 a page; older sets have no `play_count`, so the difficulties' `playcount` is added up |
+| osu.direct | `GET https://osu.direct/api/v2/search?q=&amount=100&sort=play_count:desc&status=1,4…` | every status in one request |
+| catboy | `GET https://catboy.best/api/v2/search?q=&limit=50&status=1&status=4…` | refuses requests without an identifying User-Agent; a trimmed real response is the test fixture |
+
+All answer beatmapsets in osu!'s format (`id`, `artist`, `title`, `creator`, `status`, `play_count`, `beatmaps[].mode`). Their own order
+favours obscure uploads and tag matches, hence `Rank`: title contains every word → artist + title contains every word, each by play count; results that match only
   on tags are dropped (so a request answers "no map found" rather than queueing an unrelated map). `artist_unicode`/`title_unicode` count too.
 
 ### GitHub releases (`internal/update`)
@@ -731,7 +753,8 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `fair` | `false` | New requests take turns between viewers |
 | | `autoCloseAt` / `autoReopenAt` | `0` / `0` | Close requests when this many are waiting (0 = off); reopen at this many or fewer (must be lower) |
 | | `closeAt` | empty | `HH:MM` local time: close requests once when the clock passes it |
-| download | `sources` | catboy, osu.direct, official | Order, on/off, URL templates (`{id}`), no-video URL, referer, timeout, `official` flag |
+| download | `sources` | hinai, nekoha, beatconnect, osu.direct, catboy, sayobot, official | Order, on/off, URL templates (`{id}`), no-video URL, referer, timeout, `official` flag |
+| download | `sourcesRev` | 2 | Which default mirror list `sources` was made from; older lists get the new mirrors on load |
 | | `noVideo` | `true` | Uses the no-video URL when the set has a video |
 | | `cacheLimitMb` / `autoCleanup` | `2048` / `true` | Deletes the oldest unreferenced files when over the limit |
 | md5 | `enabled` | `true` | |
@@ -785,7 +808,7 @@ All live in the base folder (next to the exe, or `-dir`):
 
 * The dashboard server listens on `127.0.0.1` only. Requests with another `Host` header are refused (DNS rebinding). State-changing calls need `X-Osureq: 1`,
   which other websites cannot send without a CORS preflight that is never answered. The WebSocket accepts same-origin connections only.
-* Only numeric IDs and links on osu.ppy.sh are fetched directly; song names go to catboy's search API only. Downloads go only to whitelisted
+* Only numeric IDs and links on osu.ppy.sh are fetched directly; song names go to the mirrors' search APIs only. Downloads go only to whitelisted
   HTTPS hosts, and every redirect hop is checked, so no request is sent elsewhere.
 * Viewer pictures are used only when they are `https` URLs on TikTok's CDN hosts, and are escaped in the overlay.
 * The update check reads GitHub's release list and links to this repository's releases page. With `autoUpdate` it downloads only this repository's release zip, refuses it unless it matches the release's SHA-256 file, and runs it only by restarting osureq (on the next start or from the dashboard button). The release builds are not signed, so the hash file on the same release is the only check.
@@ -967,4 +990,4 @@ Read this before changing anything.
 ---
 
 Credits: [TikFinity](https://tikfinity.zerody.one/) for TikTok events, [tosu](https://github.com/tosuapp/tosu) for osu! game state,
-catboy.best and osu.direct mirrors, and the owner's osu! beatmap viewer for the visual design.
+the hinai, Nekoha, beatconnect, osu.direct, catboy.best and Sayobot mirrors, and the owner's osu! beatmap viewer for the visual design.

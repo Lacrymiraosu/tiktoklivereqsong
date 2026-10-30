@@ -15,7 +15,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
 )
 
-// fakeWeb answers catboy's search and osu!'s beatmapset pages.
+// fakeWeb answers a mirror's search and osu!'s beatmapset pages.
 type fakeWeb struct {
 	results string         // JSON array returned by the search
 	sets    map[int]string // set id -> beatmapset JSON
@@ -54,7 +54,7 @@ func searchApp(t *testing.T, web *fakeWeb, mutate func(*config.Config)) *App {
 	a.Meta.HTTP = &http.Client{Transport: web}
 	a.Search = search.New()
 	a.Search.MinGap = 0
-	a.Search.URL = "https://search.test/api/v2/search"
+	a.Search.Mirrors = []search.Mirror{search.Catboy("https://search.test/api/v2/search")}
 	a.Search.HTTP = &http.Client{Transport: web}
 	return a
 }
