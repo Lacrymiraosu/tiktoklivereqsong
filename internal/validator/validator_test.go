@@ -271,3 +271,46 @@ func TestPerModeStarLimits(t *testing.T) {
 		t.Errorf("mania 2.5★ over its own 2★: %+v", rej)
 	}
 }
+
+func TestSongKey(t *testing.T) {
+	same := [][2][2]string{
+		{{"xi", "FREEDOM DiVE"}, {"Xi", "Freedom Dive (Cut Ver.)"}},
+		{{"Natsukawa", "Kani*Do-Luck!"}, {"natsukawa", "Kani*Do-Luck! (TV Size)"}},
+		{{"Camellia", "Ghost"}, {"Camellia", "Ghost [Extended Mix] (Sped Up Ver.)"}},
+		{{"Hanatan", "Harumachi Clover"}, {"Hanatan", "Harumachi Clover ～Short ver.～"}},
+	}
+	for _, c := range same {
+		if a, b := SongKey(c[0][0], c[0][1]), SongKey(c[1][0], c[1][1]); a != b {
+			t.Errorf("%v and %v should be one song: %q vs %q", c[0], c[1], a, b)
+		}
+	}
+	if SongKey("xi", "FREEDOM DiVE") == SongKey("xi", "Blue Zenith") || SongKey("xi", "Ghost") == SongKey("Camellia", "Ghost") {
+		t.Error("different songs must not match")
+	}
+}
+
+func TestSongBlacklist(t *testing.T) {
+	list := []string{"xi - FREEDOM DiVE", "Ghost", "  "}
+	cases := []struct {
+		artist, title string
+		banned        bool
+	}{
+		{"xi", "FREEDOM DiVE (Cut Ver.)", true},
+		{"xi", "Blue Zenith", false},
+		{"Camellia", "Ghost (TV Size)", true}, // title-only entry: any artist
+		{"Someone", "Ghost", true},
+		{"Someone", "Ghostly", false},
+		{"other", "FREEDOM DiVE", false}, // artist given in the entry must match
+	}
+	for _, c := range cases {
+		if _, got := SongBanned(list, c.artist, c.title); got != c.banned {
+			t.Errorf("%s - %s: banned=%v, want %v", c.artist, c.title, got, c.banned)
+		}
+	}
+	rules := config.Default().Rules
+	rules.BlacklistSongs = list
+	set := &osumeta.Set{ID: 9, Artist: "xi", Title: "FREEDOM DiVE (Long Ver.)", Status: "ranked", Diffs: []osumeta.Diff{{ID: 1, Mode: "osu", Stars: 5}}}
+	if _, r := CheckMap(Input{Set: set}, State{}, rules, config.Default().Queue, time.Now()); r == nil || r.Code != "song_blacklisted" {
+		t.Errorf("CheckMap: %+v", r)
+	}
+}

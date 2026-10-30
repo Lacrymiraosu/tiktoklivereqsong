@@ -74,6 +74,10 @@ const T = {
   setupTitle: ["Before you go live", "ก่อนเริ่มไลฟ์"], hideDetails: ["hide details", "ซ่อนรายละเอียด"], showDetails: ["show details", "แสดงรายละเอียด"], banUser: ["Ban @{u}", "แบน @{u}"], banMap: ["Ban this map", "แบนแมพนี้"], banMapper: ["Ban mapper {m}", "แบนแมพเปอร์ {m}"],
   confirmBan_user: ["Ban @{v}? Their waiting requests are removed and new ones are rejected.", "แบน @{v}? คำขอที่รออยู่จะถูกลบ และคำขอใหม่จะถูกปฏิเสธ"],
   confirmBan_set: ["Ban beatmapset {v}? Waiting requests for it are removed.", "แบนเซ็ต {v}? คำขอที่รออยู่ของแมพนี้จะถูกลบ"],
+  confirmBan_song: ["Ban the song {v}? Every version of it (other sets, TV size, cut…) is rejected and waiting requests for it are removed.", "แบนเพลง {v}? ทุกเวอร์ชันของเพลงนี้ (เซ็ตอื่น TV size ตัดสั้น ฯลฯ) จะถูกปฏิเสธ และคำขอที่รออยู่จะถูกลบ"],
+  banSong: ["Ban this song (every version)", "แบนเพลงนี้ (ทุกเวอร์ชัน)"],
+  n_banned_song: ["Banned the song {v} (removed {n})", "แบนเพลง {v} แล้ว (ลบ {n} รายการ)"],
+  r_song_blacklisted: ["song blacklisted", "เพลงถูกแบน"],
   confirmBan_mapper: ["Ban maps by {v}? Waiting requests for their maps are removed.", "แบนแมพของ {v}? คำขอที่รออยู่ของแมพเหล่านี้จะถูกลบ"],
   banned: ["Banned {v} · removed {n}. Undo in Settings → Map rules.", "แบน {v} แล้ว · ลบ {n} คำขอ ยกเลิกได้ใน ตั้งค่า → กฎแมพ"],
   pvPlay: ["preview", "ฟังตัวอย่าง"], pvStop: ["stop", "หยุด"], pvFail: ["Could not play the preview", "เล่นตัวอย่างเพลงไม่ได้"],
@@ -633,6 +637,7 @@ function cardMenu(it) {
     h("hr"),
     h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("user", it.user) }, "⛔ " + t("banUser", { u: it.user })),
     h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("set", String(it.setId)) }, "⛔ " + t("banMap")),
+    h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("song", it.artist + " - " + it.title) }, "⛔ " + t("banSong")),
     it.creator ? h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("mapper", it.creator) }, "⛔ " + t("banMapper", { m: it.creator })) : null);
   const b = h("button", { class: "cbtn more", type: "button", title: t("more"), "aria-label": t("more"), "aria-haspopup": "menu",
     onclick: e => {
@@ -973,6 +978,7 @@ const SCHEMA = {
     F("rules.followersOnly", "switch", "Followers only", "เฉพาะผู้ติดตาม", "Rejects viewers TikTok reports as not following. If TikFinity does not send follow status, requests are let through and Activity shows a warning.", "ปฏิเสธผู้ชมที่ TikTok แจ้งว่ายังไม่ได้ติดตาม ถ้า TikFinity ไม่ส่งสถานะการติดตามมา จะปล่อยผ่านและแจ้งเตือนใน กิจกรรม"),
     F("rules.subscriberPerUserLimit", "number", "Requests per subscriber", "คำขอต่อคนสำหรับสมาชิก", "Waiting requests allowed for TikTok subscribers. 0 = same as everyone.", "จำนวนคำขอที่รอได้ของสมาชิก TikTok 0 = เท่ากับคนอื่น", { min: 0 }),
     F("rules.blacklistSets", "numlist", "Blacklisted set IDs", "ID เซ็ตที่แบน", "Comma separated", "คั่นด้วยจุลภาค"),
+    F("rules.blacklistSongs", "lines", "Blacklisted songs", "เพลงที่แบน", "One per line: Artist - Title, or just Title for any artist. Matches every version (other sets, TV size, cut…). Also from the ⋯ menu on a queue card.", "บรรทัดละเพลง: ศิลปิน - ชื่อเพลง หรือแค่ชื่อเพลง (ทุกศิลปิน) จับได้ทุกเวอร์ชัน (เซ็ตอื่น TV size ตัดสั้น ฯลฯ) แบนจากเมนู ⋯ บนการ์ดในคิวได้ด้วย"),
     F("rules.blacklistMappers", "list", "Blacklisted mappers", "แมพเปอร์ที่แบน", "Comma separated osu! usernames", "ชื่อผู้ใช้ osu! คั่นด้วยจุลภาค"),
     F("rules.blacklistUsers", "list", "Blacklisted TikTok users", "ผู้ใช้ TikTok ที่แบน", "Comma separated @uniqueId", "@uniqueId คั่นด้วยจุลภาค"),
   ],
@@ -1079,6 +1085,12 @@ function field(f) {
         const parts = i.value.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
         set(f.type === "numlist" ? parts.map(Number).filter(n => Number.isInteger(n) && n > 0) : parts);
       });
+      return h("div", { class: "row stack" }, text, i);
+    }
+    case "lines": { // one entry per line, for values that may contain commas
+      const i = h("textarea", { rows: 3, "aria-label": lbl(f.label), spellcheck: "false" });
+      i.value = (v || []).join("\n");
+      i.addEventListener("input", () => set(i.value.split("\n").map(s => s.trim()).filter(Boolean)));
       return h("div", { class: "row stack" }, text, i);
     }
     case "seg": {
