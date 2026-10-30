@@ -49,7 +49,7 @@ Thai: see [README.th.md](README.th.md).
 
 | | |
 |---|---|
-| Version | **1.4.1** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.4.2** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
 | Tests | `go test ./...`: 15 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
@@ -106,7 +106,7 @@ pre-stream check, the osu.direct fix and the update check were also run against 
 * **Test panel**: simulated chat through the real rules (requests and commands), quick add, simulated gifts, dry run (never touches osu!), clear test data.
 * **Pre-stream check**: one button checks TikFinity, tosu, the Songs folder, hotkeys, the overlay connection, osu.ppy.sh and every mirror.
 * **Session summary** ("This stream"): maps played and cleared, best play, top requesters; shown on the overlay on request.
-* **stable/lazer detection** from tosu, and an **update check** against GitHub releases (a button, never an automatic download).
+* **stable/lazer detection** from tosu, and **automatic updates** from GitHub releases: downloaded and SHA-256 checked in the background, installed the next time osureq starts (or right away from the button at the top).
 * **OBS overlay**: transparent page with now playing, requester (with TikTok picture), upcoming queue (priority marked), pop-ups and the session summary (themes, size, corner, language).
 * **Global hotkeys**: next, skip, remove last, toggle requests.
 * **Security**: 127.0.0.1-only server, Host and header checks, whitelisted download hosts, path-traversal-safe extraction.
@@ -335,7 +335,8 @@ whose chat is read (any one is enough, empty = everyone, no-limit users always):
 `isSubscriber`), `follower` (`followRole`/`isFollower`), `gifter` (sent a gift since the session started; kept in memory) and `mod`. A missing
 subscriber or follower flag counts as no, with one Activity warning (`ttsSubUnknown`, `ttsFollowUnknown`); the old `followersOnly` is read as
 `allow: ["follower"]`. `SpeakableText` removes links, emoji (symbol categories, joiners, skin tones, variation selectors) and runs longer than four of the same
-character, and cuts at `tts.maxLength`. The last 20 go out in the state as `speech` (newest first, increasing `id`).
+character, lowercases capital words of three letters or more (`SoftenCaps`: Google's Thai voice spells "KIKI" as K, I, K, I; two-letter ones such as GG or FC
+stay), and cuts at `tts.maxLength`. Announcement values (title, artist, mapper, …) are softened the same way. The last 20 go out in the state as `speech` (newest first, increasing `id`).
 
 The dashboard speaks them with the Web Speech API (`speechSynthesis`, i.e. the voices of Windows and the browser; Edge has natural ones).
 Browsers refuse to speak without a user gesture, so the top-bar **Start TTS** button starts it per tab; only tabs where it was clicked speak,
@@ -492,7 +493,8 @@ tiktoklivereqsong/
 | `internal/app/preflight.go` | ~180 | The pre-stream check | `Preflight`, `PreflightEnv`, `Check` |
 | `internal/gtts/gtts.go` | ~150 | Google Translate's voice for TTS when the browser has none for the language: 180-letter pieces joined as one MP3, last 30 lines cached | `Client`, `Speak`, `Split` |
 | `internal/search/search.go` | ~230 | catboy.best search (status filter, 1 request/s, 10 min cache), `Playable` (mode filter incl. converts), `Rank` | `Client`, `Find`, `Parse`, `Rank`, `Result` |
-| `internal/update/update.go` | ~130 | Release check: `Newer` compares x.y.z, dev builds and pre-releases are never offered, links only to this repo's releases | `Run`, `Latest`, `Newer`, `Release` |
+| `internal/update/update.go` | ~150 | Release check: `Newer` compares x.y.z, dev builds and pre-releases are never offered, links and zip/sha256 assets only from this repo's releases | `Run`, `Latest`, `Newer`, `Release` |
+| `internal/update/install.go` | ~200 | Automatic update: download the zip, check SHA-256, stage `osureq.update-<v>.exe` next to the exe, swap it in (`osureq.exe.old` kept until the next start), start the new copy in the same console | `Download`, `Staged`, `Install`, `Cleanup`, `Relaunch` |
 | `internal/mods/mods.go` | ~120 | Mod words → canonical string, clash rules, `Rate`, `Harder` (DT/NC/HR), `Missing` | `Parse`, `Has`, `Rate`, `Harder`, `Missing`, `Error` |
 | `internal/remote/remote.go` | ~440 | Mod panel: `Apply` starts/stops the listener on config changes; `guard` (private addresses, local Host names, header, CSP); PIN login with lockouts; limited state and actions | `Server`, `Apply`, `Status`, `Handler` |
 | `internal/support/support.go` | ~130 | Support zip, home-folder redaction, log tail | `Write`, `Input` |
@@ -594,6 +596,14 @@ nerinyan is deliberately not used (it was not working). Allowed hosts: `catboy.b
 
 * `GET https://api.github.com/repos/Lacrymiraosu/tiktoklivereqsong/releases/latest` (`tag_name`, `html_url`, `draft`, `prerelease`), unauthenticated
   (60 requests per hour per IP; osureq uses two a day). Only `html_url` under this repo's releases page is passed on.
+* With `autoUpdate`, the `osureq-<v>-windows-x64.zip` and `.zip.sha256` assets are downloaded, but only from
+  `https://github.com/Lacrymiraosu/tiktoklivereqsong/releases/download/` (GitHub then redirects to its file host). The zip must match the hash file;
+  its root `osureq.exe` is written to `osureq.update-<v>.exe` next to the running exe (`.part` first, then renamed).
+* Install: on start, before the dashboard or anything else runs, a staged update newer than the running version is swapped in
+  (`osureq.exe` → `osureq.exe.old`, staged → `osureq.exe`; put back if the second rename fails) and started with the same arguments in the same console,
+  and the old copy exits. The dashboard's update button (`installUpdate`) does the same after a clean shutdown and adds `-restarted`, which makes the new
+  copy wait up to 15 s for the port and not open another browser tab. Open dashboards and overlays reload themselves when the version changes.
+  osureq never restarts on its own while running.
 
 ### Windows
 
@@ -618,7 +628,7 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 | `GET /api/state` | the same `State` once |
 | `GET /api/config` | `{config, defaults}` |
 | `PUT /api/config` | replace the whole config (validated); `{ok, restartNeeded}` |
-| `POST /api/action/{name}` | `next`, `skip`, `removeLast`, `toggleRequests`, `clear`, `cleanup`, `toggleDryRun`, `clearTest`, `launchTikfinity`, `reconnect`, `openTikfinityDownload`, `launchTosu`, `reconnectTosu`, `openTosuDownload`, `stopTosu`, `stopTikfinity`, `quit`, `quitAll` (closes tosu and TikFinity, then quits), `showSummary`, `newSession` |
+| `POST /api/action/{name}` | `next`, `skip`, `removeLast`, `toggleRequests`, `clear`, `cleanup`, `toggleDryRun`, `clearTest`, `launchTikfinity`, `reconnect`, `openTikfinityDownload`, `launchTosu`, `reconnectTosu`, `openTosuDownload`, `stopTosu`, `stopTikfinity`, `quit`, `quitAll` (closes tosu and TikFinity, then quits), `installUpdate` (only when a downloaded update is ready: quits, installs and starts the new version), `showSummary`, `newSession` |
 | `POST /api/queue/{id}/{op}` | `remove`, `skip`, `play`, `retry`, `move` (body `{"to": <index>}`) |
 | `POST /api/test` | quick add: `{"input": "<id or link>", "user": "<name>"}` → `{ok, item}` or `{ok:false, code, error}` |
 | `POST /api/simulate` | simulated chat: `{"message": "!req …", "user": "<name>"}`; `code: "ignored"` when it is not a request; for a chat command `{ok, command: "cmd_done" \| "cmd_not_mod" \| "cmd_nothing"}` |
@@ -681,7 +691,8 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `tosuUrl` | `ws://127.0.0.1:24050/websocket/v2` | tosu's v2 WebSocket (must be on this PC) |
 | | `tosuPath` | empty | Filled in automatically the first time tosu is seen running |
 | | `autoLaunchTosu` | `false` | Start tosu if it is not running (needs `tosuPath`); paused after **Close tosu** until tosu is started again |
-| | `checkUpdates` | `true` | Ask GitHub twice a day for a newer release; shows a button, never downloads |
+| | `checkUpdates` | `true` | Ask GitHub twice a day for a newer release and show a button at the top |
+| | `autoUpdate` | `true` | With `checkUpdates`: download a newer release in the background and install it the next time osureq starts (the button installs it right away) |
 | osu | `game` | `stable` | `stable` or `lazer` |
 | | `detectGameTosu` | `true` | Switch `game` to the client tosu reports |
 | | `folder` | `%LOCALAPPDATA%\osu!` | osu! stable folder. If it has no Songs folder, the folder from the `.osz` association is used at startup and saved |
@@ -777,7 +788,7 @@ All live in the base folder (next to the exe, or `-dir`):
 * Only numeric IDs and links on osu.ppy.sh are fetched directly; song names go to catboy's search API only. Downloads go only to whitelisted
   HTTPS hosts, and every redirect hop is checked, so no request is sent elsewhere.
 * Viewer pictures are used only when they are `https` URLs on TikTok's CDN hosts, and are escaped in the overlay.
-* The update check only reads GitHub's release list and links to this repository's releases page; it never downloads or runs anything.
+* The update check reads GitHub's release list and links to this repository's releases page. With `autoUpdate` it downloads only this repository's release zip, refuses it unless it matches the release's SHA-256 file, and runs it only by restarting osureq (on the next start or from the dashboard button). The release builds are not signed, so the hash file on the same release is the only check.
 * Only `.osz` files that this run of the helper downloaded and verified are opened or imported (`Downloader.Trusted`). After a restart, queued items
   go back through the cache check.
 * File names are sanitised; extraction refuses absolute paths, drive letters, `..` and symlinks.
@@ -796,15 +807,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.4.1          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.4.2          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.4.1      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.4.1" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.2      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.4.2" -o dist\osureq.exe .
 ```
 
 ### Releases (GitHub Actions)
@@ -812,15 +823,15 @@ go build -trimpath -ldflags "-X main.version=1.4.1" -o dist\osureq.exe .
 `.github/workflows/build.yml` runs on every push to `main` and every pull request: `go vet`, `go test` and a build on
 `windows-latest`; the exe is kept as a workflow artifact for 14 days (version `0.0.0-dev+<commit>`).
 To publish a release, bump the version (Changelog row, Version row, `build.ps1` default) and merge it into `main`, then
-either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.1`) or tag and push:
+either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.2`) or tag and push:
 
 ```powershell
-git tag v1.4.1
-git push origin v1.4.1
+git tag v1.4.2
+git push origin v1.4.2
 ```
 
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
-creates the tag `v1.4.1` on that commit together with the release (a tag made by the workflow does not start another run).
+creates the tag `v1.4.2` on that commit together with the release (a tag made by the workflow does not start another run).
 The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 The tag build uses the tag's number for `main.version` and the Windows resources, and publishes a GitHub release with
 `osureq-<version>-windows-x64.zip` (`osureq.exe`, `LICENSE`, `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
@@ -929,6 +940,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
+| 1.4.2 | PR #6 | Updates install themselves: with `connection.autoUpdate` (default on, needs `checkUpdates`) a newer release's zip is downloaded from this project's GitHub releases, checked against its `.sha256` and installed the next time osureq starts, or right away with the dashboard's update button (`installUpdate`, restarts osureq); the dashboard and overlay reload when the version changes. TTS no longer spells capital words letter by letter (`SoftenCaps`: capital words of 3+ letters are lowercased in chat, names and announcement values; Google's Thai voice spelled "KIKI" as K, I, K, I) |
 | 1.4.1 | PR #5 | Chat TTS reads Thai: `tts.engine` (auto / browser / Google), auto uses Google Translate's voice through `POST /api/tts` when the browser has no voice for the language (Windows ships no Thai voice); a chosen browser voice is only used for its own language; Test panel plain chat is read aloud (`spoken`) instead of turned into `!req`; spoken request announcements on by default; Settings → TTS has a box to test the voice with your own line |
 | 1.4.0 | PR #1 | TTS for subscribers (ใจส้ม) / followers / gifters / mods only; spoken announcements from templates; chat TTS without commands; artist/title ban rules (`artist="…"`); search ignores tag-only matches; requests with mods; support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
 | 1.0.0 | `d106295` | First version: TikFinity chat, parser, osu! metadata, validation, queue, mirrors + MD5, import modes, preload, dashboard (EN/TH) and overlay, hotkeys, tests |
