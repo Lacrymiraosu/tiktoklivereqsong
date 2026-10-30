@@ -37,7 +37,8 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 .row{display:flex;align-items:center;gap:10px;padding:7px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-size:13px;animation:in .4s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i) * 60ms)}
 .row .n{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:600;background:var(--acc);color:var(--accdk)}
 .row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.row .r{flex:0 0 auto;color:var(--dim);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .r{flex:0 1 auto;color:var(--dim);font-size:12px;max-width:90px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .t{min-width:96px}
 .cmd{font-size:12px;color:var(--dim);padding:6px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);align-self:flex-start}
 .cmd b{color:var(--acc)}
 @keyframes in{from{opacity:0;transform:translateY(10px)}}
