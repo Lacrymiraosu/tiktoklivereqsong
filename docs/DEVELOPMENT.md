@@ -49,7 +49,7 @@ Thai: see [README.th.md](README.th.md).
 
 | | |
 |---|---|
-| Version | **1.4.0** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.4.1** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
 | Tests | `go test ./...`: 15 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
@@ -796,15 +796,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.4.0          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.4.1          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.4.0      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.4.0" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.1      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.4.1" -o dist\osureq.exe .
 ```
 
 ### Releases (GitHub Actions)
@@ -812,15 +812,15 @@ go build -trimpath -ldflags "-X main.version=1.4.0" -o dist\osureq.exe .
 `.github/workflows/build.yml` runs on every push to `main` and every pull request: `go vet`, `go test` and a build on
 `windows-latest`; the exe is kept as a workflow artifact for 14 days (version `0.0.0-dev+<commit>`).
 To publish a release, bump the version (Changelog row, Version row, `build.ps1` default) and merge it into `main`, then
-either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.0`) or tag and push:
+either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.1`) or tag and push:
 
 ```powershell
-git tag v1.4.0
-git push origin v1.4.0
+git tag v1.4.1
+git push origin v1.4.1
 ```
 
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
-creates the tag `v1.4.0` on that commit together with the release (a tag made by the workflow does not start another run).
+creates the tag `v1.4.1` on that commit together with the release (a tag made by the workflow does not start another run).
 The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 The tag build uses the tag's number for `main.version` and the Windows resources, and publishes a GitHub release with
 `osureq-<version>-windows-x64.zip` (`osureq.exe`, `LICENSE`, `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
@@ -929,6 +929,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
+| 1.4.1 | PR #5 | Chat TTS reads Thai: `tts.engine` (auto / browser / Google), auto uses Google Translate's voice through `POST /api/tts` when the browser has no voice for the language (Windows ships no Thai voice); a chosen browser voice is only used for its own language; Test panel plain chat is read aloud (`spoken`) instead of turned into `!req`; spoken request announcements on by default; Settings → TTS has a box to test the voice with your own line |
 | 1.4.0 | PR #1 | TTS for subscribers (ใจส้ม) / followers / gifters / mods only; spoken announcements from templates; chat TTS without commands; artist/title ban rules (`artist="…"`); search ignores tag-only matches; requests with mods; support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
 | 1.0.0 | `d106295` | First version: TikFinity chat, parser, osu! metadata, validation, queue, mirrors + MD5, import modes, preload, dashboard (EN/TH) and overlay, hotkeys, tests |
 | 1.0.1 | `9fabc98` | The map being played no longer counts toward the per-user limit; exempt users; bare number retried as set ID; osu! folder from the registry and `BeatmapDirectory`; pop-up on rejected chat requests |
