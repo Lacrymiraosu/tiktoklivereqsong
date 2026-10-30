@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -64,9 +65,18 @@ func TestRankRules(t *testing.T) {
 		{SetID: 5, Artist: "Natsukawa", Title: "Kani*Do-Luck!", Plays: 10},
 	}
 	got := Rank("Freedom Dive", rs)
-	order := []int{got[0].SetID, got[1].SetID, got[2].SetID, got[3].SetID}
-	if order[0] != 3 || order[1] != 2 || order[2] != 4 {
-		t.Errorf("order = %v, want title matches by plays, then artist+title, then the rest", order)
+	var order []int
+	for _, r := range got {
+		order = append(order, r.SetID)
+	}
+	if fmt.Sprint(order) != "[3 2 4]" {
+		t.Errorf("order = %v, want title matches by plays, then artist+title; tag-only matches dropped", order)
+	}
+	if got := Rank("night of nights", rs); len(got) != 0 {
+		t.Errorf("nothing has those words in artist or title: %v", got)
+	}
+	if got := Rank("短笛", []Result{{SetID: 1, Title: "Duan Di", TitleUnicode: "短笛・大王"}}); len(got) != 1 {
+		t.Errorf("original-script titles should match: %v", got)
 	}
 	if got := Rank("kanidoluck", rs); got[0].SetID != 5 {
 		t.Errorf("punctuation in a title should not stop a match: %v", got[0])
