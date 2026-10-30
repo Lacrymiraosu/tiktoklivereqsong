@@ -43,8 +43,9 @@ button,input{font:inherit;color:inherit}
 .row{border-radius:14px;border:1px solid var(--line);background:var(--bg2);padding:10px 12px;display:grid;grid-template-columns:26px minmax(0,1fr);gap:4px 10px}
 .row .n{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;background:var(--pink);color:var(--pinkdk)}
 .row .n.prio{background:var(--warn)}
-.row .t{font-size:15px;overflow-wrap:anywhere}
-.row .m{grid-column:2;font-size:12px;color:var(--dim);overflow-wrap:anywhere}
+.row .t,.row .m{display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.row .t{font-size:15px;-webkit-line-clamp:2}
+.row .m{grid-column:2;font-size:12px;color:var(--dim);-webkit-line-clamp:1}
 .row .acts{grid-column:1/-1;display:flex;gap:6px;justify-content:flex-end;margin-top:4px}
 .mods{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:9px;margin-right:6px;vertical-align:1px;background:var(--pink);color:var(--pinkdk)}
 .star{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;color:#1c1726;margin-right:6px;vertical-align:1px}
@@ -184,7 +185,7 @@ function render(s) {
   $("#queue").innerHTML = s.items.length ? s.items.map((it, i) => `<div class="row" data-id="${esc(it.id)}">
       <span class="n${it.priority ? " prio" : ""}">${it.priority ? "★" : i + 1}</span>
       <span class="t">${star(it)}${modsTag(it)}${esc(it.artist)} - ${esc(it.title)}</span>
-      <span class="m">[${esc(it.version)}] · @${esc(it.user)} · ${tx("st_" + it.state)}</span>
+      <span class="m">@${esc(it.user)} · ${tx("st_" + it.state)} · [${esc(it.version)}]</span>
       <div class="acts">
         <button class="btn sm" type="button" data-op="up" data-i="${i}"${i === 0 ? " disabled" : ""} aria-label="${tx("up")}">▲</button>
         <button class="btn sm" type="button" data-op="down" data-i="${i}"${i === s.items.length - 1 ? " disabled" : ""} aria-label="${tx("down")}">▼</button>

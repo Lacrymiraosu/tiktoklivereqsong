@@ -253,9 +253,11 @@ const T = {
   tpl_rejected_search_none: ["Rejected: no map with that name", "ถูกปฏิเสธ: ไม่พบแมพชื่อนี้"],
   tpl_nowplaying: ["Next map opens", "เปิดเพลงถัดไป"], tpl_np: ["!np (what is playing)", "!np (เพลงที่กำลังเล่น)"], tpl_np_none: ["!np with nothing playing", "!np ตอนยังไม่มีเพลง"], tpl_pos: ["!pos (queue position)", "!pos (ลำดับคิว)"], tpl_result_passed: ["Result: cleared", "ผลการเล่น: ผ่าน"], tpl_result_failed: ["Result: failed", "ผลการเล่น: ไม่ผ่าน"],
   tpl_gift: ["Gift", "ของขวัญ"], tpl_voteskip: ["Vote skip passed", "โหวตข้ามเพลงสำเร็จ"], tpl_auto_off: ["Requests closed (queue full or time)", "ปิดรับคำขอ (คิวเต็มหรือถึงเวลา)"], tpl_auto_on: ["Requests open again", "เปิดรับคำขออีกครั้ง"],
-  ttsStart: ["Start TTS", "เริ่มอ่านแชท"], ttsOn: ["TTS on", "อ่านแชทอยู่"],
-  ttsTitleOff: ["Browsers only speak after a click: click to start reading chat in this tab.", "เบราว์เซอร์จะพูดได้หลังคลิกเท่านั้น: คลิกเพื่อเริ่มอ่านแชทในแท็บนี้"],
-  ttsTitleOn: ["Reading chat aloud in this tab (commands are skipped). Click to stop.", "กำลังอ่านแชทในแท็บนี้ (ข้ามคำสั่ง) คลิกเพื่อหยุด"], ttsSkip: ["Skip this message", "ข้ามข้อความนี้"],
+  ttsStart: ["Start TTS", "เริ่มเสียงอ่าน"], ttsOn: ["TTS on", "เสียงอ่านเปิดอยู่"],
+  ttsTitleOff: ["Browsers only speak after a click: click to start TTS (chat and announcements) in this tab.", "เบราว์เซอร์จะพูดได้หลังคลิกเท่านั้น: คลิกเพื่อเริ่มเสียงอ่าน (แชทและประกาศ) ในแท็บนี้"],
+  ttsTitleOn: ["TTS is speaking in this tab (commands in chat are skipped). Click to stop.", "กำลังใช้เสียงอ่านในแท็บนี้ (ไม่อ่านคำสั่งในแชท) คลิกเพื่อหยุด"],
+  sg_chat: ["Reading chat", "อ่านแชท"], sg_voice: ["Voice", "เสียง"], sg_announce: ["Announcements", "ประกาศเหตุการณ์"],
+  modOn: ["on", "เปิดอยู่"], ttsSkip: ["Skip this message", "ข้ามข้อความนี้"],
   ttsNoVoice: ["This browser has no voice for {lang}. In Windows: Settings → Time & language → Speech → add a voice.", "เบราว์เซอร์นี้ไม่มีเสียงภาษา {lang} ใน Windows: การตั้งค่า → เวลาและภาษา → คำพูด → เพิ่มเสียง"],
   ttsSays_en: ["{name} says {text}", "{name} says {text}"], ttsSays_th: ["{name} บอกว่า {text}", "{name} บอกว่า {text}"],
   ttsSample: ["This is how chat will sound.", "เสียงอ่านแชทจะเป็นแบบนี้"], ttsAuto: ["best for the language", "เลือกให้ตามภาษา"],
@@ -263,6 +265,7 @@ const T = {
   e_tts_range: ["TTS: speed 0.5-2, volume 0-100, max length 10-500", "อ่านแชท: ความเร็ว 0.5-2 ระดับเสียง 0-100 ความยาว 10-500"],
   n_ttsSubUnknown: ["TTS: TikFinity did not say whether viewers are subscribers (ใจส้ม), so only your other groups are read", "TTS: TikFinity ไม่ได้บอกว่าผู้ชมเป็นสมาชิก (ใจส้ม) หรือไม่ จึงอ่านเฉพาะกลุ่มอื่นที่เลือกไว้"],
   n_ttsFollowUnknown: ["TTS: TikFinity did not say whether viewers follow, so only your other groups are read", "TTS: TikFinity ไม่ได้บอกว่าผู้ชมกดติดตามหรือไม่ จึงอ่านเฉพาะกลุ่มอื่นที่เลือกไว้"],
+  e_tts_template: ["Unknown announcement {event}", "ไม่รู้จักประกาศ {event}"], e_tts_template_long: ["Announcement {event} is longer than 300 letters", "ประกาศ {event} ยาวเกิน 300 ตัวอักษร"],
   e_tts_allow: ["Unknown TTS group {who}", "ไม่รู้จักกลุ่ม {who} ของเสียงอ่าน"],
   n_gameDetected: ["tosu sees osu! {game} running, so Settings → osu! → Game is now {game}", "tosu เห็นว่าเปิด osu! {game} อยู่ จึงเปลี่ยน ตั้งค่า → osu! → เกม เป็น {game} ให้"],
   n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
@@ -765,8 +768,7 @@ function renderSide() {
     h("dt", {}, t("mode")), h("dd", {}, S.playMode),
     h("dt", {}, t("cache")), h("dd", {}, S.cacheMb.toFixed(1) + " MB"),
     h("dt", {}, t("overlayUrl")), h("dd", {}, h("button", { class: "mlink", onclick: () => copy(ov) }, ov)),
-    ...(S.extra && S.extra.remote && S.extra.remote.enabled ? [h("dt", {}, t("modPanel")), h("dd", {}, ...(S.extra.remote.urls || []).map(u => h("div", {}, h("button", { class: "mlink", onclick: () => copy(u) }, u))),
-      S.extra.remote.sessions ? h("small", { class: "hint" }, t("modSessions", { n: S.extra.remote.sessions })) : null)] : []),
+    ...modPanelRow(S.extra && S.extra.remote),
     ...(S.extra ? [h("dt", {}, t("folder")), h("dd", {}, S.extra.baseDir)] : []));
 }
 
@@ -797,6 +799,15 @@ $("#supportBtn").addEventListener("click", e => busy(e.currentTarget, async () =
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   toast(t("supportSaved"));
 }));
+
+// modPanelRow: the mod panel's addresses in the Info box, or why there are none.
+function modPanelRow(r) {
+  if (!r || (!r.enabled && !r.error)) return [];
+  const body = r.error ? [h("span", { class: "serr", title: r.error }, r.error)]
+    : r.urls && r.urls.length ? r.urls.map(u => h("div", {}, h("button", { class: "mlink", onclick: () => copy(u) }, u)))
+    : [t("modOn"), h("small", { class: "hint", style: "display:block;white-space:normal" }, t("modNoLan"))];
+  return [h("dt", {}, t("modPanel")), h("dd", {}, ...body, r.sessions ? h("small", { class: "hint", style: "display:block" }, t("modSessions", { n: r.sessions })) : null)];
+}
 
 function copy(text) {
   navigator.clipboard.writeText(text).then(() => toast(t("copied")), () => toast(text));
@@ -1090,7 +1101,7 @@ const SCHEMA = {
     F("rules.modes", "multi", "Allowed modes", "โหมดที่อนุญาต", null, null, { options: MODES }),
     F("rules.statuses", "multi", "Allowed statuses", "สถานะที่อนุญาต", null, null, { options: STATUSES.map(s => [s, s]) }),
     F("rules.allowMods", "switch", "Requests with mods", "ขอเพลงพร้อม mod", "Viewers can add mods: !req 2096297 HDHR, or a song name ending in +HDHR. osu! cannot be told to use them: the mods show on the dashboard and overlay and you select them yourself (Activity warns if a result lacks one).", "ผู้ชมใส่ mod ได้ เช่น !req 2096297 HDHR หรือชื่อเพลงตามด้วย +HDHR โปรแกรมสั่ง osu! ให้ใส่ mod ไม่ได้ mod จะแสดงบนแดชบอร์ดและ overlay ให้คุณเลือกเอง (ถ้าเล่นไม่ครบ กิจกรรม จะแจ้งเตือน)"),
-    F("rules.bannedMods", "multi", "Mods not allowed", "mod ที่ไม่อนุญาต", null, null, { options: ["NF", "EZ", "HD", "HR", "SD", "DT", "HT", "NC", "FL", "SO", "PF", "FI", "MR"].map(m => [m, m]) }),
+    F("rules.bannedMods", "multi", "Mods not allowed", "mod ที่ไม่อนุญาต", null, null, { bad: true, options: ["NF", "EZ", "HD", "HR", "SD", "DT", "HT", "NC", "FL", "SO", "PF", "FI", "MR"].map(m => [m, m]) }),
     F("rules.hardModMaxStars", "number", "Max stars with DT/NC/HR", "ดาวสูงสุดเมื่อใส่ DT/NC/HR", "Stars are always the no-mod rating (osu! gives modded ratings only through its login API). Use this to stop, say, DT on maps above 5★. 0 = only the normal limit. Length counts DT/HT speed.", "ดาวที่ใช้เป็นแบบไม่มี mod เสมอ (osu! ให้ดาวพร้อม mod ผ่าน API ที่ต้องล็อกอินเท่านั้น) ใช้ค่านี้กัน เช่น DT บนแมพเกิน 5★ 0 = ใช้แค่ขีดจำกัดปกติ ความยาวคิดตามความเร็วของ DT/HT"),
     F("rules.followersOnly", "switch", "Followers only", "เฉพาะผู้ติดตาม", "Rejects viewers TikTok reports as not following. If TikFinity does not send follow status, requests are let through and Activity shows a warning.", "ปฏิเสธผู้ชมที่ TikTok แจ้งว่ายังไม่ได้ติดตาม ถ้า TikFinity ไม่ส่งสถานะการติดตามมา จะปล่อยผ่านและแจ้งเตือนใน กิจกรรม"),
     F("rules.subscriberPerUserLimit", "number", "Requests per subscriber", "คำขอต่อคนสำหรับสมาชิก", "Waiting requests allowed for TikTok subscribers. 0 = same as everyone.", "จำนวนคำขอที่รอได้ของสมาชิก TikTok 0 = เท่ากับคนอื่น", { min: 0 }),
@@ -1106,7 +1117,7 @@ const SCHEMA = {
     F("rules.exemptUsers", "list", "No-limit users", "ผู้ใช้ที่ไม่จำกัด", "Comma separated @uniqueId (you, your mods). They skip the per-user limit and cooldown.", "@uniqueId คั่นด้วยจุลภาค (คุณ หรือม็อด) ไม่ติดจำนวนคำขอต่อคนและคูลดาวน์"),
     F("queue.autoCloseAt", "number", "Close requests at (waiting)", "ปิดรับคำขอเมื่อคิวถึง", "Requests close by themselves when this many are waiting, and the overlay says so. 0 = off.", "ปิดรับคำขอเองเมื่อมีคำขอรออยู่เท่านี้ และแจ้งบน overlay 0 = ปิดฟีเจอร์นี้", { min: 0 }),
     F("queue.autoReopenAt", "number", "Open again at (waiting)", "เปิดรับอีกครั้งเมื่อเหลือ", "Requests closed by the line above open again at this many or fewer. Closing by hand is never undone.", "คำขอที่ปิดเองจากบรรทัดบนจะเปิดอีกครั้งเมื่อเหลือเท่านี้หรือน้อยกว่า ถ้าปิดเองด้วยมือจะไม่เปิดให้", { min: 0 }),
-    F("queue.closeAt", "text", "Close requests at (time)", "ปิดรับคำขอตอน (เวลา)", "HH:MM, e.g. 23:30, so the last requests fit before you end the stream. Once a day; empty = off.", "HH:MM เช่น 23:30 เพื่อให้เล่นคำขอสุดท้ายทันก่อนจบไลฟ์ ทำวันละครั้ง เว้นว่าง = ปิด"),
+    F("queue.closeAt", "time", "Close requests at (time)", "ปิดรับคำขอตอน (เวลา)", "E.g. 23:30, so the last requests fit before you end the stream. Once a day; ✕ = off.", "เช่น 23:30 เพื่อให้เล่นคำขอสุดท้ายทันก่อนจบไลฟ์ ทำวันละครั้ง ✕ = ปิด"),
     F("queue.fair", "switch", "Fair queue (take turns)", "คิวแบบผลัดกัน", "A viewer's second request waits until everyone else's first one, the third until everyone's second, and so on. Priority requests stay on top; moving cards by hand still works.", "คำขอที่ 2 ของผู้ชมคนหนึ่งจะรอจนทุกคนได้คำขอแรกก่อน คำขอที่ 3 รอทุกคนได้คำขอที่ 2 ไปเรื่อย ๆ คิวพิเศษยังอยู่บนสุด และยังลากการ์ดจัดเองได้"),
     F("queue.noRepeatMin", "number", "No repeat within (min)", "ห้ามซ้ำภายใน (นาที)", null, null, { min: 0 }),
     F("gifts.requestCoins", "number", "Gift-only requests: coins per request", "ขอเพลงด้วยของขวัญ: เหรียญต่อคำขอ", "Viewers must send gifts worth this many coins (added up) for each request; a rejected map costs nothing. No-limit users are free. Paid requests last as long as \"Unused priority lasts\". 0 = requests are free.", "ผู้ชมต้องส่งของขวัญรวมเท่านี้เหรียญต่อ 1 คำขอ ถ้าแมพถูกปฏิเสธจะไม่เสียสิทธิ์ ผู้ใช้ที่ไม่จำกัดขอได้ฟรี สิทธิ์อยู่ได้นานเท่ากับ \"สิทธิ์ที่ยังไม่ใช้อยู่ได้\" 0 = ขอฟรี", { min: 0 }),
@@ -1155,41 +1166,44 @@ const SCHEMA = {
     F("", "remoteinfo", "Address", "ที่อยู่"),
   ],
   tts: [
-    F("tts.enabled", "switch", "Read chat aloud (without commands)", "อ่านแชทออกเสียง (ไม่อ่านคำสั่ง)", "Reads TikTok chat in this dashboard with the voices of Windows, and never reads messages starting with ! (!req, !np…), links or emoji. Turn off TikFinity's own TTS so chat is not read twice. Browsers only speak after a click: press the TTS button at the top once per tab. OBS picks it up as desktop audio.", "อ่านแชท TikTok ในแดชบอร์ดนี้ด้วยเสียงของ Windows และไม่อ่านข้อความที่ขึ้นต้นด้วย ! (!req, !np…) ลิงก์ หรืออีโมจิ ให้ปิด TTS ของ TikFinity เพื่อไม่ให้อ่านซ้ำ เบราว์เซอร์จะพูดได้หลังคลิกเท่านั้น: กดปุ่ม TTS ด้านบนหนึ่งครั้งต่อแท็บ OBS จับเสียงได้ผ่าน Desktop Audio"),
-    F("tts.lang", "seg", "Language", "ภาษา", "auto picks Thai or English for each message by its letters.", "auto เลือกไทยหรืออังกฤษตามตัวอักษรของแต่ละข้อความ", { options: [["auto", "auto"], ["th", "ไทย"], ["en", "English"]] }),
-    F("tts.voice", "voice", "Voice", "เสียง", "Voices come from Windows and the browser (Edge has natural ones). Add Thai in Windows: Settings → Time & language → Speech.", "เสียงมาจาก Windows และเบราว์เซอร์ (Edge มีเสียงแบบธรรมชาติ) เพิ่มเสียงไทยใน Windows: การตั้งค่า → เวลาและภาษา → คำพูด"),
-    F("tts.rate", "number", "Speed", "ความเร็ว", null, null, { min: 0.5, max: 2, step: 0.1 }),
-    F("tts.volume", "number", "Volume (%)", "ระดับเสียง (%)", null, null, { min: 0, max: 100 }),
+    F("", "group", "sg_chat"),
+    F("tts.enabled", "switch", "Read chat aloud (without commands)", "อ่านแชทออกเสียง (ไม่อ่านคำสั่ง)", "Reads TikTok chat in this dashboard with the voices of Windows, and never reads messages starting with ! (!req, !np…), links or emoji. Turn off TikFinity's own TTS so chat is not read twice. Browsers only speak after a click: press \"🔈 Start TTS\" at the top once per tab. OBS picks it up as desktop audio.", "อ่านแชท TikTok ในแดชบอร์ดนี้ด้วยเสียงของ Windows และไม่อ่านข้อความที่ขึ้นต้นด้วย ! (!req, !np…) ลิงก์ หรืออีโมจิ ให้ปิด TTS ของ TikFinity เพื่อไม่ให้อ่านซ้ำ เบราว์เซอร์จะพูดได้หลังคลิกเท่านั้น: กดปุ่ม \"🔈 เริ่มเสียงอ่าน\" ด้านบนหนึ่งครั้งต่อแท็บ OBS จับเสียงได้ผ่าน Desktop Audio"),
     F("tts.readName", "switch", "Say who wrote it", "บอกชื่อคนพิมพ์", "\"name says …\"", "\"ชื่อ บอกว่า …\""),
     F("tts.maxLength", "number", "Max letters per message", "ความยาวสูงสุดต่อข้อความ", "Longer messages are cut.", "ข้อความที่ยาวกว่านี้จะถูกตัด", { min: 10, max: 500 }),
     F("tts.cooldownSec", "number", "Per-viewer cooldown (s)", "คูลดาวน์ต่อคน (วินาที)", "A viewer's next message within this time is not read.", "ข้อความถัดไปของคนเดิมภายในเวลานี้จะไม่ถูกอ่าน", { min: 0 }),
     F("tts.allow", "multi", "Whose chat is read", "อ่านแชทของใคร", "None selected = everyone. Otherwise a viewer needs any one: a subscription (ใจส้ม), following, a gift during this stream, or being a mod. No-limit users are always read. Subscriber and follower come from TikFinity; when it does not send them, they count as no (Activity says so once).", "ไม่เลือกเลย = อ่านทุกคน ถ้าเลือก ผู้ชมต้องตรงอย่างน้อยหนึ่งข้อ: สมัครสมาชิก (ใจส้ม), กดติดตาม, ส่งของขวัญในไลฟ์นี้ หรือเป็นม็อด ผู้ใช้ที่ไม่จำกัดจะถูกอ่านเสมอ สถานะสมาชิกและผู้ติดตามมาจาก TikFinity ถ้าไม่ส่งมาจะถือว่าไม่ใช่ (แจ้งใน กิจกรรม ครั้งเดียว)",
       { options: [["subscriber", ["ใจส้ม (subscriber)", "ใจส้ม (สมาชิก)"]], ["follower", ["follower", "ผู้ติดตาม"]], ["gifter", ["sent a gift", "ส่งของขวัญแล้ว"]], ["mod", ["mod", "ม็อด"]]] }),
     F("tts.blockedWords", "list", "Blocked words", "คำต้องห้าม", "Comma separated. Messages containing one are not read.", "คั่นด้วยจุลภาค ข้อความที่มีคำเหล่านี้จะไม่ถูกอ่าน"),
+    F("", "group", "sg_voice"),
+    F("tts.lang", "seg", "Language", "ภาษา", "auto picks Thai or English for each message by its letters.", "auto เลือกไทยหรืออังกฤษตามตัวอักษรของแต่ละข้อความ", { options: [["auto", "auto"], ["th", "ไทย"], ["en", "English"]] }),
+    F("tts.voice", "voice", "Voice", "เสียง", "Voices come from Windows and the browser (Edge has natural ones). Add Thai in Windows: Settings → Time & language → Speech.", "เสียงมาจาก Windows และเบราว์เซอร์ (Edge มีเสียงแบบธรรมชาติ) เพิ่มเสียงไทยใน Windows: การตั้งค่า → เวลาและภาษา → คำพูด"),
+    F("tts.rate", "number", "Speed", "ความเร็ว", null, null, { min: 0.5, max: 2, step: 0.1 }),
+    F("tts.volume", "number", "Volume (%)", "ระดับเสียง (%)", null, null, { min: 0, max: 100 }),
     F("", "ttstest", "Test the voice", "ทดลองเสียง"),
-    F("tts.announce", "switch", "Announce requests", "ประกาศคำขอด้วยเสียง", "Says what happens to requests with the lines below, e.g. \"test1 ขอเพลง …\" or \"เพลง … ยากเกินไป 7.25 ดาว\". Uses the same voice settings and the same TTS button at the top; works with chat reading on or off.", "พูดว่าเกิดอะไรกับคำขอตามข้อความด้านล่าง เช่น \"test1 ขอเพลง …\" หรือ \"เพลง … ยากเกินไป 7.25 ดาว\" ใช้การตั้งค่าเสียงและปุ่มเสียงด้านบนเดียวกัน ใช้ได้ทั้งตอนเปิดหรือปิดการอ่านแชท"),
-    F("", "tplpreset", "Announcement lines", "ข้อความที่ประกาศ", "tplHelp"),
-    F("tts.templates.added", "template", "", ""),
-    F("tts.templates.rejected", "template", "", ""),
-    F("tts.templates.rejected_stars_high", "template", "", ""),
-    F("tts.templates.rejected_stars_low", "template", "", ""),
-    F("tts.templates.rejected_mod_stars", "template", "", ""),
-    F("tts.templates.rejected_too_long", "template", "", ""),
-    F("tts.templates.rejected_duplicate", "template", "", ""),
-    F("tts.templates.rejected_recently_played", "template", "", ""),
-    F("tts.templates.rejected_cooldown", "template", "", ""),
-    F("tts.templates.rejected_user_limit", "template", "", ""),
-    F("tts.templates.rejected_search_none", "template", "", ""),
-    F("tts.templates.nowplaying", "template", "", ""),
-    F("tts.templates.np", "template", "", ""),
-    F("tts.templates.np_none", "template", "", ""),
-    F("tts.templates.pos", "template", "", ""),
-    F("tts.templates.result_passed", "template", "", ""),
-    F("tts.templates.result_failed", "template", "", ""),
-    F("tts.templates.gift", "template", "", ""),
-    F("tts.templates.voteskip", "template", "", ""),
-    F("tts.templates.auto_off", "template", "", ""),
-    F("tts.templates.auto_on", "template", "", ""),
+    F("", "group", "sg_announce"),
+    F("tts.announce", "switch", "Announce requests", "ประกาศคำขอด้วยเสียง", "Says what happens to requests with the lines below, e.g. \"test1 ขอเพลง …\" or \"เพลง … ยากเกินไป 7.25 ดาว\". Uses the same voice settings and the same TTS button at the top; works with chat reading on or off.", "พูดว่าเกิดอะไรกับคำขอตามข้อความด้านล่าง เช่น \"test1 ขอเพลง …\" หรือ \"เพลง … ยากเกินไป 7.25 ดาว\" ใช้การตั้งค่าเสียงและปุ่มเสียงด้านบนเดียวกัน ใช้ได้ทั้งตอนเปิดหรือปิดการอ่านแชท", { rerender: true }),
+    F("", "tplpreset", "Announcement lines", "ข้อความที่ประกาศ", "tplHelp", null, { when: "tts.announce" }),
+    F("tts.templates.added", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_stars_high", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_stars_low", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_mod_stars", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_too_long", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_duplicate", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_recently_played", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_cooldown", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_user_limit", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_search_none", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.nowplaying", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.np", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.np_none", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.pos", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.result_passed", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.result_failed", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.gift", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.voteskip", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.auto_off", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.auto_on", "template", "", "", null, null, { when: "tts.announce" }),
   ],
   hotkeys: [
     F("hotkeys.enabled", "switch", "Global hotkeys", "ปุ่มลัดทั้งระบบ", "Work while osu! is focused. Format: Ctrl+Alt+N, Shift+F5, F9…", "ใช้ได้แม้กำลังอยู่ใน osu! รูปแบบ: Ctrl+Alt+N, Shift+F5, F9…"),
@@ -1217,7 +1231,10 @@ function renderSettings() {
   tabs.replaceChildren(...Object.keys(SCHEMA).map(k => h("button", { class: "tab" + (k === tab ? " on" : ""), role: "tab", "aria-selected": k === tab ? "true" : "false", onclick: () => { tab = k; renderSettings(); } }, t("tab_" + k))));
   const body = $("#setBody");
   const box = h("div", { class: "card2" });
-  for (const f of SCHEMA[tab]) box.append(field(f));
+  for (const f of SCHEMA[tab]) {
+    if (f.when && !getP(draft, f.when)) continue; // e.g. announcement lines only while announcements are on
+    box.append(field(f));
+  }
   body.replaceChildren(box);
 }
 
@@ -1226,9 +1243,17 @@ function field(f) {
   const text = h("div", { class: "swt" }, h("b", {}, lbl(f.label)), f.hint ? h("small", {}, lbl(f.hint)) : null);
   const set = x => setP(draft, f.path, x);
   switch (f.type) {
+    case "group":
+      return h("div", { class: "sgroup" }, t(f.label[0]));
+    case "time": {
+      const i = h("input", { type: "time", value: v || "", "aria-label": lbl(f.label) });
+      const clear = h("button", { class: "btn sm ghost", type: "button", onclick: () => { i.value = ""; set(""); } }, "✕");
+      i.addEventListener("input", () => set(i.value));
+      return h("div", { class: "row" }, text, h("div", { class: "ovlink" }, i, clear));
+    }
     case "switch": {
       const i = h("input", { type: "checkbox", class: "switch", "aria-label": lbl(f.label) }); i.checked = !!v;
-      i.addEventListener("change", () => set(i.checked));
+      i.addEventListener("change", () => { set(i.checked); if (f.rerender) renderSettings(); });
       return h("label", { class: "row", style: "cursor:pointer" }, text, i);
     }
     case "text": case "hotkey": {
@@ -1269,7 +1294,7 @@ function field(f) {
       return h("div", { class: "row" }, text, s);
     }
     case "multi": {
-      const c = h("div", { class: "chips" });
+      const c = h("div", { class: "chips" + (f.bad ? " bad" : "") });
       const draw = () => {
         const cur = getP(draft, f.path) || [];
         c.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: "chip" + (cur.includes(val) ? " on" : ""), onclick: () => {
