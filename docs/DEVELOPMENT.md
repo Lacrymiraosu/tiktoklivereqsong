@@ -89,6 +89,11 @@ pre-stream check, the osu.direct fix and the update check were also run against 
   and for mods `!skip`, `!remove @user`, `!reqon`, `!reqoff`. Mods = a list, plus TikTok moderators. Answers appear on the overlay.
 * **Gift priority** (opt-in): gift coins add up per viewer; each full amount moves their oldest waiting request to the top or is saved for the next one.
 * **Gift-only requests** (opt-in): each request costs gift coins; a rejected map costs nothing.
+* **Fair queue** (opt-in): a viewer's second request waits behind everyone's first, and so on.
+* **Automatic open/close**: requests close at a queue size and reopen when it is short again, and close at a set time.
+* **Song bans**: ban a song by artist and title; every set of it (TV size, cut, remaps) is rejected.
+* **Mod panel** (opt-in): a PIN-protected phone page on the home network for Next, Skip, moving/removing requests and requests on/off.
+* **Support file**: one zip (log, raw TikFinity events, settings, state) to send after a stream with a problem.
 * **Viewer roles**: followers-only mode and a higher per-user limit for subscribers (when TikFinity sends these flags).
 * **One-click bans** of a requester, map or mapper from a queue card or the rejection log.
 * **Audio preview** of queued maps and a link to open them in the owner's **beatmap viewer**.
@@ -195,12 +200,13 @@ Mods are the users in **Settings → Command → Mods**, plus TikTok moderators 
    then unknown, so they are not checked and the item gets a warning. A bare number that is not found is retried with the other meaning (beatmap ↔ set).
    A **song name** is searched first (`internal/search`, see below); the first three results are looked up and checked by the map rules in turn,
    and the first that passes is taken as a whole-set request. If none passes, the first one's rejection is used with its title in front of `short`.
-4. **Map rules** (`validator.CheckMap`): set/mapper blacklist, status, duplicate (queued or playing), no-repeat window, then mode, stars and length
+4. **Map rules** (`validator.CheckMap`): set/mapper/song blacklist, status, duplicate (queued or playing), no-repeat window, then mode, stars and length
    on the requested diff. A `#taiko/#fruits/#mania` link to an osu! diff is a **convert**: it is checked with osu!'s rating for that mode
    (`converts` in the page JSON; unknown stars when osu! has none). Star limits come from `rules.modeStars` for that mode when set, else
    `minStars`/`maxStars`. For whole-set requests, native diffs are tried mode by mode in the order of `rules.modes` (osu! first by default)
    and the hardest one that passes is chosen.
-5. **Queue** (`internal/queue`): saved to `queue.json` and kept across restarts. A saved gift priority is applied right away (see [Gifts](#gift-priority)).
+5. **Queue** (`internal/queue`): saved to `queue.json` and kept across restarts. With `queue.fair` the request goes to the end of its owner's round
+   (`Queue.AddFair`: a viewer's n-th waiting request is in round n; priority requests stay on top), else to the end. A saved gift priority is applied right away (see [Gifts](#gift-priority)).
    The overlay gets an "added" or "rejected" pop-up for every request (`app.FeedEvent`).
 6. **Download** (`internal/downloader`), sources in configured order:
    1. `https://catboy.best/d/{setId}` (no video: `…/d/{setId}n`, sent with `Referer: https://catboy.best/`)
@@ -223,7 +229,16 @@ Mods are the users in **Settings → Command → Mods**, plus TikTok moderators 
 Rejection reason codes (shown translated on the dashboard): `user_blacklisted`, `queue_full`, `user_limit`, `cooldown`, `set_blacklisted`,
 `mapper_blacklisted`, `status`, `duplicate`, `recently_played`, `not_found`, `mode`, `stars_low`, `stars_high`, `too_long`, `meta_error`,
 `bad_input`, `requests_off`, `followers_only`, `now_playing`, `no_convert` (a taiko/catch/mania map requested in another mode: only osu! maps convert),
-`search_none`, `search_error`, `needs_gift`. Each rejection also has a language-neutral `short` detail (e.g. `5.88★ > 5.00★`, `60s`, `2/2`) used by the overlay.
+`search_none`, `search_error`, `needs_gift`, `song_blacklisted`.
+
+Song bans (`rules.blacklistSongs`) compare `validator.SongKey(artist, title)`: lower case, letters and digits only, with trailing version tags
+removed from the title (`(TV Size)`, `[Extended Mix]`, `～Short ver.～`, `-Cut Ver.-`). An entry without " - " is a title for any artist.
+
+### Automatic open/close
+
+`app.autoRequests` runs on every tick (2 s and on queue changes). It closes requests when the waiting count **reaches** `queue.autoCloseAt`
+(on the change only), reopens them at `queue.autoReopenAt` or fewer **only if it closed them**, and closes them once when the clock passes
+`queue.closeAt`. Opening or closing by hand always wins. The overlay gets a `status` pop-up (`auto_off`, `auto_on`, `time_off`). Each rejection also has a language-neutral `short` detail (e.g. `5.88★ > 5.00★`, `60s`, `2/2`) used by the overlay.
 
 ### Gift priority
 
@@ -277,6 +292,9 @@ The **Test** panel on the dashboard works while TikFinity is offline:
 * **Pre-stream check** (`POST /api/preflight`, button next to Dry run): see [Pre-stream check](#pre-stream-check).
 * Chat commands (`!skip`, `!remove`, …) can be typed in Simulate chat too; mods are checked against the Mods list.
 * **Dry run** (`test.dryRun`): Next/Play move the queue (auto mode runs too) but never open osu! or copy into Songs. A `DRY RUN` badge shows. Downloads and MD5 checks still happen.
+* **Support file** (`POST /api/support`, Info box): a zip with the end of `osureq.log` (2 MB, plus `.old` if short), `tikfinity-events.json`
+  (first event of each kind, the first command chat and the first counted gift, and the recent events when logged), `config.json` (mod panel
+  PIN hidden) and `state.json`. The Windows home folder is replaced by `~` everywhere (`internal/support`).
 * **Clear test data**: removes test requests (also from now playing), their history and rejections, cooldowns set by simulated chat, and test gift credits.
 
 ### Pre-stream check
@@ -374,6 +392,9 @@ tiktoklivereqsong/
     ├── search/       search.go (+_test)    catboy.best song search, re-ranking by title match and plays
     │   └── testdata/                       a real (trimmed) search response
     ├── update/       update.go (+_test)    GitHub "latest release" check
+    ├── support/      support.go (+_test)   the support zip
+    ├── remote/       remote.go (+_test)    mod panel: second listener, PIN sessions, private-network guard
+    │   └── web/mod.html                    the phone page (embedded)
     ├── validator/    validator.go (+_test) CheckUser / CheckMap → *Rejection{Code, Detail}
     ├── queue/        queue.go (+_test)     items, now playing, history, rejections, cooldowns; queue.json persistence
     │                 gifts.go (+_test)     gift credits, priority tokens, prioritise, paid requests
@@ -407,6 +428,8 @@ tiktoklivereqsong/
 | `internal/app/preflight.go` | ~200 | The pre-stream check | `Preflight`, `PreflightEnv`, `Check` |
 | `internal/search/search.go` | ~250 | catboy.best search (status filter, 1 request/s, 10 min cache), `Playable` (mode filter incl. converts), `Rank` | `Client`, `Find`, `Parse`, `Rank`, `Result` |
 | `internal/update/update.go` | ~130 | Release check: `Newer` compares x.y.z, dev builds and pre-releases are never offered, links only to this repo's releases | `Run`, `Latest`, `Newer`, `Release` |
+| `internal/remote/remote.go` | ~420 | Mod panel: `Apply` starts/stops the listener on config changes; `guard` (private addresses, local Host names, header, CSP); PIN login with lockouts; limited state and actions | `Server`, `Apply`, `Status`, `Handler` |
+| `internal/support/support.go` | ~150 | Support zip, home-folder redaction, log tail | `Write`, `Input` |
 | `internal/queue/summary.go` | ~110 | Session start (kept across restarts, new after 6 idle hours) and the summary | `Summary`, `NewSession` |
 | `internal/config/config.go` | ~310 | All settings structs with JSON names, `Default()`, `Validate()`, download host whitelist, `Store` (atomic save via `.tmp` + rename, `OnChange` subscribers). Unknown/missing fields fall back to defaults because the file is unmarshalled over `Default()` | `Config`, `Connection`, `Osu`, `Command`, `Rules`, `Queue`, `Source`, `Download`, `MD5`, `Import`, `Overlay`, `Hotkeys`, `Test`, `HostAllowed`, `Store` |
 | `internal/parser/parser.go` | ~150 | Command matching (case-insensitive, aliases), ID and link parsing, `#mode/id` fragments, rejects foreign hosts and non-numeric IDs. `Bare` marks plain numbers so the app can retry as the other kind | `Parse`, `ParseArg`, `Request`, `Request.Flip`, `Kind` |
@@ -533,6 +556,7 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 | `POST /api/test` | quick add: `{"input": "<id or link>", "user": "<name>"}` → `{ok, item}` or `{ok:false, code, error}` |
 | `POST /api/simulate` | simulated chat: `{"message": "!req …", "user": "<name>"}`; `code: "ignored"` when it is not a request; for a chat command `{ok, command: "cmd_done" \| "cmd_not_mod" \| "cmd_nothing"}` |
 | `POST /api/simulateGift` | `{"user": "<name>", "coins": 30}` → `{ok, earned, requests}` (priorities and paid requests earned) |
+| `POST /api/support` | the support zip (`application/zip`, attachment) |
 | `POST /api/preflight` | runs the pre-stream check (a few seconds) → `{ok, checks: [{id, status, key, vars, detail}]}` |
 | `POST /api/volume` | `{"volume": 0-100}` sets the master volume |
 | `POST /api/ban` | `{"kind": "user" \| "set" \| "mapper", "value": "…"}` → `{ok, removed}` |
@@ -541,6 +565,10 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 `requests`, `resolving`, `notices`, `feed` (overlay pop-up events), `cacheMb`, `overlay`, `command`, `search`, `requestCoins`, `lang`, `playMode`, `viewerUrl`, `blacklistUsers`, `dryRun`,
 `voteSkip` (`votes`, `needed`), `update` (`version`, `url`, only when newer), `summary`, `summaryShown`, `raw`, `firstRaw`,
 `extra` (`hotkeyErrors`, `baseDir`, `cacheDir`).
+
+**Mod panel** (separate listener, `remote.port`, default 21281, only when `remote.enabled`): `GET /m` (page), `POST /m/login` `{"pin"}`
+(sets the `osureq_mod` cookie; `401 wrong_pin`, `429 locked`), `POST /m/logout`, `GET /m/api/state` (now playing, queue, requests, TikFinity/tosu
+level, votes), `POST /m/api/action/{next|skip|toggleRequests}`, `POST /m/api/queue/{id}/{remove|skip|move}`. Everything else answers 404.
 
 Example (PowerShell):
 
@@ -608,6 +636,7 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `modes` | all four | `osu`, `taiko`, `fruits`, `mania` |
 | | `statuses` | ranked, approved, qualified, loved | plus `pending`, `wip`, `graveyard` |
 | | `blacklistSets` / `blacklistMappers` / `blacklistUsers` | empty | |
+| | `blacklistSongs` | empty | `Artist - Title` (or `Title`) per entry; matches every set of the song |
 | | `exemptUsers` | empty | TikTok users who skip followers-only, the per-user limit and cooldown |
 | | `followersOnly` | `false` | Reject viewers TikTok reports as not following (unknown is let through) |
 | | `subscriberPerUserLimit` | `0` | Per-user limit for subscribers; 0 = same as everyone |
@@ -617,6 +646,9 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `noRepeatMin` | `60` | Block maps played within this many minutes |
 | | `playMode` | `manual` | `manual` or `auto` (tosu) |
 | | `autoGapSec` | `5` | Seconds after the song ends before the next map opens |
+| | `fair` | `false` | New requests take turns between viewers |
+| | `autoCloseAt` / `autoReopenAt` | `0` / `0` | Close requests when this many are waiting (0 = off); reopen at this many or fewer (must be lower) |
+| | `closeAt` | empty | `HH:MM` local time: close requests once when the clock passes it |
 | download | `sources` | catboy, osu.direct, official | Order, on/off, URL templates (`{id}`), no-video URL, referer, timeout, `official` flag |
 | | `noVideo` | `true` | Uses the no-video URL when the set has a video |
 | | `cacheLimitMb` / `autoCleanup` | `2048` / `true` | Deletes the oldest unreferenced files when over the limit |
@@ -635,6 +667,9 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `coinsPerPriority` | `30` | Coins (added up per viewer) for one priority |
 | | `creditMinutes` | `60` | How long an unused priority (or paid request) waits for a request |
 | | `requestCoins` | `0` | Gift-only requests: coins per request; 0 = requests are free |
+| remote | `enabled` | `false` | Mod panel for a phone on the same network |
+| | `port` | `21281` | Its port (not the dashboard port) |
+| | `pin` | empty | 6-12 digits, not all the same, not `123456`/`987654`-style; required when enabled (the dashboard generates one) |
 | hotkeys | `enabled` | `false` | Global hotkeys (work while osu! has focus) |
 | | `next` / `skip` / `removeLast` / `toggleRequests` | `Ctrl+Alt+N` / `Ctrl+Alt+S` / `Ctrl+Alt+Backspace` / `Ctrl+Alt+R` | |
 | test | `dryRun` | `false` | Next/Play never open osu! or touch Songs |
@@ -656,7 +691,7 @@ All live in the base folder (next to the exe, or `-dir`):
 
 ## Security
 
-* The server listens on `127.0.0.1` only. Requests with another `Host` header are refused (DNS rebinding). State-changing calls need `X-Osureq: 1`,
+* The dashboard server listens on `127.0.0.1` only. Requests with another `Host` header are refused (DNS rebinding). State-changing calls need `X-Osureq: 1`,
   which other websites cannot send without a CORS preflight that is never answered. The WebSocket accepts same-origin connections only.
 * Only numeric IDs and links on osu.ppy.sh are fetched directly; song names go to catboy's search API only. Downloads go only to whitelisted
   HTTPS hosts, and every redirect hop is checked, so no request is sent elsewhere.
@@ -666,6 +701,12 @@ All live in the base folder (next to the exe, or `-dir`):
   go back through the cache check.
 * File names are sanitised; extraction refuses absolute paths, drive letters, `..` and symlinks.
 * No osu! OAuth secret, password or API key is used or stored.
+* **Mod panel** (`internal/remote`, off by default) is the only listener on other interfaces. It refuses clients that are not on a private
+  network (loopback, RFC 1918, link-local, IPv6 ULA, `100.64.0.0/10`) and `Host` headers that are not an IP, `localhost`, `*.local` or the PC's
+  name (DNS rebinding). Login needs the PIN (SHA-256 compared in constant time); 5 wrong tries from one address or 20 in total lock it for
+  10 minutes. Sessions are random 32-byte tokens in an HttpOnly, SameSite=Strict cookie, valid 12 h and ended by a PIN change; every POST
+  also needs `X-Osureq: 1`. It offers only queue actions. It is plain HTTP, so the PIN can be seen by others on the same Wi-Fi: use it at home.
+* The support file hides the mod panel PIN and the home folder; it still has viewer names and messages, which the README in the zip says.
 
 ---
 
@@ -747,7 +788,7 @@ Read this before changing anything.
 5. **Auto mode is tosu-only by the owner's decision.** Do not add a timer or window-title fallback without asking.
 6. **Dashboard performance:** follow the [rendering rule](#dashboard-internals); never re-render whole sections on every push.
 7. **UI text must exist in both English and Thai** (`T` table). Follow the existing design tokens.
-8. **Security invariants:** keep the 127.0.0.1 bind, the `guard` checks, the host whitelist, `Trusted` before opening files, and `SafeJoin` for extraction.
+8. **Security invariants:** keep the dashboard's 127.0.0.1 bind (the mod panel is the one, opt-in exception, with its own guard), the `guard` checks, the host whitelist, `Trusted` before opening files, and `SafeJoin` for extraction.
 9. **Windows/encoding pitfalls:** write files as UTF-8 without BOM; a literal U+FEFF inside a `.go` file breaks compilation (use `\ufeff` or bytes).
    Git on Windows converts line endings; `.osz` fixtures are marked binary in `.gitattributes`.
 10. **Config changes must stay backward compatible:** new fields need defaults in `Default()`; old `config.json` files must still load.
@@ -765,6 +806,7 @@ Read this before changing anything.
 | Global hotkeys | implemented, not exercised |
 | TikFinity gift and role fields | follow TikTok's payload names; check the raw event panel for `gift` and `chat` during a stream |
 | Profile pictures | `profilePictureUrl` and the other shapes are unverified; if no pictures appear, check the raw `chat` event for the field name |
+| Mod panel | plain HTTP on the LAN; not tested on Windows yet (firewall prompt, phone on the same Wi-Fi) |
 | Song search | depends on catboy's search API; when it is down, names are rejected with `search_error` (IDs and links still work) |
 | Official download fallback | implemented, not exercised (needs a logged-in browser) |
 | osu! lazer | supported via `open` and tosu, not tested |
@@ -790,6 +832,7 @@ Read this before changing anything.
 | Official download times out | Be logged in to osu.ppy.sh in the **default** browser, and let it save to the configured Downloads folder without asking. |
 | Next does nothing in osu! | Double-click an `.osz` once so Windows opens it with osu!. Make sure dry run is off. |
 | Port already in use | Another copy is running, or change `dashboardPort`. |
+| Phone cannot open the mod panel | Same Wi-Fi (not a guest network, which isolates devices)? Allowed in the Windows firewall for **private** networks? Windows network profile set to Private? Use an address from Settings → Mod panel. |
 | Windows says the app is unsafe / "Windows protected your PC" | That is SmartScreen warning about an **unsigned** program, usually one that was downloaded or received in a zip. Windows Defender finds nothing in it. Click **More info → Run anyway**, or right-click `osureq.exe` → **Properties** → tick **Unblock**. Only a code-signing certificate removes the warning for everyone. |
 | Anything else | `osureq.log` next to the exe. |
 
@@ -799,7 +842,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
-| unreleased | branch `feature/stream-tools` | Song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
+| unreleased | branch `feature/stream-tools` | Support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
 | 1.0.0 | `d106295` | First version: TikFinity chat, parser, osu! metadata, validation, queue, mirrors + MD5, import modes, preload, dashboard (EN/TH) and overlay, hotkeys, tests |
 | 1.0.1 | `9fabc98` | The map being played no longer counts toward the per-user limit; exempt users; bare number retried as set ID; osu! folder from the registry and `BeatmapDirectory`; pop-up on rejected chat requests |
 | 1.1.0 | `15f15b3` | Test panel: simulated chat, quick add, dry run, clear test data |
