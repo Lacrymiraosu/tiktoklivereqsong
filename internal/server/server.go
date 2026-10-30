@@ -36,6 +36,7 @@ type Server struct {
 	Version string
 	Extra   func() map[string]any // platform info (hotkey errors, paths)
 	Quit    func()                // stops the helper (dashboard's Quit button)
+	Restart func()                // stops the helper, installs the downloaded update and starts it again
 	LogPath string                // osureq.log, for the support file
 	Voice   *gtts.Client          // Google's voice, for languages the browser cannot read
 
@@ -292,6 +293,13 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 		if s.Quit != nil {
 			a.Say("info", "quit", nil, "quit from the dashboard")
 			go func() { time.Sleep(300 * time.Millisecond); s.Quit() }()
+		}
+	case "installUpdate":
+		if u := a.Update(); u == nil || !u.Ready || s.Restart == nil {
+			err = errors.New("no update is ready to install")
+		} else {
+			a.Say("info", "installUpdate", map[string]string{"v": u.Version}, "installing osureq %s and restarting", u.Version)
+			go func() { time.Sleep(300 * time.Millisecond); s.Restart() }()
 		}
 	case "showSummary":
 		a.ShowSummary()

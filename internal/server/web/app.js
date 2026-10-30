@@ -190,7 +190,12 @@ const T = {
   n_skipErr: ["!skip by @{u}: {msg}", "!skip โดย @{u}: {msg}"],
   n_usedCmd: ["@{u} used {cmd}", "@{u} ใช้คำสั่ง {cmd}"],
   updAvail: ["Update {v} ↗", "อัปเดต {v} ↗"], updTitle: ["osureq {v} is out. Opens the release page; download the zip there and replace osureq.exe.", "osureq {v} ออกแล้ว กดเพื่อเปิดหน้าดาวน์โหลด โหลด zip แล้วแทนที่ osureq.exe"],
+  updReady: ["Update {v} ready", "อัปเดต {v} พร้อมแล้ว"], updReadyTitle: ["osureq {v} is downloaded and is installed the next time osureq starts. Click to install it now (osureq restarts for a few seconds).", "ดาวน์โหลด osureq {v} แล้ว จะติดตั้งให้เองตอนเปิดโปรแกรมครั้งหน้า กดเพื่อติดตั้งเลย (osureq จะปิดแล้วเปิดใหม่ไม่กี่วินาที)"],
+  confirmUpdate: ["Install osureq {v} now? osureq closes and starts again in a few seconds; the queue and settings are kept. Better not in the middle of a stream.", "ติดตั้ง osureq {v} เลยไหม? osureq จะปิดแล้วเปิดใหม่ในไม่กี่วินาที คิวและการตั้งค่ายังอยู่ ไม่ควรกดระหว่างไลฟ์"],
   n_update: ["osureq {v} is available (button at the top)", "มี osureq {v} แล้ว (ปุ่มด้านบน)"],
+  n_updateReady: ["osureq {v} is downloaded; it is installed the next time osureq starts (or press the button at the top)", "ดาวน์โหลด osureq {v} แล้ว จะติดตั้งตอนเปิดโปรแกรมครั้งหน้า (หรือกดปุ่มด้านบน)"],
+  n_updateFailed: ["Could not download osureq {v}: {err}", "ดาวน์โหลด osureq {v} ไม่สำเร็จ: {err}"],
+  n_installUpdate: ["Installing osureq {v} and restarting", "กำลังติดตั้ง osureq {v} แล้วเปิดใหม่"],
   session: ["This stream", "ไลฟ์นี้"], sumShow: ["Show on overlay", "แสดงบน overlay"], sumNew: ["New session", "เริ่มรอบใหม่"],
   sumStarted: ["Started", "เริ่ม"], sumPlayed: ["Played", "เล่นแล้ว"], sumPassed: ["{n} cleared", "ผ่าน {n}"], sumSkipped: ["Skipped", "ข้าม"],
   sumRejected: ["Rejected", "ถูกปฏิเสธ"], sumViewers: ["Viewers who asked", "ผู้ชมที่ขอเพลง"], sumBest: ["Best play", "ผลดีที่สุด"], sumTop: ["Most requests", "ขอมากที่สุด"],
@@ -384,7 +389,13 @@ function render() {
   renderTTS();
   const up = $("#updPill");
   up.hidden = !S.update;
-  if (S.update) { up.href = S.update.url; up.textContent = t("updAvail", { v: S.update.version }); up.title = t("updTitle", { v: S.update.version }); }
+  if (S.update) {
+    const u = S.update;
+    up.href = u.ready ? "#" : u.url;
+    up.target = u.ready ? "" : "_blank";
+    up.textContent = t(u.ready ? "updReady" : "updAvail", { v: u.version });
+    up.title = t(u.ready ? "updReadyTitle" : "updTitle", { v: u.version });
+  }
   renderTestHint();
   const ts = S.tosu;
   $("#tosuDot").className = "dot " + ts.level;
@@ -823,6 +834,8 @@ function connect() {
   ws.onmessage = e => {
     const prev = S;
     S = JSON.parse(e.data);
+    // A new osureq (after an update) serves a new dashboard.
+    if (prev && prev.version !== S.version) { location.reload(); return; }
     handleSpeech();
     // Chat rejections are easy to miss in the side panel; flash the newest one.
     const r = (S.queue.rejected || [])[0], p = prev && (prev.queue.rejected || [])[0];
@@ -838,6 +851,12 @@ function connect() {
 /* ---------- top bar & forms ---------- */
 $("#reqSw").addEventListener("change", () => act("/api/action/toggleRequests"));
 $("#langSel").addEventListener("change", e => { LANG = e.target.value; langPicked = true; try { localStorage.setItem("osureq.lang", LANG); } catch {} applyLang(); render(); });
+$("#updPill").addEventListener("click", e => {
+  const u = S && S.update;
+  if (!u || !u.ready) return; // not downloaded yet: the link opens the release page
+  e.preventDefault();
+  if (confirm(t("confirmUpdate", { v: u.version }))) act("/api/action/installUpdate");
+});
 $("#quitBtn").addEventListener("click", async () => {
   if (!confirm(t("confirmQuit"))) return;
   quitting = true;
@@ -1096,7 +1115,8 @@ const SCHEMA = {
     F("connection.tosuUrl", "text", "tosu WebSocket URL (required)", "URL WebSocket ของ tosu (จำเป็น)", "Default ws://127.0.0.1:24050/websocket/v2. Auto mode uses it to see when a song has ended.", "ค่าเริ่มต้น ws://127.0.0.1:24050/websocket/v2 โหมดอัตโนมัติใช้ดูว่าเพลงจบแล้ว"),
     F("connection.tosuPath", "text", "tosu.exe path", "ที่อยู่ tosu.exe", "Filled in automatically the first time tosu is seen running.", "จะถูกกรอกให้อัตโนมัติเมื่อเห็น tosu เปิดอยู่ครั้งแรก"),
     F("connection.autoLaunchTosu", "switch", "Auto-launch tosu", "เปิด tosu อัตโนมัติ", "Starts tosu if it is not running (needs the path above).", "เปิด tosu ให้ถ้ายังไม่ได้เปิด (ต้องมีที่อยู่ด้านบน)"),
-    F("connection.checkUpdates", "switch", "Check for updates", "ตรวจหาอัปเดต", "Asks GitHub twice a day whether a newer osureq exists and shows a button at the top. Nothing is downloaded by itself.", "ถาม GitHub วันละ 2 ครั้งว่ามี osureq ใหม่หรือไม่ แล้วแสดงปุ่มด้านบน ไม่ดาวน์โหลดอะไรเอง"),
+    F("connection.checkUpdates", "switch", "Check for updates", "ตรวจหาอัปเดต", "Asks GitHub twice a day whether a newer osureq exists and shows a button at the top.", "ถาม GitHub วันละ 2 ครั้งว่ามี osureq ใหม่หรือไม่ แล้วแสดงปุ่มด้านบน"),
+    F("connection.autoUpdate", "switch", "Install updates automatically", "ติดตั้งอัปเดตอัตโนมัติ", "Downloads a new osureq from this project's GitHub releases, checks its SHA-256 and installs it the next time osureq starts, so it never restarts in the middle of a stream. The button at the top installs it right away. Needs Check for updates.", "ดาวน์โหลด osureq ใหม่จากหน้า release ของโปรเจกต์บน GitHub ตรวจ SHA-256 แล้วติดตั้งตอนเปิดโปรแกรมครั้งหน้า จะไม่รีสตาร์ทเองระหว่างไลฟ์ กดปุ่มด้านบนเพื่อติดตั้งทันทีได้ ต้องเปิดตรวจหาอัปเดตไว้ด้วย"),
     F("connection.logRawEvents", "switch", "Log raw events", "บันทึกอีเวนต์ดิบ", "Shows every TikFinity message in the side panel. Use it to check field names.", "แสดงทุกข้อความจาก TikFinity ที่แผงข้าง ใช้ตรวจชื่อฟิลด์"),
   ],
   osu: [

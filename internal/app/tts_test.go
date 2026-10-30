@@ -19,6 +19,7 @@ func TestSpeakableText(t *testing.T) {
 		"!!!???":                              "",
 		"woooooooow":                          "woooow",
 		"family 👨‍👩‍👧 emoji":                  "family emoji",
+		"HELLO EVERYONE":                      "hello everyone",
 	}
 	for in, want := range cases {
 		if got := SpeakableText(in, 0); got != want {
@@ -27,6 +28,29 @@ func TestSpeakableText(t *testing.T) {
 	}
 	if got := SpeakableText("abcdefghij", 5); got != "abcde…" {
 		t.Errorf("cut: %q", got)
+	}
+}
+
+func TestSoftenCaps(t *testing.T) {
+	cases := map[string]string{
+		"WOW":                    "wow",
+		"I LOVE THIS SONG!!":     "i love this song!!",
+		"GG":                     "GG",
+		"this map is AMAZING gg": "this map is amazing gg",
+		"FC with HD please":      "FC with HD please",
+		"DON'T stop":             "don't stop",
+		"play FREEDOM DIVE plz":  "play freedom dive plz",
+		"McDonald iPhone":        "McDonald iPhone",
+		"สวัสดี OSU":             "สวัสดี osu",
+		"เพลงนี้ GOOD มาก":       "เพลงนี้ good มาก",
+		"Blue Zenith":            "Blue Zenith",
+		"lol OSU KIKI":              "lol osu kiki",
+		"สวัสดี KIKI ครับ":            "สวัสดี kiki ครับ",
+	}
+	for in, want := range cases {
+		if got := SoftenCaps(in); got != want {
+			t.Errorf("SoftenCaps(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 

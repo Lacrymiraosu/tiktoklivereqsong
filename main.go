@@ -12,8 +12,10 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -38,6 +40,7 @@ func main() {
 	platform.SetConsoleTitle("osureq " + version)
 	dirFlag := flag.String("dir", "", "folder for config.json, queue.json, cache and log (default: next to the exe)")
 	noBrowser := flag.Bool("no-browser", false, "do not open the dashboard on start")
+	restarted := flag.Bool("restarted", false, "started again after installing an update: wait for the port and do not open the dashboard")
 	flag.Parse()
 
 	base := *dirFlag
@@ -55,6 +58,18 @@ func main() {
 		fatal(err)
 	}
 	cfg := store.Get()
+
+	// An update downloaded by the last run is installed before anything starts.
+	exe, _ := os.Executable()
+	if exe != "" && cfg.Connection.CheckUpdates && cfg.Connection.AutoUpdate && installUpdate(exe, os.Args[1:]) {
+		return
+	}
+	if exe != "" {
+		update.Cleanup(exe, version)
+		// the copy that installed this one may still be closing and hold the old exe
+		time.AfterFunc(15*time.Second, func() { os.Remove(exe + ".old") })
+	}
+
 	if cfg.Osu.Game == "stable" {
 		if _, err := importer.SongsDir(cfg.Osu.Folder); err != nil {
 			if dir, ok := platform.FindOsuStable(); ok && !strings.EqualFold(dir, cfg.Osu.Folder) {
@@ -175,7 +190,12 @@ func main() {
 
 	port := cfg.Connection.DashboardPort
 	url := fmt.Sprintf("http://127.0.0.1:%d/", port)
-	if err := srv.Listen(ctx, port); err != nil {
+	err = srv.Listen(ctx, port)
+	for i := 0; err != nil && *restarted && i < 30; i++ { // the copy that installed this update is still closing
+		time.Sleep(500 * time.Millisecond)
+		err = srv.Listen(ctx, port)
+	}
+	if err != nil {
 		if alreadyRunning(url) {
 			// Started twice: show the running copy instead of an error.
 			log.Printf("another osureq is already running on %s; opening its dashboard", url)
@@ -189,9 +209,11 @@ func main() {
 		fatal(fmt.Errorf("cannot listen on 127.0.0.1:%d (another program uses this port; change dashboardPort in config.json): %w", port, err))
 	}
 	srv.Quit = stop
+	var restart atomic.Bool
+	srv.Restart = func() { restart.Store(true); stop() }
 	log.Printf("dashboard: %s   overlay: %soverlay", url, url)
 	fmt.Printf("\n  osureq %s\n  Dashboard:     %s\n  OBS overlay:   %soverlay\n\n  Keep this window open while you stream. Close it (or press Ctrl+C) to stop.\n\n", version, url, url)
-	if cfg.Connection.OpenDashboard && !*noBrowser {
+	if cfg.Connection.OpenDashboard && !*noBrowser && !*restarted {
 		platform.ShellOpen(url)
 	}
 
@@ -199,12 +221,66 @@ func main() {
 	go tf.Run(ctx)
 	go ts.Run(ctx)
 	go a.Run(ctx)
-	go update.Run(ctx, version, func() bool { return store.Get().Connection.CheckUpdates }, a.SetUpdate)
+	var staging atomic.Bool
+	go update.Run(ctx, version, func() bool { return store.Get().Connection.CheckUpdates }, func(r update.Release) {
+		a.SetUpdate(r)
+		if exe != "" && store.Get().Connection.AutoUpdate && staging.CompareAndSwap(false, true) {
+			go func() {
+				defer staging.Store(false)
+				stageUpdate(ctx, exe, r, a)
+			}()
+		}
+	})
 	<-ctx.Done()
 	mods.Apply(config.Remote{}) // stop the mod panel
 	hk.Stop()
 	q.Flush()
+	if restart.Load() {
+		args := os.Args[1:]
+		if !slices.Contains(args, "-restarted") {
+			args = append(args, "-restarted")
+		}
+		if installUpdate(exe, args) {
+			return
+		}
+	}
 	log.Printf("bye")
+}
+
+// stageUpdate downloads r next to the exe, where installUpdate finds it on
+// the next start, and marks it ready in the dashboard.
+func stageUpdate(ctx context.Context, exe string, r update.Release, a *app.App) {
+	if v, _ := update.Staged(filepath.Dir(exe)); v != r.Version {
+		log.Printf("update: downloading osureq %s", r.Version)
+		hc := &http.Client{Timeout: 5 * time.Minute}
+		if _, err := update.Download(ctx, hc, r, filepath.Dir(exe)); err != nil {
+			a.Say("warn", "updateFailed", map[string]string{"v": r.Version, "err": err.Error()}, "could not download osureq %s: %v", r.Version, err)
+			return
+		}
+	}
+	r.Ready = true
+	a.SetUpdate(r)
+}
+
+// installUpdate puts a downloaded update in place of exe and starts it in
+// this console with args. It reports whether the new copy took over.
+func installUpdate(exe string, args []string) bool {
+	v, staged := update.Staged(filepath.Dir(exe))
+	if staged == "" || !update.Newer(v, version) {
+		return false
+	}
+	log.Printf("installing osureq %s", v)
+	fmt.Printf("\n  Installing osureq %s ...\n", v)
+	if err := update.Install(exe, staged); err != nil {
+		log.Printf("update: %v", err)
+		return false
+	}
+	if err := update.Relaunch(exe, args); err != nil {
+		log.Printf("starting osureq %s: %v", v, err)
+		return false
+	}
+	log.Printf("bye (osureq %s takes over)", v)
+	return true
 }
 
 func exeDir() string {

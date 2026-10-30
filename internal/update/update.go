@@ -1,5 +1,6 @@
-// Package update asks GitHub whether a newer osureq release exists. It only
-// reads the release list; it never downloads or runs anything.
+// Package update asks GitHub whether a newer osureq release exists and, when
+// automatic updates are on, downloads it, checks it against the release's
+// SHA-256 file and swaps it in for osureq.exe (install.go).
 package update
 
 import (
@@ -13,15 +14,22 @@ import (
 	"time"
 )
 
-const (
-	LatestURL   = "https://api.github.com/repos/Lacrymiraosu/tiktoklivereqsong/releases/latest"
-	ReleasesURL = "https://github.com/Lacrymiraosu/tiktoklivereqsong/releases/"
-)
+const ReleasesURL = "https://github.com/Lacrymiraosu/tiktoklivereqsong/releases/"
+
+// LatestURL and DownloadPrefix are variables only so a test build can point
+// them at a local fake release (go build -ldflags "-X ...").
+var LatestURL = "https://api.github.com/repos/Lacrymiraosu/tiktoklivereqsong/releases/latest"
+
+// DownloadPrefix is the only place release files are downloaded from.
+var DownloadPrefix = "https://github.com/Lacrymiraosu/tiktoklivereqsong/releases/download/"
 
 // Release is a published version newer than the running one.
 type Release struct {
-	Version string `json:"version"` // e.g. "1.4.0"
-	URL     string `json:"url"`     // its page on GitHub
+	Version string `json:"version"`         // e.g. "1.4.0"
+	URL     string `json:"url"`             // its page on GitHub
+	Ready   bool   `json:"ready,omitempty"` // downloaded and checked; installed on the next start
+	Zip     string `json:"-"`               // osureq-<version>-windows-x64.zip
+	Sum     string `json:"-"`               // its .sha256 file
 }
 
 // Parse reads "1.2.3" or "v1.2.3". Pre-release and dev versions
@@ -80,6 +88,10 @@ func Latest(ctx context.Context, hc *http.Client, url, current string) (*Release
 		URL        string `json:"html_url"`
 		Draft      bool   `json:"draft"`
 		Prerelease bool   `json:"prerelease"`
+		Assets     []struct {
+			Name string `json:"name"`
+			URL  string `json:"browser_download_url"`
+		} `json:"assets"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(nil, resp.Body, 1<<20)).Decode(&body); err != nil {
 		return nil, err
@@ -92,7 +104,20 @@ func Latest(ctx context.Context, hc *http.Client, url, current string) (*Release
 	if !strings.HasPrefix(link, ReleasesURL) {
 		link = ReleasesURL + "latest" // only ever point at this project's releases
 	}
-	return &Release{Version: ver, URL: link}, nil
+	rel := &Release{Version: ver, URL: link}
+	zip := ZipName(ver)
+	for _, a := range body.Assets {
+		if !strings.HasPrefix(a.URL, DownloadPrefix) {
+			continue
+		}
+		switch a.Name {
+		case zip:
+			rel.Zip = a.URL
+		case zip + ".sha256":
+			rel.Sum = a.URL
+		}
+	}
+	return rel, nil
 }
 
 // Run checks shortly after start and then twice a day while enabled()
