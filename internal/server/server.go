@@ -71,6 +71,8 @@ type State struct {
 	VoteSkip       app.VoteSkip                  `json:"voteSkip"`
 	Update         *update.Release               `json:"update,omitempty"`
 	Summary        queue.Summary                 `json:"summary"`
+	TTS            config.TTS                    `json:"tts"`
+	Speech         []app.Speech                  `json:"speech"`
 	SummaryShown   int64                         `json:"summaryShown"`
 	Raw            []tikfinity.RawEvent          `json:"raw,omitempty"`
 	FirstRaw       map[string]tikfinity.RawEvent `json:"firstRaw,omitempty"`
@@ -85,7 +87,7 @@ func (s *Server) state() State {
 		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(), Feed: s.App.Feed(),
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name, Search: cfg.Command.Search && s.App.Search != nil, RequestCoins: cfg.Gifts.RequestCoins,
 		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, Volume: cfg.MasterVolume, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
-		VoteSkip: s.App.Votes(), Update: s.App.Update(), Summary: s.App.Queue.Summary(), SummaryShown: s.App.SummaryShown(),
+		VoteSkip: s.App.Votes(), Update: s.App.Update(), Summary: s.App.Queue.Summary(), SummaryShown: s.App.SummaryShown(), TTS: cfg.TTS, Speech: s.App.Speech(),
 	}
 	if s.Extra != nil {
 		st.Extra = s.Extra()

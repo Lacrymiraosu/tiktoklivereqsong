@@ -147,6 +147,11 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .testbox .hint{margin:8px 2px 0}
 .pill.upd{background:rgba(87,214,141,.14);border-color:rgba(87,214,141,.5);color:var(--ok);font-weight:600;padding:0 14px;text-decoration:none;cursor:pointer}
 .pill.upd:hover{background:rgba(87,214,141,.24)}
+.ttswrap{display:inline-flex;gap:6px;align-items:center}
+.pill.tts{background:rgba(102,204,255,.12);border-color:rgba(102,204,255,.45);color:var(--sky);font-weight:600;padding:0 14px;cursor:pointer}
+.pill.tts.off{animation:ttsCall 1.6s ease-in-out infinite}
+@keyframes ttsCall{50%{background:rgba(102,204,255,.28)}}
+.icon.ttsskip{width:40px;height:40px;font-size:14px}
 .pill.dry{background:rgba(255,207,107,.16);border-color:rgba(255,207,107,.5);color:var(--warn);font-weight:600;letter-spacing:.5px;padding:0 14px}
 .searchrow{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
 .searchrow input{height:48px;border-radius:24px;padding:0 18px;font-size:16px}
