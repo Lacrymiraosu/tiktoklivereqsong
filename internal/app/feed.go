@@ -25,6 +25,9 @@ type FeedEvent struct {
 	Target  string    `json:"target,omitempty"`
 	Test    bool      `json:"test,omitempty"`
 	Avatar  string    `json:"avatar,omitempty"` // User's TikTok picture, when TikFinity sent one
+	Mapper  string    `json:"mapper,omitempty"`
+	// Vars are a rejection's or result's numbers one by one, for announcements.
+	Vars map[string]string `json:"vars,omitempty"`
 }
 
 const maxFeed = 30
@@ -44,6 +47,7 @@ func (a *App) emit(e FeedEvent) {
 		a.feed = a.feed[:maxFeed]
 	}
 	a.mu.Unlock()
+	a.announce(e)
 	a.Changed()
 }
 

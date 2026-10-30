@@ -4,6 +4,7 @@ package validator
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -20,6 +21,9 @@ type Rejection struct {
 	Code   string `json:"code"`
 	Detail string `json:"detail"`
 	Short  string `json:"short,omitempty"`
+	// Vars are the numbers behind it one by one ("stars": "5.88", "max":
+	// "5.00", "wait": "30", "title": …), for spoken announcements.
+	Vars map[string]string `json:"vars,omitempty"`
 }
 
 func (r *Rejection) Error() string { return r.Code + ": " + r.Detail }
@@ -32,6 +36,27 @@ func (r *Rejection) with(short string, a ...any) *Rejection {
 	r.Short = fmt.Sprintf(short, a...)
 	return r
 }
+
+// set adds key/value pairs to Vars.
+func (r *Rejection) set(kv ...string) *Rejection {
+	if r.Vars == nil {
+		r.Vars = map[string]string{}
+	}
+	for i := 0; i+1 < len(kv); i += 2 {
+		r.Vars[kv[i]] = kv[i+1]
+	}
+	return r
+}
+
+// WithMap adds the set's names to Vars (rejections found after the lookup).
+func (r *Rejection) WithMap(s *osumeta.Set) *Rejection {
+	if s == nil {
+		return r
+	}
+	return r.set("title", s.Title, "artist", s.Artist, "mapper", s.Creator)
+}
+
+func f2(v float64) string { return strconv.FormatFloat(v, 'f', 2, 64) }
 
 // Roles is what TikTok says about the viewer. Each value is 1 (yes),
 // -1 (no) or 0 (unknown, e.g. TikFinity did not send it); unknown never blocks.
@@ -61,7 +86,7 @@ func CheckUser(user string, st State, rules config.Rules, q config.Queue, now ti
 		return reject("user_blacklisted", "@%s is blacklisted", user)
 	}
 	if q.MaxSize > 0 && st.QueueLen >= q.MaxSize {
-		return reject("queue_full", "queue is full (%d)", q.MaxSize).with("%d/%d", st.QueueLen, q.MaxSize)
+		return reject("queue_full", "queue is full (%d)", q.MaxSize).with("%d/%d", st.QueueLen, q.MaxSize).set("n", strconv.Itoa(st.QueueLen), "max", strconv.Itoa(q.MaxSize))
 	}
 	if listed(rules.ExemptUsers, user) {
 		return nil
@@ -74,11 +99,11 @@ func CheckUser(user string, st State, rules config.Rules, q config.Queue, now ti
 		limit = rules.SubscriberLimit
 	}
 	if limit > 0 && st.UserActive >= limit {
-		return reject("user_limit", "@%s already has %d request(s) waiting", user, st.UserActive).with("%d/%d", st.UserActive, limit)
+		return reject("user_limit", "@%s already has %d request(s) waiting", user, st.UserActive).with("%d/%d", st.UserActive, limit).set("n", strconv.Itoa(st.UserActive), "max", strconv.Itoa(limit))
 	}
 	if q.CooldownSec > 0 && !st.LastRequest.IsZero() {
 		if left := time.Duration(q.CooldownSec)*time.Second - now.Sub(st.LastRequest); left > 0 {
-			return reject("cooldown", "@%s must wait %ds", user, int(left.Seconds()+0.999)).with("%ds", int(left.Seconds()+0.999))
+			return reject("cooldown", "@%s must wait %ds", user, int(left.Seconds()+0.999)).with("%ds", int(left.Seconds()+0.999)).set("wait", strconv.Itoa(int(left.Seconds()+0.999)))
 		}
 	}
 	return nil
@@ -143,7 +168,7 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 	}
 	if q.NoRepeatMin > 0 {
 		if at, ok := st.PlayedAt[s.ID]; ok && now.Sub(at) < time.Duration(q.NoRepeatMin)*time.Minute {
-			return nil, reject("recently_played", "played %d min ago", int(now.Sub(at).Minutes())).with("%d min", int(now.Sub(at).Minutes()))
+			return nil, reject("recently_played", "played %d min ago", int(now.Sub(at).Minutes())).with("%d min", int(now.Sub(at).Minutes())).set("min", strconv.Itoa(int(now.Sub(at).Minutes())))
 		}
 	}
 
@@ -320,7 +345,7 @@ func words(s string) []string {
 
 func checkDiff(d *osumeta.Diff, mode, modStr string, rules config.Rules) *Rejection {
 	if len(rules.Modes) > 0 && !contains(rules.Modes, mode) {
-		return reject("mode", "mode %s is not allowed", mode).with("%s", mode)
+		return reject("mode", "mode %s is not allowed", mode).with("%s", mode).set("mode", modeLabel(mode), "diff", d.Version)
 	}
 	if d.Stars >= 0 {
 		min, max, perMode := rules.StarLimits(mode)
@@ -329,19 +354,19 @@ func checkDiff(d *osumeta.Diff, mode, modStr string, rules config.Rules) *Reject
 			tag = " (" + modeLabel(mode) + ")"
 		}
 		if min > 0 && d.Stars < min {
-			return reject("stars_low", "%.2f★ is below %.2f★%s", d.Stars, min, tag).with("%.2f★ < %.2f★%s", d.Stars, min, tag)
+			return reject("stars_low", "%.2f★ is below %.2f★%s", d.Stars, min, tag).with("%.2f★ < %.2f★%s", d.Stars, min, tag).set("stars", f2(d.Stars), "min", f2(min), "diff", d.Version)
 		}
 		if max > 0 && d.Stars > max {
-			return reject("stars_high", "%.2f★ is above %.2f★%s", d.Stars, max, tag).with("%.2f★ > %.2f★%s", d.Stars, max, tag)
+			return reject("stars_high", "%.2f★ is above %.2f★%s", d.Stars, max, tag).with("%.2f★ > %.2f★%s", d.Stars, max, tag).set("stars", f2(d.Stars), "max", f2(max), "diff", d.Version)
 		}
 		if cap := rules.HardModMaxStars; cap > 0 && mods.Harder(modStr) && d.Stars > cap {
-			return reject("mod_stars", "%.2f★ is above %.2f★ for +%s", d.Stars, cap, modStr).with("%.2f★ > %.2f★ +%s", d.Stars, cap, modStr)
+			return reject("mod_stars", "%.2f★ is above %.2f★ for +%s", d.Stars, cap, modStr).with("%.2f★ > %.2f★ +%s", d.Stars, cap, modStr).set("stars", f2(d.Stars), "max", f2(cap), "diff", d.Version)
 		}
 	}
 	// DT/NC play 1.5× as fast and HT 0.75×, so the song is that much shorter or longer.
 	length := int(float64(d.Length)/mods.Rate(modStr) + 0.5)
 	if d.Length >= 0 && rules.MaxLengthSec > 0 && length > rules.MaxLengthSec {
-		return reject("too_long", "%s is longer than %s", clock(length), clock(rules.MaxLengthSec)).with("%s > %s", clock(length), clock(rules.MaxLengthSec))
+		return reject("too_long", "%s is longer than %s", clock(length), clock(rules.MaxLengthSec)).with("%s > %s", clock(length), clock(rules.MaxLengthSec)).set("length", clock(length), "max", clock(rules.MaxLengthSec), "diff", d.Version)
 	}
 	return nil
 }
