@@ -99,7 +99,7 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
 cd tiktoklivereqsong
-.\build.ps1 -Version 1.3.7
+.\build.ps1 -Version 1.4.0
 ```
 
 `build.ps1` จะรัน `go vet` และ `go test` ก่อน สร้างไฟล์ resource ของ Windows (ไอคอน ชื่อ เวอร์ชัน) แล้ว build ออกมาเป็น `dist\osureq.exe`
@@ -107,8 +107,8 @@ cd tiktoklivereqsong
 
 ```powershell
 $env:CGO_ENABLED = "0"
-go run ./tools/winres -version 1.3.7
-go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.0
+go build -trimpath -ldflags "-X main.version=1.4.0" -o dist\osureq.exe .
 ```
 
 ### สำหรับคนที่จะแก้โค้ด
@@ -123,8 +123,8 @@ go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
 * ปล่อยเวอร์ชันใหม่: อัปเดตเลขเวอร์ชันใน `build.ps1` แล้ว push tag
 
   ```powershell
-  git tag v1.3.7
-  git push origin v1.3.7
+  git tag v1.4.0
+  git push origin v1.4.0
   ```
 
   GitHub จะ build ด้วยเลขเวอร์ชันจาก tag แล้วสร้าง Release พร้อม `osureq-<เวอร์ชัน>-windows-x64.zip` (มี exe, `LICENSE` และ `THIRD_PARTY_LICENSES.txt`) และไฟล์ `.sha256`

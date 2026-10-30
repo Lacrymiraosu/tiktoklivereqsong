@@ -49,7 +49,7 @@ Thai: see [README.th.md](README.th.md).
 
 | | |
 |---|---|
-| Version | **1.3.7** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.4.0** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
 | Tests | `go test ./...`: 15 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
@@ -62,7 +62,7 @@ audio preview and one-click bans. Auto mode and play results were verified again
 
 **Not yet verified with the real thing:** see [Known limitations and open items](#known-limitations-and-open-items)
 (live TikTok chat, gift, role and profile-picture fields, real tosu + osu! gameplay, opening `.osz` into osu! via Next, hotkeys, official-download fallback, lazer).
-The unreleased features below were tested with unit tests and a Linux harness (dashboard and overlay screenshots); song search, the
+The 1.4.0 features were tested with unit tests and a Linux harness (dashboard and overlay screenshots); song search, the
 pre-stream check, the osu.direct fix and the update check were also run against the live services.
 
 ---
@@ -785,15 +785,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.3.7          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.4.0          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.3.7      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.0      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.4.0" -o dist\osureq.exe .
 ```
 
 ### Releases (GitHub Actions)
@@ -803,8 +803,8 @@ go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
 To publish a release, bump the version (Changelog row, Version row, `build.ps1` default), commit, then tag and push:
 
 ```powershell
-git tag v1.3.7
-git push origin v1.3.7
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 The tag build uses the tag's number for `main.version` and the Windows resources, and publishes a GitHub release with
@@ -914,7 +914,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
-| unreleased | branch `feature/stream-tools` | TTS for subscribers (ใจส้ม) / followers / gifters / mods only; spoken announcements from templates; chat TTS without commands; artist/title ban rules (`artist="…"`); search ignores tag-only matches; requests with mods; support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
+| 1.4.0 | `5d446bf` (merge of PR #1) | TTS for subscribers (ใจส้ม) / followers / gifters / mods only; spoken announcements from templates; chat TTS without commands; artist/title ban rules (`artist="…"`); search ignores tag-only matches; requests with mods; support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
 | 1.0.0 | `d106295` | First version: TikFinity chat, parser, osu! metadata, validation, queue, mirrors + MD5, import modes, preload, dashboard (EN/TH) and overlay, hotkeys, tests |
 | 1.0.1 | `9fabc98` | The map being played no longer counts toward the per-user limit; exempt users; bare number retried as set ID; osu! folder from the registry and `BeatmapDirectory`; pop-up on rejected chat requests |
 | 1.1.0 | `15f15b3` | Test panel: simulated chat, quick add, dry run, clear test data |
