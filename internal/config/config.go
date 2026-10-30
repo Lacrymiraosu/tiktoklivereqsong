@@ -105,6 +105,7 @@ type Queue struct {
 	PerUserLimit int    `json:"perUserLimit"`
 	CooldownSec  int    `json:"cooldownSec"`
 	NoRepeatMin  int    `json:"noRepeatMin"`
+	Fair         bool   `json:"fair"`     // new requests take turns between viewers (queue.AddFair)
 	PlayMode     string `json:"playMode"` // manual | auto
 	AutoGapSec   int    `json:"autoGapSec"`
 }

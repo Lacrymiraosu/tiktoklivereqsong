@@ -1,7 +1,9 @@
 package queue
 
 import (
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -68,5 +70,40 @@ func TestClearTestKeepsRealData(t *testing.T) {
 	}
 	if q.ValidationState("fan").LastRequest.IsZero() {
 		t.Error("real cooldown must be kept")
+	}
+}
+
+func TestAddFair(t *testing.T) {
+	q, err := Open(filepath.Join(t.TempDir(), "queue.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	add := func(user string) {
+		n++
+		q.AddFair(&Item{ID: fmt.Sprintf("%s%d", user, n), User: user, AddedAt: time.Now()})
+	}
+	order := func() string {
+		var s []string
+		for _, it := range q.First(100) {
+			s = append(s, it.User)
+		}
+		return strings.Join(s, " ")
+	}
+	add("A")
+	add("A")
+	add("A")
+	add("B")
+	add("C")
+	add("b")
+	if got := order(); got != "A B C A b A" {
+		t.Errorf("order = %q, want rounds A B C | A b | A", got)
+	}
+	// a priority request stays on top; a newcomer still lands in round 1, after it
+	q.Update(q.First(100)[5].ID, func(it *Item) { it.Priority = true })
+	q.Move(q.First(100)[5].ID, 0)
+	add("D")
+	if got := order(); got != "A A B C D A b" {
+		t.Errorf("after priority: %q", got)
 	}
 }
