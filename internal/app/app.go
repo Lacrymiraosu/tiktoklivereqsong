@@ -56,6 +56,7 @@ type App struct {
 	infoAt     map[string]time.Time // user|command -> last !pos / !np answered
 	voteID     string               // now-playing item the skip votes are for
 	voters     map[string]bool
+	votePassed bool              // the vote on voteID reached the count; later votes do nothing
 	latest     *update.Release   // a newer osureq release, if GitHub has one
 	summaryN   int64             // bumped each time the overlay should show the session summary
 	avatars    map[string]string // user -> profile picture, from their last command or gift
