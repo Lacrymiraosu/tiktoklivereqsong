@@ -195,3 +195,11 @@ func TestPlayedWithoutRequestedMods(t *testing.T) {
 		t.Errorf("Activity should warn: %+v", n)
 	}
 }
+
+func TestQuickAddBareCommand(t *testing.T) {
+	web := &fakeWeb{results: `[]`}
+	a := searchApp(t, web, nil)
+	if _, rej := a.TestRequest("dashboard", "!req"); rej == nil || rej.Code != "bad_input" {
+		t.Errorf("a bare command is bad input, not a search: %+v", rej)
+	}
+}
