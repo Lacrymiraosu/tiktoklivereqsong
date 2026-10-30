@@ -401,7 +401,11 @@ func (a *App) find(ctx context.Context, query, mods string, st validator.State, 
 		}
 		if _, rej := validator.CheckMap(validator.Input{Set: set, Mods: mods}, st, cfg.Rules, cfg.Queue, now); rej != nil {
 			if first == nil {
-				first = &validator.Rejection{Code: rej.Code, Detail: set.Title + ": " + rej.Detail, Short: strings.TrimSuffix(set.Title+" · "+rej.Short, " · ")}
+				short := rej.Short
+				if !strings.Contains(short, set.Title) { // song bans already name it
+					short = strings.TrimSuffix(set.Title+" · "+short, " · ")
+				}
+				first = &validator.Rejection{Code: rej.Code, Detail: set.Title + ": " + rej.Detail, Short: short}
 			}
 			continue
 		}

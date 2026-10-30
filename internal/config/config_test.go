@@ -49,3 +49,36 @@ func TestPerModeStars(t *testing.T) {
 		t.Fatalf("want 2 problems, got %v", err)
 	}
 }
+
+func TestParseSongRule(t *testing.T) {
+	cases := map[string]SongRule{
+		`artist="a_hisa"`:                 {Artist: "a_hisa"},
+		`Artist=“a_hisa”`:                 {Artist: "a_hisa"},
+		`ARTIST = 'xi'`:                   {Artist: "xi"},
+		`artist=xi`:                       {Artist: "xi"},
+		`title="Blue Zenith"`:             {Title: "Blue Zenith"},
+		`artist="xi" title="Blue Zenith"`: {Artist: "xi", Title: "Blue Zenith"},
+		`title=“Ghost” artist=“Camellia”`: {Artist: "Camellia", Title: "Ghost"},
+		`xi - FREEDOM DiVE`:               {Artist: "xi", Title: "FREEDOM DiVE"},
+		`FREEDOM DiVE`:                    {Title: "FREEDOM DiVE"},
+		`Kani*Do-Luck!`:                   {Title: "Kani*Do-Luck!"},
+	}
+	for in, want := range cases {
+		if got, ok := ParseSongRule(in); !ok || got != want {
+			t.Errorf("ParseSongRule(%q) = %+v %v, want %+v", in, got, ok, want)
+		}
+	}
+	for _, bad := range []string{``, `   `, `artist=""`, `artist="xi" blah`, `title=`} {
+		if r, ok := ParseSongRule(bad); ok {
+			t.Errorf("%q should be refused, got %+v", bad, r)
+		}
+	}
+	c := Default()
+	c.Rules.BlacklistSongs = []string{`artist=""`}
+	if c.Validate() == nil {
+		t.Error("an empty artist rule should not validate")
+	}
+	if (SongRule{Artist: "a_hisa"}).String() != `artist="a_hisa"` {
+		t.Error("String")
+	}
+}

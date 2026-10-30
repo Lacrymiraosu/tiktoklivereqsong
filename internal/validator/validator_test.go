@@ -303,7 +303,7 @@ func TestSongBlacklist(t *testing.T) {
 		{"other", "FREEDOM DiVE", false}, // artist given in the entry must match
 	}
 	for _, c := range cases {
-		if _, got := SongBanned(list, c.artist, c.title); got != c.banned {
+		if _, got := SongBanned(list, Song{Artist: c.artist, Title: c.title}); got != c.banned {
 			t.Errorf("%s - %s: banned=%v, want %v", c.artist, c.title, got, c.banned)
 		}
 	}
@@ -372,5 +372,40 @@ func TestModRules(t *testing.T) {
 	c.Rules.BannedMods = []string{"XX"}
 	if c.Validate() == nil {
 		t.Error("unknown banned mod should not validate")
+	}
+}
+
+func TestArtistRejectionCode(t *testing.T) {
+	rules := config.Default().Rules
+	rules.BlacklistSongs = []string{`artist="xi"`}
+	set := &osumeta.Set{ID: 9, Artist: "xi", Title: "FREEDOM DiVE", Status: "ranked", Diffs: []osumeta.Diff{{ID: 1, Mode: "osu", Stars: 5}}}
+	if _, r := CheckMap(Input{Set: set}, State{}, rules, config.Default().Queue, time.Now()); r == nil || r.Code != "artist_blacklisted" || r.Short != "xi" {
+		t.Errorf("artist rule: %+v", r)
+	}
+}
+
+func TestSongRulesKeyValue(t *testing.T) {
+	list := []string{`Artist=“a_hisa”`, `title="Ghost"`, `artist='xi' title="Blue Zenith"`, `artist=ナナヒラ`}
+	cases := []struct {
+		s      Song
+		banned bool
+	}{
+		{Song{Artist: "a_hisa", Title: "Anything"}, true},
+		{Song{Artist: "A_HISA", Title: "Other (TV Size)"}, true},
+		{Song{Artist: "a_hisa feat. someone", Title: "x"}, true}, // whole words in a row
+		{Song{Artist: "a_hisashi", Title: "x"}, false},
+		{Song{Artist: "Camellia", Title: "Ghost (Extended Mix)"}, true},
+		{Song{Artist: "xi", Title: "Blue Zenith (Cut Ver.)"}, true},
+		{Song{Artist: "xi", Title: "FREEDOM DiVE"}, false}, // artist alone is not enough for that rule
+		{Song{Artist: "Nanahira", ArtistUnicode: "ナナヒラ", Title: "x"}, true},
+		{Song{Artist: "xinxin", Title: "Blue Zenith"}, false},
+	}
+	for _, c := range cases {
+		if _, got := SongBanned(list, c.s); got != c.banned {
+			t.Errorf("%+v: banned=%v, want %v", c.s, got, c.banned)
+		}
+	}
+	if RuleKey("xi - FREEDOM DiVE") != RuleKey(`artist="Xi" title="Freedom Dive (TV Size)"`) || RuleKey("") != "" {
+		t.Error("RuleKey should treat the two forms alike")
 	}
 }

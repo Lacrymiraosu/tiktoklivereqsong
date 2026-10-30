@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -69,8 +70,9 @@ type Rules struct {
 	BlacklistSets   []int    `json:"blacklistSets"`
 	BlacklistMapper []string `json:"blacklistMappers"`
 	BlacklistUsers  []string `json:"blacklistUsers"`
-	// BlacklistSongs are "Artist - Title" (or just "Title" for any artist);
-	// they match every set of that song, see validator.SongKey.
+	// BlacklistSongs are song rules (see ParseSongRule): artist="a_hisa",
+	// title="Ghost", both, "Artist - Title" or a bare title. They match every
+	// set of the song, see validator.SongBanned.
 	BlacklistSongs []string `json:"blacklistSongs"`
 	ExemptUsers    []string `json:"exemptUsers"` // no per-user limit or cooldown (streamer, mods)
 	// ModeStars overrides MinStars/MaxStars per mode (osu, taiko, fruits,
@@ -343,6 +345,11 @@ func (c *Config) Validate() error {
 	if c.Command.BareNumberAs != "beatmap" && c.Command.BareNumberAs != "set" {
 		add("bare_number", nil, "bare number must be beatmap or set")
 	}
+	for _, e := range c.Rules.BlacklistSongs {
+		if _, ok := ParseSongRule(e); !ok && strings.TrimSpace(e) != "" {
+			add("song_rule", map[string]string{"rule": e}, "song rule %q: use artist=\"…\", title=\"…\", \"Artist - Title\" or a title", e)
+		}
+	}
 	if c.Rules.HardModMaxStars < 0 {
 		add("hard_mod_stars", nil, "star limit for DT/HR requests cannot be negative")
 	}
@@ -405,6 +412,71 @@ func (c *Config) Validate() error {
 		return &ValidationError{Problems: probs}
 	}
 	return nil
+}
+
+// SongRule is one rules.blacklistSongs entry; an empty field matches anything.
+type SongRule struct {
+	Artist string
+	Title  string
+}
+
+var (
+	quotes    = strings.NewReplacer("“", `"`, "”", `"`, "„", `"`, "‟", `"`, "″", `"`, "＂", `"`, "‘", "'", "’", "'", "＝", "=")
+	reRuleKey = regexp.MustCompile(`(?i)^\s*(artist|title)\s*=`)
+	reRuleKV  = regexp.MustCompile(`(?i)^\s*(artist|title)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"']+))`)
+)
+
+// ParseSongRule reads a song rule in one of these forms:
+//
+//	artist="a_hisa"                  every song by that artist
+//	title="Ghost"                    that song by anyone
+//	artist="xi" title="Blue Zenith"  that song by that artist
+//	xi - Blue Zenith                 the same, short form
+//	Blue Zenith                      a title by anyone
+//
+// Keys are case-insensitive, quotes may be straight or curly (as phones type
+// them) or left out for one word.
+func ParseSongRule(s string) (SongRule, bool) {
+	s = strings.TrimSpace(quotes.Replace(s))
+	if s == "" {
+		return SongRule{}, false
+	}
+	if reRuleKey.MatchString(s) {
+		var r SongRule
+		for rest := s; strings.TrimSpace(rest) != ""; {
+			m := reRuleKV.FindStringSubmatch(rest)
+			if m == nil {
+				return SongRule{}, false // something that is not key=value
+			}
+			v := strings.TrimSpace(m[2] + m[3] + m[4])
+			if v == "" {
+				return SongRule{}, false
+			}
+			if strings.EqualFold(m[1], "artist") {
+				r.Artist = v
+			} else {
+				r.Title = v
+			}
+			rest = rest[len(m[0]):]
+		}
+		return r, true
+	}
+	if a, t, ok := strings.Cut(s, " - "); ok && strings.TrimSpace(a) != "" && strings.TrimSpace(t) != "" {
+		return SongRule{Artist: strings.TrimSpace(a), Title: strings.TrimSpace(t)}, true
+	}
+	return SongRule{Title: s}, true
+}
+
+// String writes the rule in the key="value" form.
+func (r SongRule) String() string {
+	var parts []string
+	if r.Artist != "" {
+		parts = append(parts, `artist="`+r.Artist+`"`)
+	}
+	if r.Title != "" {
+		parts = append(parts, `title="`+r.Title+`"`)
+	}
+	return strings.Join(parts, " ")
 }
 
 // GoodPIN accepts 6-12 digits that are not all the same digit and not a
