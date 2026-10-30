@@ -810,6 +810,7 @@ git push origin v1.4.0
 
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
 creates the tag `v1.4.0` on that commit together with the release (a tag made by the workflow does not start another run).
+The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 The tag build uses the tag's number for `main.version` and the Windows resources, and publishes a GitHub release with
 `osureq-<version>-windows-x64.zip` (`osureq.exe`, `LICENSE`, `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
 When a new module ends up in the exe (`go list -deps -f '{{if not .Standard}}{{.Module.Path}}{{end}}' .`), add its license to `THIRD_PARTY_LICENSES.txt`.
