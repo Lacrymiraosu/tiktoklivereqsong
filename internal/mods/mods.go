@@ -39,7 +39,7 @@ func Parse(words ...string) (string, error) {
 	have := map[string]bool{}
 	for i := 0; i < len(s); i += 2 {
 		m := s[i : i+2]
-		if !isKnown(m) {
+		if !Known(m) {
 			return "", &Error{Code: "unknown", Short: m}
 		}
 		have[m] = true
@@ -64,7 +64,8 @@ func Parse(words ...string) (string, error) {
 	return b.String(), nil
 }
 
-func isKnown(m string) bool {
+// Known reports whether m is a mod code this package accepts ("HD", "DT").
+func Known(m string) bool {
 	for _, k := range known {
 		if k == m {
 			return true
