@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
@@ -39,34 +40,37 @@ type App struct {
 	Search  *search.Client // "!req <song name>"; nil turns names off
 	OpenURL func(string) error
 
-	changed    func()
-	wake       chan struct{}
-	mu         sync.Mutex
-	inflight   map[string]context.CancelFunc // item id -> download cancel
-	notices    []Notice
-	advance    sync.Mutex
-	pending    int // requests being resolved
-	track      tosu.Tracker
-	trackID    string // queue item the tracker follows
-	feed       []FeedEvent
-	feedSeq    int64
-	lastPlay   tosu.Score // latest live numbers of the map being tracked
-	lastFailed bool
-	warned     map[string]bool
-	infoAt     map[string]time.Time // user|command -> last !pos / !np answered
-	voteID     string               // now-playing item the skip votes are for
-	voters     map[string]bool
-	votePassed bool              // the vote on voteID reached the count; later votes do nothing
-	latest     *update.Release   // a newer osureq release, if GitHub has one
-	summaryN   int64             // bumped each time the overlay should show the session summary
-	avatars    map[string]string // user -> profile picture, from their last command or gift
-	autoClosed bool              // requests were closed by autoCloseAt, so they may reopen by themselves
-	lastLen    int               // queue length at the previous auto-close check (-1 before the first)
-	lastTick   time.Time         // previous closeAt check
-	speech     []Speech          // chat for the dashboard to read aloud, newest first
-	speechSeq  int64
-	ttsAt      map[string]time.Time // user -> last message read (TTS cooldown)
-	gifters    map[string]time.Time // user -> last gift, for TTS "gifters only"
+	changed     func()
+	wake        chan struct{}
+	mu          sync.Mutex
+	inflight    map[string]context.CancelFunc // item id -> download cancel
+	notices     []Notice
+	advance     sync.Mutex
+	pending     int // requests being resolved
+	track       tosu.Tracker
+	trackID     string // queue item the tracker follows
+	feed        []FeedEvent
+	feedSeq     int64
+	lastPlay    tosu.Score // latest live numbers of the map being tracked
+	lastFailed  bool
+	warned      map[string]bool
+	infoAt      map[string]time.Time // user|command -> last !pos / !np answered
+	voteID      string               // now-playing item the skip votes are for
+	voters      map[string]bool
+	votePassed  bool              // the vote on voteID reached the count; later votes do nothing
+	latest      *update.Release   // a newer osureq release, if GitHub has one
+	summaryN    int64             // bumped each time the overlay should show the session summary
+	pvAsk       PreviewAsk        // the mod panel's last preview press (preview.go)
+	previewing  int               // set whose preview the dashboard is playing, 0 = none
+	mirrorCheck atomic.Bool       // CheckMirrors is running
+	avatars     map[string]string // user -> profile picture, from their last command or gift
+	autoClosed  bool              // requests were closed by autoCloseAt, so they may reopen by themselves
+	lastLen     int               // queue length at the previous auto-close check (-1 before the first)
+	lastTick    time.Time         // previous closeAt check
+	speech      []Speech          // chat for the dashboard to read aloud, newest first
+	speechSeq   int64
+	ttsAt       map[string]time.Time // user -> last message read (TTS cooldown)
+	gifters     map[string]time.Time // user -> last gift, for TTS "gifters only"
 }
 
 type Notice struct {

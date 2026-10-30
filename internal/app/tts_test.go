@@ -44,8 +44,9 @@ func TestSoftenCaps(t *testing.T) {
 		"สวัสดี OSU":             "สวัสดี osu",
 		"เพลงนี้ GOOD มาก":       "เพลงนี้ good มาก",
 		"Blue Zenith":            "Blue Zenith",
-		"lol OSU KIKI":              "lol osu kiki",
-		"สวัสดี KIKI ครับ":            "สวัสดี kiki ครับ",
+		"lol OSU KIKI":           "lol osu kiki",
+		"play SWITCHED-ON now":   "play switched-on now",
+		"สวัสดี KIKI ครับ":       "สวัสดี kiki ครับ",
 	}
 	for in, want := range cases {
 		if got := SoftenCaps(in); got != want {

@@ -35,6 +35,9 @@ button,input{font:inherit;color:inherit}
 .np b{display:block;font-size:19px;margin-top:4px;overflow-wrap:anywhere}
 .np .sub{font-size:14px;color:var(--dim);overflow-wrap:anywhere}
 .np .acts{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:12px}
+.np .acts:has(.pv){grid-template-columns:auto 1fr 2fr}
+.btn.pv{min-width:44px;font-size:16px}
+.btn.pv.on{background:var(--sky);border-color:var(--sky);color:#0d2233}
 .req{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .switch{appearance:none;width:52px;height:30px;border-radius:15px;background:var(--line);position:relative;cursor:pointer;flex:0 0 auto;transition:background .2s}
 .switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .2s}
@@ -90,6 +93,7 @@ const TX = {
   loginText: ["Enter the PIN from osureq on the streamer's PC (Settings → Mod panel).", "ใส่ PIN จาก osureq บนเครื่องสตรีมเมอร์ (ตั้งค่า → แผงม็อด)"],
   wrong_pin: ["Wrong PIN", "PIN ไม่ถูกต้อง"], locked: ["Too many wrong PINs. Try again in {n} min.", "ใส่ PIN ผิดหลายครั้งเกินไป ลองใหม่ใน {n} นาที"],
   requests: ["Requests", "รับคำขอ"], nowPlaying: ["Now playing", "กำลังเล่น"], nothing: ["Nothing playing", "ยังไม่มีเพลงที่เล่นอยู่"],
+  preview: ["Play the preview on the stream PC", "เล่นตัวอย่างเพลงบนคอมสตรีม"], stopPreview: ["Stop the preview", "หยุดตัวอย่างเพลง"],
   next: ["Next", "ถัดไป"], skip: ["Skip", "ข้าม"], remove: ["Remove", "ลบ"], up: ["Up", "ขึ้น"], down: ["Down", "ลง"],
   queue: ["Queue ({n})", "คิว ({n})"], empty: ["The queue is empty", "คิวว่าง"], by: ["requested by", "ขอโดย"],
   confirmRemove: ["Remove {t} (@{u})?", "ลบ {t} (@{u})?"], confirmSkip: ["Skip the song being played?", "ข้ามเพลงที่กำลังเล่น?"],
@@ -167,12 +171,17 @@ $("#logout").addEventListener("click", async () => { await api("POST", "/m/logou
 $("#reqSw").addEventListener("change", () => act("/m/api/action/toggleRequests"));
 
 let S = null, lastKey = "";
+// pvBtn plays (or stops) the map's preview on the stream PC, through the dashboard there.
+function pvBtn(it, playing) {
+  const on = it.setId > 0 && it.setId === playing;
+  return `<button class="btn sm pv${on ? " on" : ""}" type="button" data-op="preview" aria-label="${tx(on ? "stopPreview" : "preview")}" title="${tx(on ? "stopPreview" : "preview")}">${on ? "❚❚" : "♪"}</button>`;
+}
 function render(s) {
   $("#loginForm").hidden = true; $("#main").hidden = false; $("#logout").hidden = false;
   $("#reqSw").checked = s.requests;
   $("#tfDot").className = "dot " + s.tikfinity;
   $("#tosuDot").className = "dot " + s.tosu;
-  const key = JSON.stringify([s.now, s.items, s.voteSkip, LANG]);
+  const key = JSON.stringify([s.now, s.items, s.voteSkip, s.previewing, LANG]);
   if (key === lastKey) return; // nothing changed: keep the page still under the thumb
   lastKey = key;
   const n = s.now, vs = s.voteSkip || {};
@@ -180,13 +189,14 @@ function render(s) {
     ? `<b>${esc(n.title)}</b><div class="sub">${star(n)}${modsTag(n)}${esc(n.artist)} · [${esc(n.version)}]</div>
        <div class="sub">${tx("by")} @${esc(n.user)} · ${tx("ph_" + (n.phase || "waiting"))}${vs.needed > 0 && vs.votes > 0 ? " · " + tx("votes", { v: vs.votes, n: vs.needed }) : ""}</div>`
     : `<div class="sub" style="margin-top:6px">${tx("nothing")}</div>`) +
-    `<div class="acts"><button class="btn" type="button" data-act="skip"${n ? "" : " disabled"}>${tx("skip")}</button><button class="btn main" type="button" data-act="next">${tx("next")} →</button></div>`;
+    `<div class="acts" data-id="${n ? esc(n.id) : ""}">${n ? pvBtn(n, s.previewing) : ""}<button class="btn" type="button" data-act="skip"${n ? "" : " disabled"}>${tx("skip")}</button><button class="btn main" type="button" data-act="next">${tx("next")} →</button></div>`;
   $("#queueTitle").textContent = tx("queue", { n: s.items.length });
   $("#queue").innerHTML = s.items.length ? s.items.map((it, i) => `<div class="row" data-id="${esc(it.id)}">
       <span class="n${it.priority ? " prio" : ""}">${it.priority ? "★" : i + 1}</span>
       <span class="t">${star(it)}${modsTag(it)}${esc(it.artist)} - ${esc(it.title)}</span>
       <span class="m">@${esc(it.user)} · ${tx("st_" + it.state)} · [${esc(it.version)}]</span>
       <div class="acts">
+        ${pvBtn(it, s.previewing)}
         <button class="btn sm" type="button" data-op="up" data-i="${i}"${i === 0 ? " disabled" : ""} aria-label="${tx("up")}">▲</button>
         <button class="btn sm" type="button" data-op="down" data-i="${i}"${i === s.items.length - 1 ? " disabled" : ""} aria-label="${tx("down")}">▼</button>
         <button class="btn sm" type="button" data-op="skip">${tx("skip")}</button>
@@ -203,9 +213,9 @@ document.addEventListener("click", async e => {
     b.disabled = false;
     return;
   }
-  const row = b.closest(".row");
+  const row = b.closest("[data-id]"); // a queue row, or the now-playing buttons
   if (!row || !b.dataset.op || !S) return;
-  const id = row.dataset.id, it = S.items.find(x => x.id === id);
+  const id = row.dataset.id, it = S.items.find(x => x.id === id) || (S.now && S.now.id === id ? S.now : null);
   if (!it) return;
   const op = b.dataset.op;
   if (op === "remove" && !confirm(tx("confirmRemove", { t: it.title, u: it.user }))) return;

@@ -25,7 +25,7 @@ const maxSpeech = 20
 var (
 	reLink   = regexp.MustCompile(`(?i)\b(?:https?://|www\.)\S+|\b\S+\.(?:com|net|org|io|gg|me|tv|th|ly|be|sh)(?:/\S*)?\b`)
 	reSpaces = regexp.MustCompile(`\s+`)
-	reWord   = regexp.MustCompile(`[\p{L}'’]+`)
+	reWord   = regexp.MustCompile(`[\p{L}'’]+(?:-[\p{L}'’]+)*`) // "SWITCHED-ON" is one word
 )
 
 // speakChat queues a chat message for TTS unless it is a command: anything

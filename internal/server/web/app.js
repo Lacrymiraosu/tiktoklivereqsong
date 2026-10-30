@@ -24,6 +24,8 @@ const ICON = {
   retry: '<path d="M4 4v6h6"/><path d="M20 12A8 8 0 0 0 5.3 7.3L4 10m16 10v-6h-6"/><path d="M4 12a8 8 0 0 0 14.7 4.7L20 14"/>',
   next: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
+  note: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  pause: '<path d="M8 5v14M16 5v14"/>',
 };
 
 /* ---------- i18n (en / th) ---------- */
@@ -84,6 +86,9 @@ const T = {
   r_song_blacklisted: ["song blacklisted", "เพลงถูกแบน"], r_artist_blacklisted: ["artist blacklisted", "ศิลปินถูกแบน"],
   confirmBan_mapper: ["Ban maps by {v}? Waiting requests for their maps are removed.", "แบนแมพของ {v}? คำขอที่รออยู่ของแมพเหล่านี้จะถูกลบ"],
   banned: ["Banned {v} · removed {n}. Undo in Settings → Map rules.", "แบน {v} แล้ว · ลบ {n} คำขอ ยกเลิกได้ใน ตั้งค่า → กฎแมพ"],
+  mirrors: ["Mirrors", "Mirror"], mirrorCheck: ["Check", "ตรวจ"], mirrorChecking: ["Checking…", "กำลังตรวจ…"],
+  m_unknown: ["not checked yet", "ยังไม่ได้ตรวจ"], m_resting: ["rate limited, {s}s", "โดนจำกัดความถี่ รออีก {s} วิ"], m_ago: ["{t} ago", "{t} ที่แล้ว"],
+  mirrorHint: ["Checked 15 s after start, every 30 min and after each download.", "ตรวจหลังเปิดโปรแกรม 15 วิ ทุก 30 นาที และหลังดาวน์โหลดแต่ละครั้ง"],
   pvPlay: ["preview", "ฟังตัวอย่าง"], pvStop: ["stop", "หยุด"], pvFail: ["Could not play the preview", "เล่นตัวอย่างเพลงไม่ได้"],
   viewer: ["viewer", "viewer"], viewerTitle: ["Open in the beatmap viewer", "เปิดใน beatmap viewer"],
   confirmQuit: ["Stop osureq? Requests will not be taken until you start it again.", "ปิด osureq? จะไม่รับคำขอจนกว่าจะเปิดใหม่"],
@@ -491,9 +496,29 @@ function syncPreview() {
     b.textContent = on ? "❚❚ " + t("pvStop") : "♪ " + t("pvPlay");
     b.classList.toggle("on", on);
   });
+  document.querySelectorAll("[data-pvb]").forEach(b => { // the round ♪ button on a card
+    const on = +b.dataset.pvb === previewSet && !preview.paused;
+    if (b.classList.contains("on") !== on || !b.firstChild) b.replaceChildren(svg(on ? ICON.pause : ICON.note));
+    b.classList.toggle("on", on);
+    b.title = t(on ? "pvStop" : "pvPlay");
+    b.setAttribute("aria-label", b.title);
+  });
   document.querySelectorAll(".card[data-set]").forEach(c => c.classList.toggle("pv-on", +c.dataset.set === previewSet && !preview.paused));
 }
 ["play", "pause", "ended"].forEach(ev => preview.addEventListener(ev, syncPreview));
+// tell osureq which preview plays, for the mod panel's ♪ buttons
+let pvReported = 0;
+["play", "pause", "ended", "error"].forEach(ev => preview.addEventListener(ev, () => {
+  const now = preview.paused ? 0 : previewSet;
+  if (now !== pvReported) { pvReported = now; api("PUT", "/api/preview", { setId: now }); }
+}));
+// The mod panel's ♪ asks this dashboard to play (or stop) a preview; each press once.
+let pvAskN = null;
+function handlePreviewAsk() {
+  const ask = S.previewAsk || { n: 0 };
+  if (pvAskN !== null && ask.n > pvAskN && ask.setId > 0) togglePreview(ask.setId);
+  pvAskN = ask.n;
+}
 function togglePreview(setId) {
   if (previewSet === setId && !preview.paused) { preview.pause(); return; }
   if (previewSet !== setId) { preview.src = `https://b.ppy.sh/preview/${setId}.mp3`; previewSet = setId; }
@@ -644,6 +669,8 @@ function buildCard(it, i, total) {
       tagsFor(it)),
     h("div", { class: "cact" },
       it.state === "failed" ? btn(ICON.retry, L("Retry", "ลองใหม่"), () => q("retry")) : btn(ICON.play, L("Play now", "เล่นเลย"), () => q("play"), "go"),
+      h("button", { class: "cbtn pvb", type: "button", "data-pvb": it.setId, title: t("pvPlay"), "aria-label": t("pvPlay"),
+        onclick: e => { e.stopPropagation(); togglePreview(it.setId); } }, svg(ICON.note)),
       btn(ICON.up, L("Move up", "เลื่อนขึ้น"), () => q("move", { to: i - 1 }), "", i === 0),
       btn(ICON.down, L("Move down", "เลื่อนลง"), () => q("move", { to: i + 1 }), "", i === total - 1),
       btn(ICON.skip, t("skip"), () => q("skip")),
@@ -706,11 +733,12 @@ function cardMenu(it) {
   const b = h("button", { class: "cbtn more", type: "button", title: t("more"), "aria-label": t("more"), "aria-haspopup": "menu",
     onclick: e => {
       e.stopPropagation(); closeBanMenus(pop);
-      // fixed position next to the button: cards clip anything that overflows them
+      // fixed position next to the button, and moved to <body> while open: a card can trap it under the cards below
       const r = e.currentTarget.getBoundingClientRect();
       pop.hidden = !pop.hidden;
+      if (pop.hidden) { pop.remove(); return; }
+      document.body.append(pop);
       syncPreview();
-      if (pop.hidden) return;
       // below the button, or above it when there is no room; never off-screen
       pop.style.right = "auto";
       const w = pop.offsetWidth, ht = pop.offsetHeight;
@@ -721,8 +749,14 @@ function cardMenu(it) {
     } }, "⋯");
   return h("span", { class: "banwrap" }, b, pop);
 }
-function closeBanMenus(except) { document.querySelectorAll(".banpop").forEach(p => { if (p !== except) p.hidden = true; }); }
-document.addEventListener("click", e => { if (!e.target.closest(".banwrap")) closeBanMenus(); });
+function closeBanMenus(except) {
+  document.querySelectorAll(".banpop").forEach(p => {
+    if (p === except) return;
+    p.hidden = true;
+    if (p.parentNode === document.body) p.remove(); // an open menu lives in <body> (cardMenu)
+  });
+}
+document.addEventListener("click", e => { if (!e.target.closest(".banwrap, .banpop")) closeBanMenus(); });
 addEventListener("scroll", () => closeBanMenus(), { passive: true });
 async function ban(kind, value) {
   closeBanMenus();
@@ -756,7 +790,28 @@ function fill(sel, items, key) {
   e.replaceChildren(...(items.length ? items : [h("div", { class: "hint" }, t("none"))]));
 }
 
+// renderMirrors: how each download mirror did last time (a download or a check).
+function renderMirrors() {
+  const btn = $("#mirrorBtn");
+  btn.disabled = !!S.mirrorCheck;
+  btn.textContent = t(S.mirrorCheck ? "mirrorChecking" : "mirrorCheck");
+  const list = S.mirrors || [];
+  // ages tick by themselves only every minute, so the list is not rebuilt on every push
+  fill("#mirrorList", list.map(m => {
+    const dot = { ok: "green", failed: "red", resting: "yellow" }[m.state] || "";
+    let detail = t("m_unknown");
+    if (m.state === "ok") detail = m.ms + " ms";
+    else if (m.state === "failed") detail = m.error;
+    else if (m.state === "resting") detail = t("m_resting", { s: Math.ceil(m.ms / 1000) });
+    const when = m.at ? t("m_ago", { t: ago(m.at) }) : "";
+    return h("div", { class: "mrow " + m.state, title: [m.name, m.error, when].filter(Boolean).join(" · ") },
+      h("span", { class: "dot " + dot }), h("b", {}, m.name), h("span", { class: "mdet" }, detail), h("small", {}, when));
+  }), [list.map(m => [m.name, m.state, m.state === "ok" ? Math.round(m.ms / 100) : m.error, m.at && ago(m.at)]), S.mirrorCheck]);
+}
+$("#mirrorBtn").addEventListener("click", () => act("/api/action/checkMirrors"));
+
 function renderSide() {
+  renderMirrors();
   const rej = S.queue.rejected || [];
   $("#rejCount").textContent = rej.length || "";
   const notes = (S.notices || []).slice(0, 30), hist = S.queue.history || [];
@@ -837,6 +892,7 @@ function connect() {
     // A new osureq (after an update) serves a new dashboard.
     if (prev && prev.version !== S.version) { location.reload(); return; }
     handleSpeech();
+    handlePreviewAsk();
     // Chat rejections are easy to miss in the side panel; flash the newest one.
     const r = (S.queue.rejected || [])[0], p = prev && (prev.queue.rejected || [])[0];
     if (prev && r && !r.test && (!p || r.at !== p.at)) toast(`@${r.user} ${t("rejectedToast")}: ${t("r_" + r.code)}${r.short ? " (" + r.short + ")" : ""}`, true);

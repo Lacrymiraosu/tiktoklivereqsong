@@ -52,6 +52,49 @@ type Downloader struct {
 	mu       sync.Mutex
 	verified map[string]bool
 	resting  map[string]time.Time // source name → when it may be asked again after HTTP 429
+	status   map[string]SourceStatus
+}
+
+// SourceStatus is how a mirror did the last time it was asked, by a
+// download or a check (Probe), for the dashboard's mirror panel.
+type SourceStatus struct {
+	Name  string `json:"name"`
+	State string `json:"state"` // ok | failed | resting | unknown (not asked yet)
+	Error string `json:"error,omitempty"`
+	Ms    int64  `json:"ms,omitempty"` // how long the answer took (resting: how long it still rests)
+	At    int64  `json:"at,omitempty"` // when, Unix milliseconds
+}
+
+func (d *Downloader) record(name string, err error, took time.Duration) {
+	st := SourceStatus{Name: name, State: "ok", Ms: took.Milliseconds(), At: time.Now().UnixMilli()}
+	if err != nil {
+		st.State, st.Error = "failed", err.Error()
+	}
+	d.mu.Lock()
+	d.status[name] = st
+	d.mu.Unlock()
+}
+
+// Statuses lists the enabled mirrors in download order (not the official
+// site, which needs the browser).
+func (d *Downloader) Statuses() []SourceStatus {
+	var out []SourceStatus
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, src := range d.Cfg().Download.Sources {
+		if !src.Enabled || src.Official {
+			continue
+		}
+		st, ok := d.status[src.Name]
+		if !ok {
+			st = SourceStatus{Name: src.Name, State: "unknown"}
+		}
+		if wait := time.Until(d.resting[src.Name]); wait > 0 {
+			st.State, st.Ms = "resting", wait.Milliseconds()
+		}
+		out = append(out, st)
+	}
+	return out
 }
 
 // errRemoved is a map taken down at the rights holder's request (hinai's
@@ -59,7 +102,7 @@ type Downloader struct {
 var errRemoved = errors.New("removed at the rights holder's request")
 
 func New(cfg func() config.Config, cacheDir string, openURL func(string) error) *Downloader {
-	d := &Downloader{Cfg: cfg, CacheDir: cacheDir, OpenURL: openURL, Allow: config.HostAllowed, verified: map[string]bool{}, resting: map[string]time.Time{}}
+	d := &Downloader{Cfg: cfg, CacheDir: cacheDir, OpenURL: openURL, Allow: config.HostAllowed, verified: map[string]bool{}, resting: map[string]time.Time{}, status: map[string]SourceStatus{}}
 	d.HTTP = &http.Client{
 		// Every hop must stay on a whitelisted host, not only the last one.
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -167,10 +210,14 @@ func (d *Downloader) Get(ctx context.Context, job Job, progress Progress) (Outco
 			report()
 			b, err = d.official(ctx, src, job.SetID, noVideo)
 		} else {
+			start := time.Now()
 			b, err = d.fetch(ctx, src, job.SetID, noVideo, func(got, total int64) {
 				attempts[i].Received, attempts[i].Total = got, total
 				report()
 			})
+			if ctx.Err() == nil && !errors.Is(err, errRemoved) { // a takedown says nothing about the mirror
+				d.record(src.Name, err, time.Since(start))
+			}
 		}
 		if ctx.Err() != nil {
 			return Outcome{}, ctx.Err()
@@ -537,6 +584,9 @@ func (d *Downloader) Probe(ctx context.Context, setID int) []ProbeResult {
 			defer wg.Done()
 			start := time.Now()
 			err := d.probe(ctx, src, setID)
+			if ctx.Err() == nil {
+				d.record(src.Name, err, time.Since(start))
+			}
 			out[i] = ProbeResult{Source: src.Name, OK: err == nil, Ms: time.Since(start).Milliseconds()}
 			if err != nil {
 				out[i].Error = err.Error()

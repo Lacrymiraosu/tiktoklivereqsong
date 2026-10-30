@@ -316,6 +316,9 @@ type State struct {
 	Now       *Item        `json:"now"`
 	Items     []Item       `json:"items"`
 	VoteSkip  app.VoteSkip `json:"voteSkip"`
+	// Previewing is the set whose preview the dashboard on the stream PC
+	// is playing (0 = none).
+	Previewing int `json:"previewing"`
 }
 
 type Item struct {
@@ -337,7 +340,7 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 	a, cfg := s.App, s.App.Cfg.Get()
 	snap := a.Queue.Snapshot()
 	st := State{Lang: cfg.Language, Requests: cfg.Command.Enabled, PlayMode: cfg.Queue.PlayMode,
-		TikFinity: string(a.TF.Status().Level), Tosu: string(a.Tosu.Status().Level), VoteSkip: a.Votes(), Items: []Item{}}
+		TikFinity: string(a.TF.Status().Level), Tosu: string(a.Tosu.Status().Level), VoteSkip: a.Votes(), Previewing: a.Previewing(), Items: []Item{}}
 	conv := func(it queue.Item) Item {
 		return Item{ID: it.ID, User: it.User, Title: it.Title, Artist: it.Artist, Version: it.Version, Stars: it.Stars, Mode: it.Mode,
 			State: string(it.State), Priority: it.Priority, Phase: it.PlayPhase, SetID: it.SetID, Mods: it.Mods}
@@ -378,6 +381,13 @@ func (s *Server) queueOp(w http.ResponseWriter, r *http.Request) {
 		err = a.Remove(id)
 	case "skip":
 		err = a.Skip(id)
+	case "preview": // played (or stopped) by the dashboard on the stream PC
+		it, ok := a.Queue.Get(id)
+		if !ok {
+			err = errors.New("request not found")
+			break
+		}
+		a.AskPreview(it.SetID)
 	case "move":
 		var body struct {
 			To int `json:"to"`

@@ -69,8 +69,9 @@ func (a *App) announce(e FeedEvent) {
 	if tpl == "" || tpl == "-" {
 		return
 	}
-	vars := map[string]string{"user": speakName(e.Nick, e.User), "title": e.Title, "artist": e.Artist, "mapper": e.Mapper,
-		"diff": e.Version, "mods": spokenMods(e.Mods)}
+	// titles like "SWITCHED-ON LOTUS" are read as words (SoftenCaps)
+	vars := map[string]string{"user": speakName(e.Nick, e.User), "title": SoftenCaps(e.Title), "artist": SoftenCaps(e.Artist),
+		"mapper": SoftenCaps(e.Mapper), "diff": SoftenCaps(e.Version), "mods": spokenMods(e.Mods)}
 	if e.Stars > 0 {
 		vars["stars"] = strconv.FormatFloat(e.Stars, 'f', 2, 64)
 	}
@@ -90,7 +91,7 @@ func (a *App) announce(e FeedEvent) {
 		if k == "mods" {
 			v = spokenMods(v)
 		} else {
-			v = SoftenCaps(v) // titles like "BLUE ZENITH" are read as words
+			v = SoftenCaps(v)
 		}
 		vars[k] = v
 	}

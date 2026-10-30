@@ -180,3 +180,39 @@ func (a *App) testItems() int {
 	}
 	return n
 }
+
+// mirrorEvery is how often RunMirrorChecks asks the mirrors; downloads
+// update the panel in between.
+const mirrorEvery = 30 * time.Minute
+
+// CheckMirrors asks every enabled mirror for probeSet, for the dashboard's
+// mirror panel (Downloader.Statuses). One check runs at a time.
+func (a *App) CheckMirrors(ctx context.Context) {
+	if a.DL == nil || !a.mirrorCheck.CompareAndSwap(false, true) {
+		return
+	}
+	a.Changed()
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	a.DL.Probe(ctx, probeSet)
+	cancel()
+	a.mirrorCheck.Store(false)
+	a.Changed()
+}
+
+// CheckingMirrors reports whether CheckMirrors is running.
+func (a *App) CheckingMirrors() bool { return a.mirrorCheck.Load() }
+
+// RunMirrorChecks checks the mirrors shortly after start and then every
+// mirrorEvery until ctx ends.
+func (a *App) RunMirrorChecks(ctx context.Context) {
+	wait := 15 * time.Second
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+		wait = mirrorEvery
+		a.CheckMirrors(ctx)
+	}
+}

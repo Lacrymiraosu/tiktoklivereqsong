@@ -203,3 +203,29 @@ func TestGoodPIN(t *testing.T) {
 		}
 	}
 }
+
+func TestPreviewOnStreamPC(t *testing.T) {
+	s, h, _ := newPanel(t)
+	s.App.Queue.Add(&queue.Item{ID: "a", User: "fan", SetID: 39804, Title: "FREEDOM DiVE", AddedAt: time.Now()})
+	c := phone(t, h)
+	c.do("POST", "/m/login", `{"pin":"482915"}`, true)
+
+	if _, m := c.do("POST", "/m/api/queue/a/preview", "", true); m["ok"] != true {
+		t.Fatalf("preview: %v", m)
+	}
+	if ask := s.App.PreviewAsked(); ask.SetID != 39804 || ask.N != 1 {
+		t.Errorf("the dashboard should be asked to play set 39804 once: %+v", ask)
+	}
+	c.do("POST", "/m/api/queue/a/preview", "", true)
+	if ask := s.App.PreviewAsked(); ask.N != 2 {
+		t.Errorf("every press is a new ask (the dashboard toggles): %+v", ask)
+	}
+	if _, m := c.do("POST", "/m/api/queue/gone/preview", "", true); m["ok"] != false {
+		t.Errorf("a request that is gone: %v", m)
+	}
+
+	s.App.SetPreviewing(39804) // the dashboard reports what it plays
+	if _, m := c.do("GET", "/m/api/state", "", false); m["previewing"] != float64(39804) {
+		t.Errorf("the mod panel should see which preview plays: %v", m["previewing"])
+	}
+}
