@@ -61,6 +61,7 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 .toast.command{--c:var(--sky)}
 .toast.gift{--c:var(--gold)}
 .toast.result{--c:var(--acc)}
+.toast.status{--c:var(--sky)}
 @keyframes pop{from{opacity:0;transform:scale(.92) translateY(8px)}}
 
 /* end-of-stream summary, shown for a while when the streamer asks */
@@ -116,6 +117,8 @@ const TX = {
   c_np: ["asked what's playing", "ถามว่าเพลงอะไร"], c_np_none: ["nothing is playing yet", "ยังไม่มีเพลงที่เล่นอยู่"],
   c_vote: ["voted to skip ({n})", "โหวตข้ามเพลง ({n})"], c_voteskip: ["vote passed, skipping", "โหวตครบ ข้ามเพลงนี้"],
   gift: ["priority request!", "ได้คิวพิเศษ!"], giftReq: ["can request {n} song(s)!", "ขอเพลงได้ {n} เพลง!"], reqCost: ["gift {n} coins", "ของขวัญ {n} เหรียญ"], giftCredit: ["next request gets priority", "คำขอถัดไปจะได้คิวพิเศษ"],
+  s_auto_off: ["Requests paused: the queue is full", "พักรับคำขอ: คิวเต็มแล้ว"], s_auto_on: ["Requests are open again!", "เปิดรับคำขออีกครั้งแล้ว!"],
+  s_time_off: ["Requests are closed for today", "ปิดรับคำขอสำหรับวันนี้แล้ว"], s_back: ["they open again when the queue gets shorter", "จะเปิดอีกครั้งเมื่อคิวสั้นลง"],
   sumTitle: ["Stream summary", "สรุปไลฟ์นี้"], sumPlayed: ["played", "เล่นแล้ว"], sumPassed: ["cleared", "ผ่าน"], sumViewers: ["viewers", "ผู้ชมที่ขอ"],
   sumBest: ["Best", "ดีที่สุด"], sumTop: ["Most requests", "ขอมากที่สุด"], sumThanks: ["Thanks for the requests!", "ขอบคุณที่ขอเพลงกันนะ!"],
   res_passed: ["cleared", "ผ่าน"], res_failed: ["failed", "ตาย"], res_quit: ["quit", "ออกกลางเพลง"], resOf: ["{u}'s request", "เพลงที่ @{u} ขอ"],
@@ -142,6 +145,7 @@ function toastHTML(e) {
     case "gift":
       if (e.code === "requests") return ["★", who, tx("giftReq", { n: e.pos }), esc(e.short || "")];
       return ["★", who, tx(e.code === "credit" ? "giftCredit" : "gift"), [esc(e.short || ""), map].filter(Boolean).join(" · ")];
+    case "status": return [e.code === "auto_on" ? "▶" : "⏸", tx("s_" + e.code), "", e.code === "auto_off" ? `${tx("s_back")} · ${esc(e.short)}` : ""];
     case "result": return ["♪", esc(e.title), tx("res_" + e.code), `${esc(e.short || "")} · ${tx("resOf", { u: esc(e.user) })}`];
   }
   return null;

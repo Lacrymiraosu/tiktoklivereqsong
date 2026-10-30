@@ -58,6 +58,9 @@ type App struct {
 	latest     *update.Release   // a newer osureq release, if GitHub has one
 	summaryN   int64             // bumped each time the overlay should show the session summary
 	avatars    map[string]string // user -> profile picture, from their last command or gift
+	autoClosed bool              // requests were closed by autoCloseAt, so they may reopen by themselves
+	lastLen    int               // queue length at the previous auto-close check (-1 before the first)
+	lastTick   time.Time         // previous closeAt check
 }
 
 type Notice struct {
@@ -72,7 +75,7 @@ type Notice struct {
 
 func New(cfg *config.Store, q *queue.Queue, meta *osumeta.Client, dl *downloader.Downloader, im *importer.Importer, tf *tikfinity.Client, openURL func(string) error) *App {
 	a := &App{Cfg: cfg, Queue: q, Meta: meta, DL: dl, Import: im, TF: tf, OsuDB: &importer.OsuDB{}, OpenURL: openURL,
-		wake: make(chan struct{}, 1), inflight: map[string]context.CancelFunc{}}
+		wake: make(chan struct{}, 1), inflight: map[string]context.CancelFunc{}, lastLen: -1}
 	q.OnChange(func() { a.Changed(); a.Wake() })
 	return a
 }
@@ -438,6 +441,7 @@ func (a *App) Run(ctx context.Context) {
 }
 
 func (a *App) tick(ctx context.Context) {
+	a.autoRequests(time.Now())
 	cfg := a.Cfg.Get()
 	n := 0
 	if cfg.Import.Preload {
@@ -471,6 +475,55 @@ func (a *App) tick(ctx context.Context) {
 			}
 		}
 		go a.Next("played")
+	}
+}
+
+// autoRequests closes requests when the queue reaches queue.autoCloseAt,
+// opens them again at queue.autoReopenAt (only if it closed them), and
+// closes them when the clock passes queue.closeAt. It acts on changes only:
+// a streamer who opens requests by hand while the queue is still full, or
+// after the closing time, is not overruled.
+func (a *App) autoRequests(now time.Time) {
+	cfg := a.Cfg.Get()
+	q := cfg.Queue
+	n := a.Queue.Len()
+	a.mu.Lock()
+	prev, auto, last := a.lastLen, a.autoClosed, a.lastTick
+	a.lastLen, a.lastTick = n, now
+	if auto && cfg.Command.Enabled {
+		a.autoClosed, auto = false, false // opened by hand meanwhile
+	}
+	a.mu.Unlock()
+
+	setRequests := func(on bool, code, short string) {
+		c := a.Cfg.Get()
+		c.Command.Enabled = on
+		if err := a.Cfg.Set(c); err != nil {
+			log.Printf("auto requests: %v", err)
+			return
+		}
+		a.mu.Lock()
+		a.autoClosed = code == "auto_off"
+		a.mu.Unlock()
+		a.emit(FeedEvent{Kind: "status", Code: code, Short: short})
+	}
+	switch {
+	case q.AutoCloseAt > 0 && cfg.Command.Enabled && n >= q.AutoCloseAt && prev < q.AutoCloseAt:
+		setRequests(false, "auto_off", fmt.Sprintf("%d/%d", n, q.AutoCloseAt))
+		a.Say("info", "autoClosed", map[string]string{"n": strconv.Itoa(n)}, "requests closed: %d waiting (auto-close)", n)
+		return
+	case auto && !cfg.Command.Enabled && n <= q.AutoReopenAt:
+		setRequests(true, "auto_on", "")
+		a.Say("info", "autoReopened", map[string]string{"n": strconv.Itoa(n)}, "requests open again: %d waiting", n)
+		return
+	}
+	if at, ok := config.ClockTime(q.CloseAt); ok && cfg.Command.Enabled && !last.IsZero() {
+		y, m, d := now.Date()
+		t := time.Date(y, m, d, at/60, at%60, 0, 0, now.Location())
+		if last.Before(t) && !now.Before(t) {
+			setRequests(false, "time_off", q.CloseAt)
+			a.Say("info", "timeClosed", map[string]string{"t": q.CloseAt}, "requests closed: it is %s", q.CloseAt)
+		}
 	}
 }
 
