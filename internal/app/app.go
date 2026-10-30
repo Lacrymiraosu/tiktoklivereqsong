@@ -488,6 +488,14 @@ func (a *App) tick(ctx context.Context) {
 	}
 }
 
+// byHand records that a person opened or closed requests, so auto-close
+// will not reopen them (even "!reqoff" while they were already closed by it).
+func (a *App) byHand() {
+	a.mu.Lock()
+	a.autoClosed = false
+	a.mu.Unlock()
+}
+
 // autoRequests closes requests when the queue reaches queue.autoCloseAt,
 // opens them again at queue.autoReopenAt (only if it closed them), and
 // closes them when the clock passes queue.closeAt. It acts on changes only:
@@ -901,6 +909,7 @@ func (a *App) Cancel(id string) {
 }
 
 func (a *App) ToggleRequests() bool {
+	a.byHand()
 	c := a.Cfg.Get()
 	c.Command.Enabled = !c.Command.Enabled
 	a.Cfg.Set(c)

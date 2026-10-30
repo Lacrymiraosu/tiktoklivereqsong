@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 )
 
 func TestAutoCloseAndReopen(t *testing.T) {
@@ -58,6 +59,28 @@ func TestAutoCloseAndReopen(t *testing.T) {
 	a.autoRequests(now)
 	if !on() || a.Queue.Len() < 3 {
 		t.Error("opening by hand while full is the streamer's choice")
+	}
+}
+
+func TestReqoffAfterAutoCloseStaysClosed(t *testing.T) {
+	a := newTestApp(t, func(c *config.Config) {
+		c.Queue.AutoCloseAt, c.Queue.AutoReopenAt = 2, 0
+		c.Command.Mods = []string{"mod"}
+	})
+	now := time.Now()
+	a.autoRequests(now)
+	add(a, "1", "u", 1, now)
+	add(a, "2", "u", 2, now)
+	a.autoRequests(now)
+	if a.Cfg.Get().Command.Enabled {
+		t.Fatal("setup: should be closed by auto-close")
+	}
+	a.command(tikfinity.Chat{User: "mod", Comment: "!reqoff"}, false) // "stop for tonight"
+	a.Remove("1")
+	a.Remove("2")
+	a.autoRequests(now)
+	if a.Cfg.Get().Command.Enabled {
+		t.Error("!reqoff after an auto-close must keep requests closed")
 	}
 }
 

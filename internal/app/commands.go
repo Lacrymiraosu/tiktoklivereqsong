@@ -83,6 +83,7 @@ func (a *App) command(ch tikfinity.Chat, test bool) string {
 			return cmdNotMod
 		}
 		on := is(c.OpenCmd)
+		a.byHand()
 		cfg := a.Cfg.Get()
 		if cfg.Command.Enabled != on {
 			cfg.Command.Enabled = on
