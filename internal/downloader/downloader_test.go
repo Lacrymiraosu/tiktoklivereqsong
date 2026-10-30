@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
@@ -35,13 +36,16 @@ func ref() verifier.Reference {
 }
 
 // Two fake mirrors: the first serves an outdated copy, the second the right one.
-func setup(t *testing.T, mutate func(*config.Config)) (*Downloader, *int) {
-	hits := 0
+func setup(t *testing.T, mutate func(*config.Config)) (*Downloader, *atomic.Int32) {
+	var hits atomic.Int32 // mirrors are probed side by side
 	mux := http.NewServeMux()
-	mux.HandleFunc("/stale/", func(w http.ResponseWriter, r *http.Request) { hits++; w.Write(osz(stale)) })
-	mux.HandleFunc("/good/", func(w http.ResponseWriter, r *http.Request) { hits++; w.Write(osz(good)) })
-	mux.HandleFunc("/html/", func(w http.ResponseWriter, r *http.Request) { hits++; w.Write([]byte("<html>rate limited</html>")) })
-	mux.HandleFunc("/404/", func(w http.ResponseWriter, r *http.Request) { hits++; http.NotFound(w, r) })
+	mux.HandleFunc("/stale/", func(w http.ResponseWriter, r *http.Request) { hits.Add(1); w.Write(osz(stale)) })
+	mux.HandleFunc("/good/", func(w http.ResponseWriter, r *http.Request) { hits.Add(1); w.Write(osz(good)) })
+	mux.HandleFunc("/html/", func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.Write([]byte("<html>rate limited</html>"))
+	})
+	mux.HandleFunc("/404/", func(w http.ResponseWriter, r *http.Request) { hits.Add(1); http.NotFound(w, r) })
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -83,10 +87,10 @@ func TestCacheHitSkipsNetwork(t *testing.T) {
 	if _, err := d.Get(context.Background(), Job{SetID: 9, Ref: ref()}, nil); err != nil {
 		t.Fatal(err)
 	}
-	before := *hits
+	before := hits.Load()
 	out, err := d.Get(context.Background(), Job{SetID: 9, Ref: ref()}, nil)
-	if err != nil || out.Source != "cache" || *hits != before {
-		t.Fatalf("expected cache hit, got %+v err=%v hits %d->%d", out, err, before, *hits)
+	if err != nil || out.Source != "cache" || hits.Load() != before {
+		t.Fatalf("expected cache hit, got %+v err=%v hits %d->%d", out, err, before, hits.Load())
 	}
 }
 
