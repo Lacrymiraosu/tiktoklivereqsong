@@ -113,3 +113,35 @@ func TestOldFollowersOnlyBecomesAllow(t *testing.T) {
 		t.Errorf("followersOnly should become allow [follower]: %+v", tts)
 	}
 }
+
+func TestTTSEngine(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(path, []byte(`{"tts":{"lang":"th"}}`), 0o644)
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := s.Get().TTS.Engine; e != "auto" {
+		t.Errorf("a config from before tts.engine should get auto, got %q", e)
+	}
+	c := Default()
+	c.TTS.Engine = "espeak"
+	if c.Validate() == nil {
+		t.Error("an unknown TTS engine should not validate")
+	}
+}
+
+func TestAnnounceOnByDefault(t *testing.T) {
+	if !Default().TTS.Announce {
+		t.Error("request announcements should be on in a new config")
+	}
+	path := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(path, []byte(`{"tts":{"announce":false}}`), 0o644)
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Get().TTS.Announce {
+		t.Error("a streamer who turned announcements off must keep them off")
+	}
+}

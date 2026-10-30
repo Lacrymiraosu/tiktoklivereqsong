@@ -31,24 +31,25 @@ var (
 // starting with "!" is never read, which is the point of this TTS. Links and
 // emoji are left out, long runs ("5555555") are shortened, and the settings'
 // filters apply (blacklisted users, followers only, cooldown, blocked words).
-func (a *App) speakChat(ch tikfinity.Chat, test bool) {
+// It reports whether the message was queued.
+func (a *App) speakChat(ch tikfinity.Chat, test bool) bool {
 	cfg := a.Cfg.Get()
 	t := cfg.TTS
 	if !t.Enabled || strings.HasPrefix(strings.TrimSpace(ch.Comment), "!") {
-		return
+		return false
 	}
 	if containsFold(cfg.Rules.BlacklistUsers, ch.User) || !a.ttsAllowed(ch, t.Allow, cfg.Rules.ExemptUsers) {
-		return
+		return false
 	}
 	lower := strings.ToLower(ch.Comment)
 	for _, w := range t.BlockedWords {
 		if w = strings.ToLower(strings.TrimSpace(w)); w != "" && strings.Contains(lower, w) {
-			return
+			return false
 		}
 	}
 	text := SpeakableText(ch.Comment, t.MaxLength)
 	if text == "" {
-		return
+		return false
 	}
 	now := time.Now()
 	a.mu.Lock()
@@ -58,10 +59,11 @@ func (a *App) speakChat(ch tikfinity.Chat, test bool) {
 		a.ttsAt = map[string]time.Time{}
 	}
 	if now.Sub(a.ttsAt[key]) < time.Duration(t.CooldownSec)*time.Second {
-		return
+		return false
 	}
 	a.ttsAt[key] = now
 	a.addSpeechLocked(Speech{User: ch.User, Name: speakName(ch.Nick, ch.User), Text: text, Test: test, Kind: "chat"})
+	return true
 }
 
 // queueSpeech adds something for the dashboard to say.
