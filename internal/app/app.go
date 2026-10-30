@@ -941,13 +941,21 @@ func (a *App) Resolving() int {
 	return a.pending
 }
 
-// SetUpdate records a newer osureq release; Activity mentions each version once.
+// SetUpdate records a newer osureq release; Activity mentions each version
+// once, and once more when it has been downloaded and is ready to install.
 func (a *App) SetUpdate(r update.Release) {
 	a.mu.Lock()
-	seen := a.latest != nil && a.latest.Version == r.Version
+	prev := a.latest
+	same := prev != nil && prev.Version == r.Version
+	if same && prev.Ready {
+		r.Ready = true // the twice-a-day check does not undo a finished download
+	}
 	a.latest = &r
 	a.mu.Unlock()
-	if !seen {
+	switch {
+	case r.Ready && !(same && prev.Ready):
+		a.Say("info", "updateReady", map[string]string{"v": r.Version}, "osureq %s is downloaded; it is installed the next time osureq starts", r.Version)
+	case !same:
 		a.Say("info", "update", map[string]string{"v": r.Version}, "osureq %s is available: %s", r.Version, r.URL)
 	}
 }

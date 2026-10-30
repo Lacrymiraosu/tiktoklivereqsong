@@ -259,11 +259,16 @@ function render(S) {
 
   setHTML(cmdSlot, S.requests && S.tikfinity.level === "green" ? `<div class="cmd">${tx("request")}: <b>${esc(S.command)}</b> &lt;${tx(S.search ? "reqArgName" : "reqArg")}&gt;${S.requestCoins > 0 ? " · 🎁 " + tx("reqCost", { n: S.requestCoins }) : ""}</div>` : "");
 }
-let retry = 0;
+let retry = 0, version; // version: reload when osureq was updated
 (function connect() {
   const ws = new WebSocket("ws://" + location.host + "/ws?client=overlay"); // counted by the pre-stream check
   ws.onopen = () => retry = 0;
-  ws.onmessage = e => render(JSON.parse(e.data));
+  ws.onmessage = e => {
+    const st = JSON.parse(e.data);
+    if (version && version !== st.version) return location.reload();
+    version = st.version;
+    render(st);
+  };
   ws.onclose = () => setTimeout(connect, Math.min(5000, 500 * 2 ** retry++));
 })();
 </script>

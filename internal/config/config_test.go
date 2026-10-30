@@ -145,3 +145,19 @@ func TestAnnounceOnByDefault(t *testing.T) {
 		t.Error("a streamer who turned announcements off must keep them off")
 	}
 }
+
+func TestAutoUpdate(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(path, []byte(`{"connection":{"checkUpdates":true}}`), 0o644)
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !s.Get().Connection.AutoUpdate {
+		t.Error("a config from before automatic updates should get them")
+	}
+	os.WriteFile(path, []byte(`{"connection":{"autoUpdate":false}}`), 0o644)
+	if s, _ := Load(path); s.Get().Connection.AutoUpdate {
+		t.Error("a streamer who turned automatic updates off must keep them off")
+	}
+}

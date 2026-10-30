@@ -20,6 +20,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/update"
 )
 
 const port = 21299
@@ -317,5 +318,33 @@ func TestTTSProxy(t *testing.T) {
 	w = do(h, http.MethodPost, "/api/tts", `{"lang":"th","text":"hi"}`, func(r *http.Request) { r.Header.Del("X-Osureq") })
 	if w.Code != http.StatusForbidden {
 		t.Errorf("without X-Osureq another site could use it: got %d", w.Code)
+	}
+}
+
+func TestInstallUpdate(t *testing.T) {
+	s, h := newTestServer(t)
+	restarted := make(chan bool, 1)
+	s.Restart = func() { restarted <- true }
+
+	if m := decode(t, do(h, http.MethodPost, "/api/action/installUpdate", "")); m["ok"] != false {
+		t.Errorf("no update yet: %v", m)
+	}
+	s.App.SetUpdate(update.Release{Version: "9.0.0", URL: update.ReleasesURL + "tag/v9.0.0"})
+	if m := decode(t, do(h, http.MethodPost, "/api/action/installUpdate", "")); m["ok"] != false {
+		t.Errorf("found but not downloaded: %v", m)
+	}
+	s.App.SetUpdate(update.Release{Version: "9.0.0", URL: update.ReleasesURL + "tag/v9.0.0", Ready: true})
+	s.App.SetUpdate(update.Release{Version: "9.0.0", URL: update.ReleasesURL + "tag/v9.0.0"}) // the next check
+	st := decode(t, do(h, http.MethodGet, "/api/state", ""))
+	if u, _ := st["update"].(map[string]any); u["ready"] != true {
+		t.Fatalf("state should say the update is ready: %v", st["update"])
+	}
+	if m := decode(t, do(h, http.MethodPost, "/api/action/installUpdate", "")); m["ok"] != true {
+		t.Fatalf("ready: %v", m)
+	}
+	select {
+	case <-restarted:
+	case <-time.After(3 * time.Second):
+		t.Error("Restart was not called")
 	}
 }
