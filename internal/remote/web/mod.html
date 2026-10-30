@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c1726">
+<meta name="robots" content="noindex">
+<title>osureq mod panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600&family=Varela+Round&display=swap" rel="stylesheet">
+<style>
+/* Same palette as the dashboard; made for a phone held in one hand. */
+:root{--bg:#1c1726;--bg2:#241d33;--panel:#2d2540;--line:#443a5a;--ink:#f3eefb;--dim:#b3a8cc;--pink:#ff66aa;--pinkdk:#2a0f1f;--sky:#66ccff;--ok:#57d68d;--warn:#ffcf6b;--err:#ff5a6e;
+  font-family:"Varela Round","IBM Plex Sans Thai",system-ui,sans-serif;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{min-height:100dvh;padding:max(12px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
+button,input{font:inherit;color:inherit}
+[hidden]{display:none!important}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.top{display:flex;align-items:center;gap:8px}
+.top h1{font-size:17px;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:10px;height:10px;border-radius:50%;background:#665c80;display:inline-block}
+.dot.green{background:var(--ok)}.dot.yellow{background:var(--warn)}.dot.red{background:var(--err)}
+.pills{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--dim)}
+.btn{min-height:48px;padding:0 18px;border-radius:24px;border:1px solid var(--line);background:var(--panel);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn:active{transform:scale(.96)}
+.btn:disabled{opacity:.45}
+.btn.main{background:var(--pink);border-color:var(--pink);color:var(--pinkdk);font-weight:600}
+.btn.sm{min-height:36px;padding:0 12px;font-size:14px}
+.btn.ghost{background:transparent}
+.card{border-radius:18px;border:1px solid var(--line);background:var(--panel);padding:14px}
+.lab{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--pink)}
+.np b{display:block;font-size:19px;margin-top:4px;overflow-wrap:anywhere}
+.np .sub{font-size:14px;color:var(--dim);overflow-wrap:anywhere}
+.np .acts{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:12px}
+.req{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.switch{appearance:none;width:52px;height:30px;border-radius:15px;background:var(--line);position:relative;cursor:pointer;flex:0 0 auto;transition:background .2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .2s}
+.switch:checked{background:var(--pink)}.switch:checked::after{transform:translateX(22px)}
+.list{display:flex;flex-direction:column;gap:8px}
+.row{border-radius:14px;border:1px solid var(--line);background:var(--bg2);padding:10px 12px;display:grid;grid-template-columns:26px minmax(0,1fr);gap:4px 10px}
+.row .n{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;background:var(--pink);color:var(--pinkdk)}
+.row .n.prio{background:var(--warn)}
+.row .t{font-size:15px;overflow-wrap:anywhere}
+.row .m{grid-column:2;font-size:12px;color:var(--dim);overflow-wrap:anywhere}
+.row .acts{grid-column:1/-1;display:flex;gap:6px;justify-content:flex-end;margin-top:4px}
+.star{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;color:#1c1726;margin-right:6px;vertical-align:1px}
+.empty{color:var(--dim);font-size:14px;text-align:center;padding:18px 0}
+.login{margin-top:12vh}
+.login input{width:100%;height:56px;border-radius:14px;border:1px solid var(--line);background:var(--bg2);padding:0 16px;font-size:24px;letter-spacing:6px;text-align:center}
+.login p{color:var(--dim);font-size:14px;line-height:1.5}
+.err{color:var(--err);font-size:14px;min-height:20px}
+.toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 16px;font-size:14px;transition:.25s;max-width:calc(100vw - 32px)}
+.toast.on{opacity:1;transform:translate(-50%,0)}.toast.bad{border-color:var(--err)}
+h2{font-size:14px;color:var(--pink);margin:6px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1 id="title">osureq mod panel</h1>
+    <button class="btn sm ghost" id="lang" type="button">ไทย</button>
+    <button class="btn sm ghost" id="logout" type="button" hidden></button></div>
+
+  <form class="card login" id="loginForm" hidden autocomplete="off">
+    <p id="loginText"></p>
+    <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="one-time-code" aria-label="PIN">
+    <div class="err" id="loginErr"></div>
+    <button class="btn main" type="submit" id="loginBtn" style="width:100%"></button>
+  </form>
+
+  <div id="main" hidden>
+    <div class="card req"><div><b id="reqLabel"></b><div class="pills"><span><i class="dot" id="tfDot"></i> TikFinity</span><span><i class="dot" id="tosuDot"></i> tosu</span></div></div>
+      <input type="checkbox" class="switch" id="reqSw" aria-labelledby="reqLabel"></div>
+    <div class="card np" id="np"></div>
+    <h2 id="queueTitle"></h2>
+    <div class="list" id="queue"></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const TX = {
+  title: ["osureq mod panel", "แผงม็อด osureq"], login: ["Sign in", "เข้าสู่ระบบ"], logout: ["Sign out", "ออก"],
+  loginText: ["Enter the PIN from osureq on the streamer's PC (Settings → Mod panel).", "ใส่ PIN จาก osureq บนเครื่องสตรีมเมอร์ (ตั้งค่า → แผงม็อด)"],
+  wrong_pin: ["Wrong PIN", "PIN ไม่ถูกต้อง"], locked: ["Too many wrong PINs. Try again in {n} min.", "ใส่ PIN ผิดหลายครั้งเกินไป ลองใหม่ใน {n} นาที"],
+  requests: ["Requests", "รับคำขอ"], nowPlaying: ["Now playing", "กำลังเล่น"], nothing: ["Nothing playing", "ยังไม่มีเพลงที่เล่นอยู่"],
+  next: ["Next", "ถัดไป"], skip: ["Skip", "ข้าม"], remove: ["Remove", "ลบ"], up: ["Up", "ขึ้น"], down: ["Down", "ลง"],
+  queue: ["Queue ({n})", "คิว ({n})"], empty: ["The queue is empty", "คิวว่าง"], by: ["requested by", "ขอโดย"],
+  confirmRemove: ["Remove {t} (@{u})?", "ลบ {t} (@{u})?"], confirmSkip: ["Skip the song being played?", "ข้ามเพลงที่กำลังเล่น?"],
+  st_queued: ["waiting", "รอดาวน์โหลด"], st_downloading: ["downloading", "กำลังดาวน์โหลด"], st_ready: ["ready", "พร้อมเล่น"], st_failed: ["failed", "ล้มเหลว"],
+  ph_waiting: ["waiting to be played", "รอเริ่มเล่น"], ph_playing: ["playing", "กำลังเล่น"], ph_results: ["results screen", "หน้าผลคะแนน"], ph_ended: ["finished", "เล่นจบแล้ว"],
+  votes: ["skip votes {v}/{n}", "โหวตข้าม {v}/{n}"], offline: ["Lost connection to osureq", "ขาดการเชื่อมต่อกับ osureq"],
+  e_queue_empty: ["The queue is empty", "คิวว่างอยู่"], e_busy: ["Already opening a map", "กำลังเปิดแมพอยู่"], e_not_found: ["That request is gone", "คำขอนี้ไม่อยู่แล้ว"],
+};
+let LANG = (navigator.language || "").startsWith("th") ? "th" : "en";
+try { LANG = localStorage.getItem("osureq.modLang") || LANG; } catch {}
+const tx = (k, v) => { let s = (TX[k] || [k, k])[LANG === "th" ? 1 : 0]; for (const a in v || {}) s = s.replace("{" + a + "}", v[a]); return s; };
+let toastT;
+function toast(msg, bad) {
+  const e = $("#toast"); e.textContent = msg; e.classList.toggle("bad", !!bad); e.classList.add("on");
+  clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove("on"), bad ? 3500 : 1800);
+}
+function starColor(s) {
+  if (s == null || s < 0) return "#8a7fa3";
+  const stops = [[0, "#4290fb"], [2, "#4fc0ff"], [2.5, "#4fffd5"], [3.3, "#7cff4f"], [4.2, "#f6f05c"], [4.9, "#ff8068"], [5.8, "#ff4e6f"], [6.7, "#c645b8"], [7.7, "#6563de"], [9, "#18158e"]];
+  if (s >= 9) return "#000";
+  for (let i = 1; i < stops.length; i++) if (s <= stops[i][0]) {
+    const [a, ca] = stops[i - 1], [b, cb] = stops[i], f = (s - a) / (b - a);
+    const p = c => [1, 3, 5].map(j => parseInt(c.slice(j, j + 2), 16));
+    const x = p(ca), y = p(cb);
+    return "rgb(" + x.map((v, j) => Math.round(v + (y[j] - v) * f)).join(",") + ")";
+  }
+  return "#18158e";
+}
+const star = it => `<span class="star" style="background:${starColor(it.stars)};color:${it.stars >= 6.7 ? "#fff" : "#1c1726"}">${it.stars >= 0 ? it.stars.toFixed(2) : "?"}★</span>`;
+
+async function api(method, path, body) {
+  let r;
+  try {
+    r = await fetch(path, { method, headers: { "X-Osureq": "1", "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), credentials: "same-origin" });
+  } catch { return { ok: false, offline: true }; }
+  let j = {};
+  try { j = await r.json(); } catch {}
+  if (r.status === 401 && j.code === "login") { showLogin(); return { ok: false, login: true }; }
+  return j;
+}
+async function act(path, body) {
+  const j = await api("POST", path, body);
+  if (j.ok === false && !j.login) toast(j.code && TX["e_" + j.code] ? tx("e_" + j.code) : (j.error || "error"), true);
+  refresh();
+  return j;
+}
+
+function applyLang() {
+  document.documentElement.lang = LANG;
+  $("#lang").textContent = LANG === "th" ? "English" : "ไทย";
+  $("#title").textContent = tx("title");
+  $("#loginText").textContent = tx("loginText");
+  $("#loginBtn").textContent = tx("login");
+  $("#logout").textContent = tx("logout");
+  $("#reqLabel").textContent = tx("requests");
+  if (S) render(S);
+}
+$("#lang").addEventListener("click", () => { LANG = LANG === "th" ? "en" : "th"; try { localStorage.setItem("osureq.modLang", LANG); } catch {} applyLang(); });
+
+function showLogin() {
+  S = null;
+  $("#main").hidden = true; $("#logout").hidden = true; $("#loginForm").hidden = false;
+  setTimeout(() => $("#pin").focus(), 50);
+}
+$("#loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("#loginBtn").disabled = true;
+  const j = await api("POST", "/m/login", { pin: $("#pin").value.trim() });
+  $("#loginBtn").disabled = false;
+  if (j.ok) { $("#pin").value = ""; $("#loginErr").textContent = ""; $("#loginForm").hidden = true; refresh(); return; }
+  $("#loginErr").textContent = j.code === "locked" ? tx("locked", { n: j.minutes }) : j.offline ? tx("offline") : tx("wrong_pin");
+});
+$("#logout").addEventListener("click", async () => { await api("POST", "/m/logout"); showLogin(); });
+$("#reqSw").addEventListener("change", () => act("/m/api/action/toggleRequests"));
+
+let S = null, lastKey = "";
+function render(s) {
+  $("#loginForm").hidden = true; $("#main").hidden = false; $("#logout").hidden = false;
+  $("#reqSw").checked = s.requests;
+  $("#tfDot").className = "dot " + s.tikfinity;
+  $("#tosuDot").className = "dot " + s.tosu;
+  const key = JSON.stringify([s.now, s.items, s.voteSkip, LANG]);
+  if (key === lastKey) return; // nothing changed: keep the page still under the thumb
+  lastKey = key;
+  const n = s.now, vs = s.voteSkip || {};
+  $("#np").innerHTML = `<div class="lab">${tx("nowPlaying")}</div>` + (n
+    ? `<b>${esc(n.title)}</b><div class="sub">${star(n)}${esc(n.artist)} · [${esc(n.version)}]</div>
+       <div class="sub">${tx("by")} @${esc(n.user)} · ${tx("ph_" + (n.phase || "waiting"))}${vs.needed > 0 && vs.votes > 0 ? " · " + tx("votes", { v: vs.votes, n: vs.needed }) : ""}</div>`
+    : `<div class="sub" style="margin-top:6px">${tx("nothing")}</div>`) +
+    `<div class="acts"><button class="btn" type="button" data-act="skip"${n ? "" : " disabled"}>${tx("skip")}</button><button class="btn main" type="button" data-act="next">${tx("next")} →</button></div>`;
+  $("#queueTitle").textContent = tx("queue", { n: s.items.length });
+  $("#queue").innerHTML = s.items.length ? s.items.map((it, i) => `<div class="row" data-id="${esc(it.id)}">
+      <span class="n${it.priority ? " prio" : ""}">${it.priority ? "★" : i + 1}</span>
+      <span class="t">${star(it)}${esc(it.artist)} - ${esc(it.title)}</span>
+      <span class="m">[${esc(it.version)}] · @${esc(it.user)} · ${tx("st_" + it.state)}</span>
+      <div class="acts">
+        <button class="btn sm" type="button" data-op="up" data-i="${i}"${i === 0 ? " disabled" : ""} aria-label="${tx("up")}">▲</button>
+        <button class="btn sm" type="button" data-op="down" data-i="${i}"${i === s.items.length - 1 ? " disabled" : ""} aria-label="${tx("down")}">▼</button>
+        <button class="btn sm" type="button" data-op="skip">${tx("skip")}</button>
+        <button class="btn sm" type="button" data-op="remove">${tx("remove")}</button></div></div>`).join("")
+    : `<div class="empty">${tx("empty")}</div>`;
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("button");
+  if (!b || b.disabled) return;
+  if (b.dataset.act) {
+    if (b.dataset.act === "skip" && !confirm(tx("confirmSkip"))) return;
+    b.disabled = true;
+    await act("/m/api/action/" + b.dataset.act);
+    b.disabled = false;
+    return;
+  }
+  const row = b.closest(".row");
+  if (!row || !b.dataset.op || !S) return;
+  const id = row.dataset.id, it = S.items.find(x => x.id === id);
+  if (!it) return;
+  const op = b.dataset.op;
+  if (op === "remove" && !confirm(tx("confirmRemove", { t: it.title, u: it.user }))) return;
+  if (op === "up" || op === "down") await act(`/m/api/queue/${encodeURIComponent(id)}/move`, { to: +b.dataset.i + (op === "up" ? -1 : 1) });
+  else await act(`/m/api/queue/${encodeURIComponent(id)}/${op}`);
+});
+
+let offlineShown = false;
+async function refresh() {
+  const j = await api("GET", "/m/api/state");
+  if (j.offline) { if (!offlineShown) toast(tx("offline"), true); offlineShown = true; return; }
+  offlineShown = false;
+  if (j.login || j.ok === false) return;
+  S = j;
+  render(j);
+}
+applyLang();
+refresh();
+setInterval(() => { if (!document.hidden && $("#loginForm").hidden) refresh(); }, 2500);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+</script>
+</body>
+</html>

@@ -225,6 +225,14 @@ const T = {
   n_timeClosed: ["Requests closed: it is {t}", "ปิดรับคำขอแล้ว: ถึงเวลา {t}"],
   e_auto_close: ["Auto-close: reopen must be below the close size", "ปิดอัตโนมัติ: จำนวนที่เปิดใหม่ต้องน้อยกว่าจำนวนที่ปิด"],
   e_close_at: ["Close time must be HH:MM, e.g. 23:30", "เวลาปิดต้องเป็น HH:MM เช่น 23:30"],
+  modPanel: ["Mod panel", "แผงม็อด"], modOff: ["off", "ปิด"], modSessions: ["{n} signed in", "เข้าใช้อยู่ {n}"],
+  modUrls: ["Open on a phone on the same Wi-Fi", "เปิดบนมือถือที่ใช้ Wi-Fi เดียวกัน"], modNoUrl: ["Turn it on and save to see the address.", "เปิดแล้วกดบันทึกเพื่อดูที่อยู่"],
+  modNoLan: ["No home network address found on this PC.", "ไม่พบที่อยู่วงแลนของเครื่องนี้"],
+  genPin: ["New PIN", "สุ่ม PIN ใหม่"],
+  e_remote_port: ["Mod panel port must be 1024-65535 and not the dashboard port", "พอร์ตแผงม็อดต้องอยู่ระหว่าง 1024-65535 และไม่ซ้ำกับพอร์ตแดชบอร์ด"],
+  e_remote_pin: ["Mod panel PIN must be 6-12 digits, not all the same and not 123456-style", "PIN แผงม็อดต้องเป็นตัวเลข 6-12 หลัก ไม่ซ้ำกันทั้งหมด และไม่ใช่แบบ 123456"],
+  n_modLogin: ["Mod panel: signed in from {ip}", "แผงม็อด: มีคนเข้าใช้จาก {ip}"],
+  n_modAction: ["Mod panel ({ip}): {action}", "แผงม็อด ({ip}): {action}"],
   n_gameDetected: ["tosu sees osu! {game} running, so Settings → osu! → Game is now {game}", "tosu เห็นว่าเปิด osu! {game} อยู่ จึงเปลี่ยน ตั้งค่า → osu! → เกม เป็น {game} ให้"],
   n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
   e_vote_skip: ["Votes to skip cannot be negative", "จำนวนโหวตข้ามเพลงติดลบไม่ได้"],
@@ -260,7 +268,7 @@ const T = {
   r_too_long: ["too long", "ยาวเกิน"], r_meta_error: ["osu! lookup failed", "ดึงข้อมูล osu! ไม่ได้"], r_bad_input: ["invalid input", "รูปแบบไม่ถูกต้อง"], r_requests_off: ["requests off", "ปิดรับคำขอ"], r_followers_only: ["not a follower", "ไม่ได้ติดตาม"],
   // settings tabs
   tab_connection: ["Connection", "การเชื่อมต่อ"], tab_osu: ["osu!", "osu!"], tab_command: ["Command", "คำสั่ง"], tab_rules: ["Map rules", "กฎแมพ"],
-  tab_queue: ["Queue", "คิว"], tab_download: ["Download", "ดาวน์โหลด"], tab_md5: ["MD5", "MD5"], tab_import: ["Import", "นำเข้า"], tab_overlay: ["Overlay", "โอเวอร์เลย์"], tab_hotkeys: ["Hotkeys", "ปุ่มลัด"],
+  tab_remote: ["Mod panel", "แผงม็อด"], tab_queue: ["Queue", "คิว"], tab_download: ["Download", "ดาวน์โหลด"], tab_md5: ["MD5", "MD5"], tab_import: ["Import", "นำเข้า"], tab_overlay: ["Overlay", "โอเวอร์เลย์"], tab_hotkeys: ["Hotkeys", "ปุ่มลัด"],
 };
 let LANG = (navigator.language || "").startsWith("th") ? "th" : "en", langPicked = false;
 try { const l = localStorage.getItem("osureq.lang"); if (l) { LANG = l; langPicked = true; } } catch {}
@@ -722,6 +730,8 @@ function renderSide() {
     h("dt", {}, t("mode")), h("dd", {}, S.playMode),
     h("dt", {}, t("cache")), h("dd", {}, S.cacheMb.toFixed(1) + " MB"),
     h("dt", {}, t("overlayUrl")), h("dd", {}, h("button", { class: "mlink", onclick: () => copy(ov) }, ov)),
+    ...(S.extra && S.extra.remote && S.extra.remote.enabled ? [h("dt", {}, t("modPanel")), h("dd", {}, ...(S.extra.remote.urls || []).map(u => h("div", {}, h("button", { class: "mlink", onclick: () => copy(u) }, u))),
+      S.extra.remote.sessions ? h("small", { class: "hint" }, t("modSessions", { n: S.extra.remote.sessions })) : null)] : []),
     ...(S.extra ? [h("dt", {}, t("folder")), h("dd", {}, S.extra.baseDir)] : []));
 }
 
@@ -1036,6 +1046,12 @@ const SCHEMA = {
     F("overlay.scale", "number", "Size (%)", "ขนาด (%)", null, null, { min: 50, max: 250 }),
     F("overlay.position", "select", "Position", "ตำแหน่ง", null, null, { options: [["top-left", "top left"], ["top-right", "top right"], ["bottom-left", "bottom left"], ["bottom-right", "bottom right"]] }),
   ],
+  remote: [
+    F("remote.enabled", "switch", "Mod panel on a phone", "แผงม็อดบนมือถือ", "A small page for a phone on the same Wi-Fi: Next, Skip, remove and move requests, requests on/off. Nothing else (no settings, bans or quit). Only devices on your home network can open it, and only with the PIN. Windows may ask to allow osureq through the firewall: allow it for private networks only.", "หน้าเล็ก ๆ สำหรับมือถือที่ใช้ Wi-Fi เดียวกัน: ถัดไป ข้าม ลบ/เลื่อนคำขอ และเปิด/ปิดรับคำขอ ไม่มีอย่างอื่น (ไม่มีการตั้งค่า แบน หรือปิดโปรแกรม) เปิดได้เฉพาะอุปกรณ์ในวงแลนบ้านและต้องใช้ PIN Windows อาจถามให้อนุญาต osureq ผ่านไฟร์วอลล์: อนุญาตเฉพาะเครือข่ายส่วนตัว (Private)"),
+    F("remote.pin", "pin", "PIN", "PIN", "6-12 digits. Changing it signs everyone out. Share it only with your mods.", "ตัวเลข 6-12 หลัก เปลี่ยนแล้วทุกคนจะถูกออกจากระบบ ให้เฉพาะม็อดของคุณ"),
+    F("remote.port", "number", "Port", "พอร์ต", null, null, { min: 1024, max: 65535 }),
+    F("", "remoteinfo", "Address", "ที่อยู่"),
+  ],
   hotkeys: [
     F("hotkeys.enabled", "switch", "Global hotkeys", "ปุ่มลัดทั้งระบบ", "Work while osu! is focused. Format: Ctrl+Alt+N, Shift+F5, F9…", "ใช้ได้แม้กำลังอยู่ใน osu! รูปแบบ: Ctrl+Alt+N, Shift+F5, F9…"),
     F("hotkeys.next", "hotkey", "Next", "ถัดไป"),
@@ -1133,6 +1149,19 @@ function field(f) {
         h("a", { class: "btn sm", href: "/overlay", target: "_blank" }, L("Preview", "ดูตัวอย่าง"))));
     }
     case "sources": return sourcesField(f, text);
+    case "pin": {
+      const i = h("input", { type: "text", inputmode: "numeric", value: v ?? "", maxlength: 12, "aria-label": lbl(f.label), spellcheck: "false", autocomplete: "off" });
+      i.addEventListener("input", () => set(i.value.replace(/\D/g, "")));
+      const gen = h("button", { class: "btn sm", type: "button", onclick: () => { i.value = newPin(); set(i.value); } }, t("genPin"));
+      return h("div", { class: "row" }, text, h("div", { class: "ovlink" }, i, gen));
+    }
+    case "remoteinfo": {
+      const r = S && S.extra && S.extra.remote;
+      const body = !r || !r.enabled ? h("small", { class: "hint" }, r && r.error ? r.error : t("modNoUrl"))
+        : r.urls && r.urls.length ? h("div", {}, h("small", { class: "hint" }, t("modUrls")), ...r.urls.map(u => h("div", {}, h("button", { class: "mlink", type: "button", onclick: () => copy(u) }, u))))
+        : h("small", { class: "hint" }, t("modNoLan"));
+      return h("div", { class: "row stack" }, text, body);
+    }
     case "modestars": {
       const grid = h("div", { class: "modestars" }, h("span"), h("small", {}, t("min")), h("small", {}, t("max")));
       for (const [mode, name] of MODES) {
@@ -1181,12 +1210,20 @@ $("#setClose").addEventListener("click", closeSettings);
 $("#scrim").addEventListener("click", closeSettings);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#settings").hidden) closeSettings(); });
 $("#setReset").addEventListener("click", () => {
-  const key = { connection: "connection", osu: "osu", command: "command", rules: "rules", queue: "queue", download: "download", md5: "md5", import: "import", overlay: "overlay", hotkeys: "hotkeys" }[tab];
+  const key = { connection: "connection", osu: "osu", command: "command", rules: "rules", queue: "queue", download: "download", md5: "md5", import: "import", overlay: "overlay", remote: "remote", hotkeys: "hotkeys" }[tab];
   draft[key] = structuredClone(defaults[key]);
   renderSettings();
 });
+// newPin makes an 8-digit PIN that passes config.GoodPIN.
+function newPin() {
+  for (;;) {
+    const p = Array.from(crypto.getRandomValues(new Uint32Array(8)), n => n % 10).join("");
+    if (!/^(\d)\1+$/.test(p) && !"0123456789".includes(p) && !"9876543210".includes(p)) return p;
+  }
+}
 $("#setSave").addEventListener("click", async e => {
   draft.language = LANG;
+  if (draft.remote && draft.remote.enabled && !draft.remote.pin) draft.remote.pin = newPin();
   const btn = e.currentTarget; btn.disabled = true;
   try {
     const j = await api("PUT", "/api/config", draft);
