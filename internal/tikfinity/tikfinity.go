@@ -325,15 +325,33 @@ func (c *Client) handle(b []byte, logRaw bool) {
 		return
 	}
 	c.set(func(st *Status) { st.Handshake, st.Live, st.LastEvent = true, true, time.Now() })
-	if e.Event == "gift" && c.OnGift != nil {
+	if e.Event == "gift" {
 		if g, ok := ParseGift(e.Data); ok {
-			c.OnGift(g)
+			c.keepFirst("gift (counted)", ev)
+			if c.OnGift != nil {
+				c.OnGift(g)
+			}
 		}
 	}
-	if e.Event == "chat" && c.OnChat != nil {
+	if e.Event == "chat" {
 		if ch, ok := ParseChat(e.Data); ok {
-			c.OnChat(ch)
+			if strings.HasPrefix(ch.Comment, "!") {
+				c.keepFirst("chat (command)", ev) // the event a request arrives in, with its role and picture fields
+			}
+			if c.OnChat != nil {
+				c.OnChat(ch)
+			}
 		}
+	}
+}
+
+// keepFirst stores ev under kind if nothing is stored there yet.
+func (c *Client) keepFirst(kind string, ev RawEvent) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.firstOfKind[kind]; !ok {
+		ev.Event = kind
+		c.firstOfKind[kind] = ev
 	}
 }
 

@@ -94,6 +94,7 @@ func main() {
 	tf.OnChat = a.HandleChat
 	tf.OnGift = a.HandleGift
 	srv := server.New(a, version)
+	srv.LogPath = filepath.Join(base, "osureq.log")
 	a.OnChange(srv.Push)
 	ts := tosu.New(tosu.Env{Running: platform.ProcessRunning, Path: platform.ProcessPath, Launch: platform.Launch, Close: platform.Close},
 		func() tosu.Settings {
