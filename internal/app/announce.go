@@ -89,6 +89,8 @@ func (a *App) announce(e FeedEvent) {
 	for k, v := range e.Vars {
 		if k == "mods" {
 			v = spokenMods(v)
+		} else {
+			v = SoftenCaps(v) // titles like "BLUE ZENITH" are read as words
 		}
 		vars[k] = v
 	}

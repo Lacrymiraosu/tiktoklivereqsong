@@ -25,6 +25,7 @@ const maxSpeech = 20
 var (
 	reLink   = regexp.MustCompile(`(?i)\b(?:https?://|www\.)\S+|\b\S+\.(?:com|net|org|io|gg|me|tv|th|ly|be|sh)(?:/\S*)?\b`)
 	reSpaces = regexp.MustCompile(`\s+`)
+	reWord   = regexp.MustCompile(`[\p{L}'’]+`)
 )
 
 // speakChat queues a chat message for TTS unless it is a command: anything
@@ -137,7 +138,8 @@ func (a *App) Speech() []Speech {
 }
 
 // SpeakableText cleans a chat message for a TTS voice: no links, no emoji,
-// no runs longer than four of the same character, at most max letters.
+// no runs longer than four of the same character, capitals softened
+// (SoftenCaps), at most max letters.
 func SpeakableText(s string, max int) string {
 	s = reLink.ReplaceAllString(s, " ")
 	var b strings.Builder
@@ -166,5 +168,41 @@ func SpeakableText(s string, max int) string {
 	if strings.IndexFunc(out, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }) < 0 {
 		return "" // only punctuation left
 	}
-	return out
+	return SoftenCaps(out)
+}
+
+// SoftenCaps lowercases words written in capitals: Google's Thai voice
+// spells them out letter by letter when they are not dictionary words
+// ("KIKI" → K, I, K, I), and so does the English one for names. Capital
+// words of three letters or more are lowercased ("KIKI", "OSU", "I LOVE
+// IT"), so two-letter ones such as GG, FC or HD are still spelled.
+func SoftenCaps(s string) string {
+	caps := 0
+	for _, r := range s {
+		if unicode.IsLower(r) {
+			caps = -1
+			break
+		}
+		if unicode.IsUpper(r) {
+			caps++
+		}
+	}
+	if caps >= 3 {
+		return strings.ToLower(s)
+	}
+	return reWord.ReplaceAllStringFunc(s, func(w string) string {
+		n := 0
+		for _, r := range w {
+			if unicode.IsLower(r) || (unicode.IsLetter(r) && !unicode.IsUpper(r)) {
+				return w // mixed case, or Thai and other scripts without capitals
+			}
+			if unicode.IsUpper(r) {
+				n++
+			}
+		}
+		if n >= 3 {
+			return strings.ToLower(w)
+		}
+		return w
+	})
 }
