@@ -49,7 +49,7 @@ func (a *App) Ban(kind, value string) (int, error) {
 		}
 		rule := []string{value}
 		match = func(it queue.Item) bool {
-			_, hit := validator.SongBanned(rule, validator.Song{Artist: it.Artist, Title: it.Title})
+			_, hit := validator.SongBanned(rule, validator.Song{Artist: it.Artist, Title: it.Title, ArtistUnicode: it.ArtistUnicode, TitleUnicode: it.TitleUnicode})
 			return hit
 		}
 	case "mapper":
