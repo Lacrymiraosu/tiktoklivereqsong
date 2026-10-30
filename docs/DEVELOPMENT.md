@@ -89,6 +89,7 @@ pre-stream check, the osu.direct fix and the update check were also run against 
   and for mods `!skip`, `!remove @user`, `!reqon`, `!reqoff`. Mods = a list, plus TikTok moderators. Answers appear on the overlay.
 * **Gift priority** (opt-in): gift coins add up per viewer; each full amount moves their oldest waiting request to the top or is saved for the next one.
 * **Gift-only requests** (opt-in): each request costs gift coins; a rejected map costs nothing.
+* **Requests with mods** (`!req 2096297 HDHR`, `!req freedom dive +DT`): shown as a tag everywhere; rules for allowed mods and a star cap for DT/NC/HR.
 * **Fair queue** (opt-in): a viewer's second request waits behind everyone's first, and so on.
 * **Automatic open/close**: requests close at a queue size and reopen when it is short again, and close at a set time.
 * **Song bans**: ban a song by artist and title; every set of it (TV size, cut, remaps) is rejected.
@@ -168,7 +169,13 @@ Command-line flags: `-dir <folder>` keeps config, queue, cache and log somewhere
 !req https://osu.ppy.sh/beatmaps/2096297
 !req https://osu.ppy.sh/s/962870
 !req freedom dive                                         ← a song name (command.searchByName, on by default)
+!req 2096297 HDHR                                         ← with mods (also +HDHR, "hd hr", "hd,dt")
+!req freedom dive +DT                                     ← a song name with mods: "+" (or capitals) at the end
 ```
+
+Mods (`internal/mods`): NF EZ HD HR SD DT HT NC FL SO PF FI MR, written back in osu!'s order (`HDHR`, `HDDT`). NC includes DT and PF includes SD.
+Clashes (EZ+HR, HT+DT/NC, NF+SD/PF, FI+HD, FL+FI) and unknown mods are rejected as `bad_mods` when the word was meant as mods
+(starts with `+` or is in capitals); other words after an ID ("please") are still ignored. A lower-case word at the end of a song name is part of the name.
 
 An ID or osu! link in the first word wins and anything after it is ignored. Otherwise the text (3-80 characters) is a song name;
 anything that looks like a link to another site is never searched and is ignored, as is everything when search is off.
@@ -229,7 +236,12 @@ Mods are the users in **Settings → Command → Mods**, plus TikTok moderators 
 Rejection reason codes (shown translated on the dashboard): `user_blacklisted`, `queue_full`, `user_limit`, `cooldown`, `set_blacklisted`,
 `mapper_blacklisted`, `status`, `duplicate`, `recently_played`, `not_found`, `mode`, `stars_low`, `stars_high`, `too_long`, `meta_error`,
 `bad_input`, `requests_off`, `followers_only`, `now_playing`, `no_convert` (a taiko/catch/mania map requested in another mode: only osu! maps convert),
-`search_none`, `search_error`, `needs_gift`, `song_blacklisted`.
+`search_none`, `search_error`, `needs_gift`, `song_blacklisted`, `bad_mods`, `mods_off`, `mod_not_allowed`, `mod_stars`.
+
+**Mods and stars:** star ratings with mods are only available from osu!'s authenticated API (catboy's `/api/meta` says it is not implemented,
+osu.direct has none), so every star check uses the real **no-mod** rating. `rules.hardModMaxStars` is a separate no-mod cap for requests with
+DT, NC or HR. The length limit uses the real speed (DT/NC ÷1.5, HT ÷0.75). osu! cannot be told which mods to use: they are shown, and when
+tosu's result lacks a requested mod, `Result.missing` is set and Activity warns.
 
 Song bans (`rules.blacklistSongs`) compare `validator.SongKey(artist, title)`: lower case, letters and digits only, with trailing version tags
 removed from the title (`(TV Size)`, `[Extended Mix]`, `～Short ver.～`, `-Cut Ver.-`). An entry without " - " is a title for any artist.
@@ -389,6 +401,7 @@ tiktoklivereqsong/
     ├── config/       config.go             config.json schema, defaults, validation, store with change subscribers
     ├── parser/       parser.go (+_test)    "!req …" → Request{Kind, SetID, BeatmapID, Mode, Bare}
     ├── osumeta/      osumeta.go (+_test)   osu.ppy.sh scraping: set metadata, reference MD5, beatmap→set, raw .osu fallback
+    ├── mods/         mods.go (+_test)      mod parsing, clashes, speed, "played without"
     ├── search/       search.go (+_test)    catboy.best song search, re-ranking by title match and plays
     │   └── testdata/                       a real (trimmed) search response
     ├── update/       update.go (+_test)    GitHub "latest release" check
@@ -428,6 +441,7 @@ tiktoklivereqsong/
 | `internal/app/preflight.go` | ~180 | The pre-stream check | `Preflight`, `PreflightEnv`, `Check` |
 | `internal/search/search.go` | ~230 | catboy.best search (status filter, 1 request/s, 10 min cache), `Playable` (mode filter incl. converts), `Rank` | `Client`, `Find`, `Parse`, `Rank`, `Result` |
 | `internal/update/update.go` | ~130 | Release check: `Newer` compares x.y.z, dev builds and pre-releases are never offered, links only to this repo's releases | `Run`, `Latest`, `Newer`, `Release` |
+| `internal/mods/mods.go` | ~130 | Mod words → canonical string, clash rules, `Rate`, `Harder` (DT/NC/HR), `Missing` | `Parse`, `Has`, `Rate`, `Harder`, `Missing`, `Error` |
 | `internal/remote/remote.go` | ~440 | Mod panel: `Apply` starts/stops the listener on config changes; `guard` (private addresses, local Host names, header, CSP); PIN login with lockouts; limited state and actions | `Server`, `Apply`, `Status`, `Handler` |
 | `internal/support/support.go` | ~130 | Support zip, home-folder redaction, log tail | `Write`, `Input` |
 | `internal/queue/summary.go` | ~110 | Session start (kept across restarts, new after 6 idle hours) and the summary | `Summary`, `NewSession` |
@@ -638,6 +652,9 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `blacklistSets` / `blacklistMappers` / `blacklistUsers` | empty | |
 | | `blacklistSongs` | empty | `Artist - Title` (or `Title`) per entry; matches every set of the song |
 | | `exemptUsers` | empty | TikTok users who skip followers-only, the per-user limit and cooldown |
+| | `allowMods` | `true` | Requests may carry mods |
+| | `bannedMods` | empty | Mods that may not be requested, e.g. `["FL"]` |
+| | `hardModMaxStars` | `0` | No-mod star cap for requests with DT/NC/HR; 0 = only the normal limit |
 | | `followersOnly` | `false` | Reject viewers TikTok reports as not following (unknown is let through) |
 | | `subscriberPerUserLimit` | `0` | Per-user limit for subscribers; 0 = same as everyone |
 | queue | `maxSize` | `30` | 0 = no limit |
@@ -842,7 +859,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
-| unreleased | branch `feature/stream-tools` | Support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
+| unreleased | branch `feature/stream-tools` | Requests with mods; support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
 | 1.0.0 | `d106295` | First version: TikFinity chat, parser, osu! metadata, validation, queue, mirrors + MD5, import modes, preload, dashboard (EN/TH) and overlay, hotkeys, tests |
 | 1.0.1 | `9fabc98` | The map being played no longer counts toward the per-user limit; exempt users; bare number retried as set ID; osu! folder from the registry and `BeatmapDirectory`; pop-up on rejected chat requests |
 | 1.1.0 | `15f15b3` | Test panel: simulated chat, quick add, dry run, clear test data |
