@@ -278,6 +278,8 @@ func TestSongKey(t *testing.T) {
 		{{"Natsukawa", "Kani*Do-Luck!"}, {"natsukawa", "Kani*Do-Luck! (TV Size)"}},
 		{{"Camellia", "Ghost"}, {"Camellia", "Ghost [Extended Mix] (Sped Up Ver.)"}},
 		{{"Hanatan", "Harumachi Clover"}, {"Hanatan", "Harumachi Clover ～Short ver.～"}},
+		{{"u's", "Snow Halation"}, {"u's", "Snow Halation -TV Size-"}},
+		{{"a", "Song"}, {"a", "Song -Extended Mix-"}},
 	}
 	for _, c := range same {
 		if a, b := SongKey(c[0][0], c[0][1]), SongKey(c[1][0], c[1][1]); a != b {

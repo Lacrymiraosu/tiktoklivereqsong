@@ -224,7 +224,7 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 
 // reSuffix matches the version tags mappers add to a title: "(TV Size)",
 // "[Extended Mix]", "(Cut Ver.)", "～Short ver.～" and the like, at the end.
-var reSuffix = regexp.MustCompile(`\s*(\([^()]*\)|\[[^\[\]]*\]|～[^～]*～|-[^-]*(ver\.?|version|size|edit|mix|cut)\s*-)\s*$`)
+var reSuffix = regexp.MustCompile(`(?i)\s*(\([^()]*\)|\[[^\[\]]*\]|～[^～]*～|-[^-]*(ver\.?|version|size|edit|mix|cut)\s*-)\s*$`)
 
 // SongKey makes artist and title comparable across the sets of one song:
 // lower case, letters and digits only, and the title without version tags.
