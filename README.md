@@ -114,7 +114,8 @@ go build -trimpath -ldflags "-X main.version=1.4.0" -o dist\osureq.exe .
 ### Automatic builds and releases (GitHub Actions)
 
 * Every push to `main` and every pull request is vetted, tested and built; the exe stays on the Actions page for 14 days.
-* To release a new version, update the version number in `build.ps1`, then push a tag:
+* To release a new version, update the version number in `build.ps1` (and the changelog) and merge it into `main`. Then either
+  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.4.0`) and press **Run workflow**, or push a tag:
 
   ```powershell
   git tag v1.4.0

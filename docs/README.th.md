@@ -120,7 +120,9 @@ go build -trimpath -ldflags "-X main.version=1.4.0" -o dist\osureq.exe .
 ### Build และ release อัตโนมัติด้วย GitHub Actions
 
 * ทุกครั้งที่ push เข้า `main` หรือเปิด pull request, GitHub จะ vet, test และ build ให้ ไฟล์ exe อยู่ในหน้า Actions 14 วัน
-* ปล่อยเวอร์ชันใหม่: อัปเดตเลขเวอร์ชันใน `build.ps1` แล้ว push tag
+* ปล่อยเวอร์ชันใหม่: อัปเดตเลขเวอร์ชันใน `build.ps1` (และ changelog) แล้ว merge เข้า `main` จากนั้นเลือกทางใดทางหนึ่ง
+  * ไม่ต้องใช้ git: เปิด **Actions → build → Run workflow** เลือก `main` ใส่เลขเวอร์ชัน (เช่น `1.4.0`) แล้วกด **Run workflow**
+  * หรือ push tag
 
   ```powershell
   git tag v1.4.0
