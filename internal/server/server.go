@@ -19,6 +19,7 @@ import (
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/app"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/downloader"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/gtts"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/support"
@@ -77,6 +78,9 @@ type State struct {
 	TTS            config.TTS                    `json:"tts"`
 	Speech         []app.Speech                  `json:"speech"`
 	SummaryShown   int64                         `json:"summaryShown"`
+	PreviewAsk     app.PreviewAsk                `json:"previewAsk"` // the mod panel wants a preview played here
+	Mirrors        []downloader.SourceStatus     `json:"mirrors"`
+	MirrorCheck    bool                          `json:"mirrorCheck"` // a mirror check is running
 	Raw            []tikfinity.RawEvent          `json:"raw,omitempty"`
 	FirstRaw       map[string]tikfinity.RawEvent `json:"firstRaw,omitempty"`
 	Extra          map[string]any                `json:"extra,omitempty"`
@@ -91,6 +95,10 @@ func (s *Server) state() State {
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name, Search: cfg.Command.Search && s.App.Search != nil, RequestCoins: cfg.Gifts.RequestCoins,
 		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, Volume: cfg.MasterVolume, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
 		VoteSkip: s.App.Votes(), Update: s.App.Update(), Summary: s.App.Queue.Summary(), SummaryShown: s.App.SummaryShown(), TTS: cfg.TTS, Speech: s.App.Speech(),
+		PreviewAsk: s.App.PreviewAsked(), MirrorCheck: s.App.CheckingMirrors(),
+	}
+	if s.App.DL != nil {
+		st.Mirrors = s.App.DL.Statuses()
 	}
 	if s.Extra != nil {
 		st.Extra = s.Extra()
@@ -135,6 +143,7 @@ func (s *Server) Handler(port int) http.Handler {
 			"announcements": map[string]any{"th": config.ThaiAnnouncements(), "en": config.EnglishAnnouncements()}})
 	})
 	mux.HandleFunc("PUT /api/config", s.putConfig)
+	mux.HandleFunc("PUT /api/preview", s.putPreview)
 	mux.HandleFunc("POST /api/action/{name}", s.action)
 	mux.HandleFunc("POST /api/queue/{id}/{op}", s.queueOp)
 	mux.HandleFunc("POST /api/test", s.test)
@@ -250,6 +259,20 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true, "restartNeeded": restart})
 }
 
+// putPreview is the dashboard saying which preview it plays ({"setId": 0}
+// when none), for the mod panel.
+func (s *Server) putPreview(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		SetID int `json:"setId"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256)).Decode(&body); err != nil || body.SetID < 0 {
+		httpErr(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	s.App.SetPreviewing(body.SetID)
+	writeJSON(w, map[string]any{"ok": true})
+}
+
 func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 	a := s.App
 	var err error
@@ -303,6 +326,8 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 		}
 	case "showSummary":
 		a.ShowSummary()
+	case "checkMirrors":
+		go a.CheckMirrors(context.Background())
 	case "newSession":
 		a.NewSession()
 	case "toggleDryRun":

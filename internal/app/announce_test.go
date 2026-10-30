@@ -96,6 +96,18 @@ func TestAnnounceNowPlayingAndGift(t *testing.T) {
 	}
 }
 
+func TestAnnounceSoftensTitles(t *testing.T) {
+	a := newTestApp(t, func(c *config.Config) { c.TTS.Announce = true; c.Test.DryRun = true })
+	a.Queue.Add(&queue.Item{ID: "x", User: "fan", Nick: "Fan", Title: "SWITCHED-ON LOTUS", Artist: "xi", AddedAt: time.Now()})
+	a.Queue.Update("x", func(it *queue.Item) { it.State = queue.Ready })
+	if err := a.Next("played"); err != nil {
+		t.Fatal(err)
+	}
+	if s := spoken(a); len(s) == 0 || s[0] != "ต่อไปเพลง switched-on lotus ที่ Fan ขอ" {
+		t.Errorf("a title in capitals should be read as words, not spelled: %q", s)
+	}
+}
+
 func TestAnnounceNp(t *testing.T) {
 	a := newTestApp(t, func(c *config.Config) { c.TTS.Announce = true })
 	a.command(tikfinity.Chat{User: "a", Comment: "!np"}, false)
@@ -105,14 +117,14 @@ func TestAnnounceNp(t *testing.T) {
 	a.Queue.Add(&queue.Item{ID: "x", User: "fan", SetID: 39804, Title: "FREEDOM DiVE", Artist: "xi", AddedAt: time.Now()})
 	a.Queue.Promote("x", "played")
 	a.command(tikfinity.Chat{User: "b", Comment: "!np"}, false)
-	if s := spoken(a)[0]; s != "กำลังเล่น xi - FREEDOM DiVE 39804" {
+	if s := spoken(a)[0]; s != "กำลังเล่น xi - freedom DiVE 39804" {
 		t.Errorf("np: %q", s)
 	}
 	c := a.Cfg.Get()
 	c.TTS.Templates["np"] = "{title} set {setid_digits} for {requester}"
 	a.Cfg.Set(c)
 	a.command(tikfinity.Chat{User: "c", Comment: "!np"}, false)
-	if s := spoken(a)[0]; s != "FREEDOM DiVE set 3 9 8 0 4 for fan" {
+	if s := spoken(a)[0]; s != "freedom DiVE set 3 9 8 0 4 for fan" {
 		t.Errorf("np digits: %q", s)
 	}
 }

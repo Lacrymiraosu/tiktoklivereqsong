@@ -234,6 +234,14 @@ func TestMirrorErrors(t *testing.T) {
 	if limited.Load() != 1 || !strings.Contains(last[1].Message, "resting") {
 		t.Errorf("after HTTP 429 the mirror rests for its Retry-After: %d requests, %q", limited.Load(), last[1].Message)
 	}
+	cfg.Download.Sources = append(cfg.Download.Sources, config.Source{Name: "never", Enabled: true, URL: srv.URL + "/good/{id}", TimeoutSec: 5})
+	got := map[string]string{}
+	for _, st := range d.Statuses() {
+		got[st.Name] = st.State
+	}
+	if got["banned"] != "failed" || got["limited"] != "resting" || got["good"] != "ok" || got["never"] != "unknown" {
+		t.Errorf("mirror panel: %v", got)
+	}
 }
 
 func TestContentRemovedStops(t *testing.T) {

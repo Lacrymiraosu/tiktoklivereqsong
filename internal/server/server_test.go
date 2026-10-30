@@ -348,3 +348,25 @@ func TestInstallUpdate(t *testing.T) {
 		t.Error("Restart was not called")
 	}
 }
+
+func TestPreviewAndMirrorsInState(t *testing.T) {
+	s, h := newTestServer(t)
+	s.App.AskPreview(39804)
+	st := decode(t, do(h, http.MethodGet, "/api/state", ""))
+	if ask, _ := st["previewAsk"].(map[string]any); ask["setId"] != float64(39804) || ask["n"] != float64(1) {
+		t.Errorf("the dashboard should see the mod panel's preview press: %v", st["previewAsk"])
+	}
+	if ms, _ := st["mirrors"].([]any); len(ms) != 6 || ms[0].(map[string]any)["name"] != "hinai" || ms[0].(map[string]any)["state"] != "unknown" {
+		t.Errorf("mirror panel, before any check: %v", st["mirrors"])
+	}
+
+	if m := decode(t, do(h, http.MethodPut, "/api/preview", `{"setId":39804}`)); m["ok"] != true || s.App.Previewing() != 39804 {
+		t.Errorf("preview report: %v, previewing %d", m, s.App.Previewing())
+	}
+	if w := do(h, http.MethodPut, "/api/preview", `{"setId":-1}`); w.Code != http.StatusBadRequest {
+		t.Errorf("a negative set: %d", w.Code)
+	}
+	if w := do(h, http.MethodPut, "/api/preview", `{"setId":1}`, func(r *http.Request) { r.Header.Del("X-Osureq") }); w.Code != http.StatusForbidden {
+		t.Errorf("without X-Osureq: %d", w.Code)
+	}
+}

@@ -170,7 +170,7 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .card.failed{border-color:rgba(255,90,110,.6)}
 .card.drag{opacity:.4}
 .card.over{border-color:var(--sky);transform:translateY(2px)}
-.ci{position:relative;padding:11px 14px 11px 52px;display:flex;flex-direction:column;gap:2px;min-width:0;margin-right:290px}
+.ci{position:relative;padding:11px 14px 11px 52px;display:flex;flex-direction:column;gap:2px;min-width:0;margin-right:336px}
 @media (max-width:560px){.ci{margin-right:0}}
 .pos{position:absolute;left:12px;top:12px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:600;background:rgba(255,255,255,.12);cursor:grab}
 .ci b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -218,6 +218,7 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .banpop .on{color:var(--pink);font-weight:600}
 .banpop hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
 .cbtn.more{font-size:20px;line-height:1;padding-bottom:6px}
+.cbtn.pvb.on{background:var(--sky);border-color:var(--sky);color:#0d2233}
 .card.pv-on{border-color:var(--sky)}
 .card.pv-on .pos{background:var(--sky);color:#0d2233}
 .tp .banlink{align-self:flex-start;font-size:12px;color:#ff9aa6;margin-top:2px}
@@ -250,6 +251,13 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .tp.info{border-left-color:var(--sky)}
 .tp.ok{border-left-color:var(--ok)}
 .tp code{display:block;max-height:92px;overflow:auto;font-size:11px;color:var(--dim);white-space:pre-wrap;word-break:break-all}
+.mirrors{display:flex;flex-direction:column;gap:4px}
+.mrow{display:grid;grid-template-columns:12px max-content minmax(0,1fr) max-content;align-items:center;gap:8px;font-size:13px;min-height:24px}
+.mrow .dot{width:9px;height:9px;box-shadow:none;animation:none}
+.mrow .mdet{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.mrow.failed .mdet{color:#ffb3bd}
+.mrow small{color:var(--dim);font-size:11px}
+.box h3 .mcheck{margin-left:auto;min-height:26px;padding:0 10px;font-size:12px}
 .kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 14px;font-size:13px;margin:0}
 .kv dt{color:var(--dim);white-space:nowrap}
 .kv dd{margin:0;text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}

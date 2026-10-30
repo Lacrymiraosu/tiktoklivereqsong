@@ -221,6 +221,7 @@ func main() {
 	go tf.Run(ctx)
 	go ts.Run(ctx)
 	go a.Run(ctx)
+	go a.RunMirrorChecks(ctx)
 	var staging atomic.Bool
 	go update.Run(ctx, version, func() bool { return store.Get().Connection.CheckUpdates }, func(r update.Release) {
 		a.SetUpdate(r)
