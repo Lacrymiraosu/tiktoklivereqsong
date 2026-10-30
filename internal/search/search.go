@@ -22,6 +22,9 @@ import (
 
 const DefaultURL = "https://catboy.best/api/v2/search"
 
+// cacheFor is how long a search answer is reused.
+const cacheFor = 10 * time.Minute
+
 // Result is one beatmapset the search found.
 type Result struct {
 	SetID  int    `json:"setId"`
@@ -73,7 +76,7 @@ func (c *Client) Find(ctx context.Context, query string, statuses, modes []strin
 	}
 	key := q.Encode()
 	c.mu.Lock()
-	if e, ok := c.cache[key]; ok && time.Since(e.at) < 10*time.Minute {
+	if e, ok := c.cache[key]; ok && time.Since(e.at) < cacheFor {
 		c.mu.Unlock()
 		return Rank(query, Playable(e.res, modes)), nil
 	}
@@ -93,6 +96,11 @@ func (c *Client) Find(ctx context.Context, query string, statuses, modes []strin
 		return nil, err
 	}
 	c.mu.Lock()
+	for k, e := range c.cache { // every chat search lands here: drop the stale ones
+		if time.Since(e.at) >= cacheFor {
+			delete(c.cache, k)
+		}
+	}
 	c.cache[key] = cached{at: time.Now(), res: res}
 	c.mu.Unlock()
 	return Rank(query, Playable(res, modes)), nil
