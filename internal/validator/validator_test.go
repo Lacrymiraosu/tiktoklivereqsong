@@ -314,3 +314,63 @@ func TestSongBlacklist(t *testing.T) {
 		t.Errorf("CheckMap: %+v", r)
 	}
 }
+
+func TestModRules(t *testing.T) {
+	set := &osumeta.Set{ID: 1, Artist: "a", Title: "t", Status: "ranked", Diffs: []osumeta.Diff{
+		{ID: 10, Mode: "osu", Stars: 4.5, Length: 240, Version: "Insane"},
+		{ID: 11, Mode: "osu", Stars: 6.2, Length: 240, Version: "Extra"},
+	}}
+	rules := config.Default().Rules
+	q := config.Default().Queue
+	check := func(r config.Rules, beatmap int, m string) (*osumeta.Diff, *Rejection) {
+		return CheckMap(Input{Set: set, BeatmapID: beatmap, Mods: m}, State{}, r, q, time.Now())
+	}
+	if _, rej := check(rules, 11, "HDHR"); rej != nil {
+		t.Fatalf("mods allowed by default: %v", rej)
+	}
+
+	r := rules
+	r.AllowMods = false
+	if _, rej := check(r, 11, "HD"); rej == nil || rej.Code != "mods_off" {
+		t.Errorf("mods off: %v", rej)
+	}
+	if _, rej := check(r, 11, ""); rej != nil {
+		t.Errorf("no mods is always fine: %v", rej)
+	}
+
+	r = rules
+	r.BannedMods = []string{"fl"}
+	if _, rej := check(r, 11, "HDFL"); rej == nil || rej.Code != "mod_not_allowed" || rej.Short != "FL" {
+		t.Errorf("banned FL: %+v", rej)
+	}
+
+	r = rules
+	r.HardModMaxStars = 5
+	if _, rej := check(r, 11, "DT"); rej == nil || rej.Code != "mod_stars" || rej.Short != "6.20★ > 5.00★ +DT" {
+		t.Errorf("DT on 6.2★ with a 5★ cap: %+v", rej)
+	}
+	if _, rej := check(r, 11, "HDEZ"); rej != nil {
+		t.Errorf("EZ does not make it harder: %v", rej)
+	}
+	if d, rej := check(r, 0, "NC"); rej != nil || d.ID != 10 {
+		t.Errorf("whole set with NC should pick the diff under the cap: %v %v", d, rej)
+	}
+
+	r = rules
+	r.MaxLengthSec = 200
+	if _, rej := check(r, 10, ""); rej == nil || rej.Code != "too_long" {
+		t.Errorf("4:00 is over 3:20: %v", rej)
+	}
+	if _, rej := check(r, 10, "DT"); rej != nil {
+		t.Errorf("4:00 with DT is 2:40: %v", rej)
+	}
+	if _, rej := check(r, 10, "HT"); rej == nil || rej.Short != "5:20 > 3:20" {
+		t.Errorf("HT makes it 5:20: %+v", rej)
+	}
+
+	c := config.Default()
+	c.Rules.BannedMods = []string{"XX"}
+	if c.Validate() == nil {
+		t.Error("unknown banned mod should not validate")
+	}
+}

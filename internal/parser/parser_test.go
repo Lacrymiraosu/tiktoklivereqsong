@@ -131,3 +131,36 @@ func TestSearchQueries(t *testing.T) {
 		t.Errorf("long query should be cut to %d, got %d", MaxQuery, len(r.Query))
 	}
 }
+
+func TestMods(t *testing.T) {
+	o := Options{Command: "!req", BareNumberAs: "beatmap", Search: true}
+	cases := []struct {
+		in, mods, err, query string
+	}{
+		{"!req 2096297 HDHR", "HDHR", "", ""},
+		{"!req 2096297 +hdhr", "HDHR", "", ""},
+		{"!req 2096297 hd dt please", "HDDT", "", ""},
+		{"!req https://osu.ppy.sh/b/1 DTNC", "NC", "", ""},
+		{"!req 2096297 please", "", "", ""}, // not mods: ignored as before
+		{"!req 2096297 +HDXX", "", "unknown", ""},
+		{"!req 2096297 EZHR", "", "conflict", ""},
+		{"!req freedom dive +HDHR", "HDHR", "", "freedom dive"},
+		{"!req freedom dive DT", "DT", "", "freedom dive"},
+		{"!req blue zenith hd", "", "", "blue zenith hd"}, // lower-case: part of the name
+		{"!req freedom dive +EZHR", "", "conflict", "freedom dive"},
+	}
+	for _, c := range cases {
+		r, ok := Parse(c.in, o)
+		if !ok {
+			t.Errorf("%q: not parsed", c.in)
+			continue
+		}
+		code := ""
+		if r.ModsErr != nil {
+			code = r.ModsErr.Code
+		}
+		if r.Mods != c.mods || code != c.err || r.Query != c.query {
+			t.Errorf("%q: mods=%q err=%q query=%q, want %q %q %q", c.in, r.Mods, code, r.Query, c.mods, c.err, c.query)
+		}
+	}
+}

@@ -46,6 +46,7 @@ button,input{font:inherit;color:inherit}
 .row .t{font-size:15px;overflow-wrap:anywhere}
 .row .m{grid-column:2;font-size:12px;color:var(--dim);overflow-wrap:anywhere}
 .row .acts{grid-column:1/-1;display:flex;gap:6px;justify-content:flex-end;margin-top:4px}
+.mods{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:9px;margin-right:6px;vertical-align:1px;background:var(--pink);color:var(--pinkdk)}
 .star{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;color:#1c1726;margin-right:6px;vertical-align:1px}
 .empty{color:var(--dim);font-size:14px;text-align:center;padding:18px 0}
 .login{margin-top:12vh}
@@ -116,6 +117,7 @@ function starColor(s) {
   }
   return "#18158e";
 }
+const modsTag = it => it.mods ? `<span class="mods">+${esc(it.mods)}</span>` : "";
 const star = it => `<span class="star" style="background:${starColor(it.stars)};color:${it.stars >= 6.7 ? "#fff" : "#1c1726"}">${it.stars >= 0 ? it.stars.toFixed(2) : "?"}★</span>`;
 
 async function api(method, path, body) {
@@ -174,14 +176,14 @@ function render(s) {
   lastKey = key;
   const n = s.now, vs = s.voteSkip || {};
   $("#np").innerHTML = `<div class="lab">${tx("nowPlaying")}</div>` + (n
-    ? `<b>${esc(n.title)}</b><div class="sub">${star(n)}${esc(n.artist)} · [${esc(n.version)}]</div>
+    ? `<b>${esc(n.title)}</b><div class="sub">${star(n)}${modsTag(n)}${esc(n.artist)} · [${esc(n.version)}]</div>
        <div class="sub">${tx("by")} @${esc(n.user)} · ${tx("ph_" + (n.phase || "waiting"))}${vs.needed > 0 && vs.votes > 0 ? " · " + tx("votes", { v: vs.votes, n: vs.needed }) : ""}</div>`
     : `<div class="sub" style="margin-top:6px">${tx("nothing")}</div>`) +
     `<div class="acts"><button class="btn" type="button" data-act="skip"${n ? "" : " disabled"}>${tx("skip")}</button><button class="btn main" type="button" data-act="next">${tx("next")} →</button></div>`;
   $("#queueTitle").textContent = tx("queue", { n: s.items.length });
   $("#queue").innerHTML = s.items.length ? s.items.map((it, i) => `<div class="row" data-id="${esc(it.id)}">
       <span class="n${it.priority ? " prio" : ""}">${it.priority ? "★" : i + 1}</span>
-      <span class="t">${star(it)}${esc(it.artist)} - ${esc(it.title)}</span>
+      <span class="t">${star(it)}${modsTag(it)}${esc(it.artist)} - ${esc(it.title)}</span>
       <span class="m">[${esc(it.version)}] · @${esc(it.user)} · ${tx("st_" + it.state)}</span>
       <div class="acts">
         <button class="btn sm" type="button" data-op="up" data-i="${i}"${i === 0 ? " disabled" : ""} aria-label="${tx("up")}">▲</button>

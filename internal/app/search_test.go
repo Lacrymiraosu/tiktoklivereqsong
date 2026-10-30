@@ -6,10 +6,13 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/search"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
 )
 
 // fakeWeb answers catboy's search and osu!'s beatmapset pages.
@@ -146,5 +149,49 @@ func TestGiftOnlyRequests(t *testing.T) {
 	}
 	if it, rej := a.TestRequest("dashboard", "https://osu.ppy.sh/beatmapsets/1"); rej != nil && rej.Code == "needs_gift" {
 		t.Errorf("quick add from the dashboard needs no gift: %+v %+v", it, rej)
+	}
+}
+
+func TestRequestWithMods(t *testing.T) {
+	web := &fakeWeb{
+		results: `[{"id":1,"artist":"xi","title":"FREEDOM DiVE","status":"ranked","play_count":5,"beatmaps":[{"mode":"osu"}]}]`,
+		sets:    map[int]string{1: set(1, "FREEDOM DiVE", 4.5), 2: set(2, "Hard Song", 6.5)},
+	}
+	a := searchApp(t, web, func(c *config.Config) {
+		c.Queue.CooldownSec, c.Queue.PerUserLimit = 0, 0
+		c.Rules.HardModMaxStars = 5
+	})
+	it, rej, _ := a.SimulateChat("fan", "!req https://osu.ppy.sh/beatmapsets/1 hdhr")
+	if rej != nil || it.Mods != "HDHR" {
+		t.Fatalf("mods on a link: %+v %+v", it, rej)
+	}
+	if f := a.Feed()[0]; f.Kind != "added" || f.Mods != "HDHR" {
+		t.Errorf("added pop-up should show the mods: %+v", f)
+	}
+	if _, rej, _ := a.SimulateChat("fan2", "!req https://osu.ppy.sh/beatmapsets/2 +DT"); rej == nil || rej.Code != "mod_stars" {
+		t.Errorf("6.5★ with DT over the 5★ cap: %+v", rej)
+	}
+	if _, rej, _ := a.SimulateChat("fan3", "!req https://osu.ppy.sh/beatmapsets/2 +EZHR"); rej == nil || rej.Code != "bad_mods" || rej.Short != "EZ+HR" {
+		t.Errorf("conflicting mods: %+v", rej)
+	}
+	a.Remove(it.ID)
+	if it, rej, _ := a.SimulateChat("fan4", "!req freedom dive +HD"); rej != nil || it.Mods != "HD" || it.SetID != 1 {
+		t.Errorf("mods on a song name: %+v %+v", it, rej)
+	}
+}
+
+func TestPlayedWithoutRequestedMods(t *testing.T) {
+	a := newTestApp(t, nil)
+	a.Queue.Add(&queue.Item{ID: "x", User: "fan", SetID: 7, Title: "T", Artist: "A", Mods: "HDHR", AddedAt: time.Now()})
+	a.Queue.Promote("x", "played")
+	sc := tosu.Score{Accuracy: 97, Score: 1000, Mods: "HD", MaxCombo: 100}
+	a.OnGame(tosu.Game{State: "play", SetID: 7, Play: sc})
+	a.OnGame(tosu.Game{State: "resultScreen", SetID: 7, Results: sc})
+	now, _ := a.Queue.Now()
+	if now.Result == nil || now.Result.Missing != "HR" {
+		t.Fatalf("result should note the missing HR: %+v", now.Result)
+	}
+	if n := a.Notices(); len(n) == 0 || n[0].Key != "modsMissing" {
+		t.Errorf("Activity should warn: %+v", n)
 	}
 }

@@ -2,10 +2,13 @@
 package parser
 
 import (
+	"errors"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/mods"
 )
 
 type Kind int
@@ -35,9 +38,11 @@ type Request struct {
 	Kind      Kind
 	SetID     int
 	BeatmapID int
-	Mode      string // only from #mode fragments
-	Bare      bool   // a plain number: its kind is a guess (see Options.BareNumberAs)
-	Query     string // KindSearch: the song name as typed
+	Mode      string      // only from #mode fragments
+	Bare      bool        // a plain number: its kind is a guess (see Options.BareNumberAs)
+	Query     string      // KindSearch: the song name as typed
+	Mods      string      // requested mods in osu!'s order, e.g. "HDHR"; "" = none
+	ModsErr   *mods.Error // mods were asked for but are unknown or conflict
 }
 
 type Options struct {
@@ -79,10 +84,24 @@ func ParseInput(words []string, bareAs string, search bool) (Request, bool) {
 		return Request{}, false
 	}
 	if r, ok := ParseArg(words[0], bareAs); ok {
+		r.Mods, r.ModsErr = modsAfter(words[1:])
 		return r, true
 	}
 	if !search {
 		return Request{}, false
+	}
+	// A song name may end with mods: "+HDHR" always, "HDHR" when written in
+	// capitals (so "blue zenith hd" stays a name).
+	var m string
+	var merr *mods.Error
+	if last := words[len(words)-1]; len(words) > 1 && (strings.HasPrefix(last, "+") || looksLikeMods(last)) {
+		got, err := mods.Parse(last)
+		switch {
+		case err == nil:
+			m, words = got, words[:len(words)-1]
+		case strings.HasPrefix(last, "+"):
+			merr, words = asModsErr(err), words[:len(words)-1]
+		}
 	}
 	for _, w := range words {
 		lw := strings.ToLower(w)
@@ -97,7 +116,53 @@ func ParseInput(words []string, bareAs string, search bool) (Request, bool) {
 	if r := []rune(q); len(r) > MaxQuery {
 		q = strings.TrimSpace(string(r[:MaxQuery]))
 	}
-	return Request{Kind: KindSearch, Query: q}, true
+	return Request{Kind: KindSearch, Query: q, Mods: m, ModsErr: merr}, true
+}
+
+// modsAfter reads mods written after an ID or link: "HDHR", "+HD DT", "hd hr".
+// Words that are clearly not mods ("please") are ignored, as before; a word
+// that tries to be mods but is wrong ("+HDXX", "EZHR") is an error.
+func modsAfter(rest []string) (string, *mods.Error) {
+	if len(rest) == 0 {
+		return "", nil
+	}
+	got, err := mods.Parse(rest[0])
+	if err != nil {
+		if strings.HasPrefix(rest[0], "+") || looksLikeMods(rest[0]) {
+			return "", asModsErr(err)
+		}
+		return "", nil
+	}
+	n := 1
+	for ; n < len(rest); n++ { // "HD DT": keep adding words while they are mods
+		more, err := mods.Parse(rest[:n+1]...)
+		if err != nil {
+			break
+		}
+		got = more
+	}
+	return got, nil
+}
+
+// looksLikeMods: 2-14 capital letters, an even count ("HDHR", "DT", "EZHR").
+func looksLikeMods(w string) bool {
+	if len(w) < 2 || len(w) > 14 || len(w)%2 != 0 {
+		return false
+	}
+	for _, r := range w {
+		if r < 'A' || r > 'Z' {
+			return false
+		}
+	}
+	return true
+}
+
+func asModsErr(err error) *mods.Error {
+	var e *mods.Error
+	if errors.As(err, &e) {
+		return e
+	}
+	return &mods.Error{Code: "unknown"}
 }
 
 func isCommand(word string, o Options) bool {

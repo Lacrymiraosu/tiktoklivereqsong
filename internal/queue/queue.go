@@ -56,6 +56,7 @@ type Item struct {
 	Simulated bool      `json:"simulated,omitempty"` // simulated chat: counts for cooldown/limits like a real one
 	Priority  bool      `json:"priority,omitempty"`  // bought with gifts: kept at the top of the queue
 	Avatar    string    `json:"avatar,omitempty"`    // requester's TikTok picture
+	Mods      string    `json:"mods,omitempty"`      // mods the viewer asked for, e.g. "HDHR"
 
 	State     State     `json:"state"`
 	File      string    `json:"file,omitempty"`
@@ -82,6 +83,7 @@ type Result struct {
 	PP       float64 `json:"pp,omitempty"`
 	Mods     string  `json:"mods,omitempty"`
 	Misses   int     `json:"misses"`
+	Missing  string  `json:"missing,omitempty"` // requested mods that were not played
 }
 
 type Played struct {
@@ -92,6 +94,7 @@ type Played struct {
 	Result string    `json:"result"` // played | skipped
 	Test   bool      `json:"test,omitempty"`
 	Play   *Result   `json:"play,omitempty"` // tosu's numbers, when the map was played
+	Mods   string    `json:"mods,omitempty"` // requested mods
 }
 
 type Rejected struct {
@@ -486,7 +489,7 @@ func (q *Queue) finishLocked(result string) {
 
 // record adds it to the history; q.mu must be held.
 func (q *Queue) record(it *Item, result string) {
-	q.d.History = append([]Played{{SetID: it.SetID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test, Play: it.Result}}, q.d.History...)
+	q.d.History = append([]Played{{SetID: it.SetID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test, Play: it.Result, Mods: it.Mods}}, q.d.History...)
 	if len(q.d.History) > maxHistory {
 		q.d.History = q.d.History[:maxHistory]
 	}

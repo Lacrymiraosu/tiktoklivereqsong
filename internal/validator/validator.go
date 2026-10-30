@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/mods"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
 )
 
@@ -98,12 +99,23 @@ type Input struct {
 	Set       *osumeta.Set
 	BeatmapID int    // 0 = whole set requested
 	Mode      string // mode from a #mode/id link, may be empty
+	Mods      string // requested mods, e.g. "HDHR" (see package mods)
 }
 
 // CheckMap validates the beatmap and returns the difficulty that will be shown
 // as "requested". For set requests it picks the hardest diff that passes.
 func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.Time) (*osumeta.Diff, *Rejection) {
 	s := in.Set
+	if in.Mods != "" {
+		if !rules.AllowMods {
+			return nil, reject("mods_off", "requests with mods are off").with("+%s", in.Mods)
+		}
+		for _, b := range rules.BannedMods {
+			if m := strings.ToUpper(strings.TrimSpace(b)); m != "" && mods.Has(in.Mods, m) {
+				return nil, reject("mod_not_allowed", "%s is not allowed", m).with("%s", m)
+			}
+		}
+	}
 	for _, id := range rules.BlacklistSets {
 		if id == s.ID {
 			return nil, reject("set_blacklisted", "set %d is blacklisted", s.ID)
@@ -153,7 +165,7 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 			}
 			mode = in.Mode
 		}
-		if r := checkDiff(d, mode, rules); r != nil {
+		if r := checkDiff(d, mode, in.Mods, rules); r != nil {
 			return nil, r
 		}
 		return d, nil
@@ -175,7 +187,7 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 			if !strings.EqualFold(d.Mode, mode) {
 				continue
 			}
-			if r := checkDiff(d, d.Mode, rules); r != nil {
+			if r := checkDiff(d, d.Mode, in.Mods, rules); r != nil {
 				if first == nil {
 					first = r
 				}
@@ -191,7 +203,7 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 	}
 	if first == nil && best == nil {
 		for i := range s.Diffs { // only modes that are not allowed: report why
-			if r := checkDiff(&s.Diffs[i], s.Diffs[i].Mode, rules); r != nil {
+			if r := checkDiff(&s.Diffs[i], s.Diffs[i].Mode, in.Mods, rules); r != nil {
 				first = r
 				break
 			}
@@ -251,7 +263,7 @@ func SongBanned(list []string, artist, title string) (string, bool) {
 	return "", false
 }
 
-func checkDiff(d *osumeta.Diff, mode string, rules config.Rules) *Rejection {
+func checkDiff(d *osumeta.Diff, mode, modStr string, rules config.Rules) *Rejection {
 	if len(rules.Modes) > 0 && !contains(rules.Modes, mode) {
 		return reject("mode", "mode %s is not allowed", mode).with("%s", mode)
 	}
@@ -267,9 +279,14 @@ func checkDiff(d *osumeta.Diff, mode string, rules config.Rules) *Rejection {
 		if max > 0 && d.Stars > max {
 			return reject("stars_high", "%.2f★ is above %.2f★%s", d.Stars, max, tag).with("%.2f★ > %.2f★%s", d.Stars, max, tag)
 		}
+		if cap := rules.HardModMaxStars; cap > 0 && mods.Harder(modStr) && d.Stars > cap {
+			return reject("mod_stars", "%.2f★ is above %.2f★ for +%s", d.Stars, cap, modStr).with("%.2f★ > %.2f★ +%s", d.Stars, cap, modStr)
+		}
 	}
-	if d.Length >= 0 && rules.MaxLengthSec > 0 && d.Length > rules.MaxLengthSec {
-		return reject("too_long", "%s is longer than %s", clock(d.Length), clock(rules.MaxLengthSec)).with("%s > %s", clock(d.Length), clock(rules.MaxLengthSec))
+	// DT/NC play 1.5× as fast and HT 0.75×, so the song is that much shorter or longer.
+	length := int(float64(d.Length)/mods.Rate(modStr) + 0.5)
+	if d.Length >= 0 && rules.MaxLengthSec > 0 && length > rules.MaxLengthSec {
+		return reject("too_long", "%s is longer than %s", clock(length), clock(rules.MaxLengthSec)).with("%s > %s", clock(length), clock(rules.MaxLengthSec))
 	}
 	return nil
 }
