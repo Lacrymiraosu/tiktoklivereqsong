@@ -20,6 +20,9 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 * Mod commands (`!skip`, `!remove`, `!reqon`, `!reqoff`), queue priority for gifts, gift-only requests, one-click bans, audio previews
 * Test panel: simulated chat and gifts, a dry run that never touches the game, and a **pre-stream check** of the whole chain
 * Session summary (maps played, best play, top requesters) on the dashboard and, on request, the overlay
+* Fair queue (viewers take turns), requests that close by themselves at a queue size or a time, bans for a whole song
+* Optional mod panel: run the queue from a phone on the same Wi-Fi, protected by a PIN
+* A support file (log, raw events, settings) to send after a stream with a problem
 * Switches between stable and lazer to match tosu, and tells you when a new osureq is released
 * Close tosu, TikFinity or everything from the dashboard
 
