@@ -296,7 +296,7 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin, rol
 	}
 	a.applyCredit(user, nick, o != fromChat)
 	a.emit(FeedEvent{Kind: "added", User: user, Nick: nick, Title: it.Title, Artist: it.Artist, Version: it.Version,
-		Mapper: it.Creator, Stars: it.Stars, Mods: it.Mods, Pos: a.Queue.Position(it.ID), Test: o != fromChat})
+		Mapper: it.Creator, SetID: it.SetID, Stars: it.Stars, Mods: it.Mods, Pos: a.Queue.Position(it.ID), Test: o != fromChat})
 	log.Printf("queued @%s: %s - %s [%s] +%s (%d)", user, it.Artist, it.Title, it.Version, it.Mods, it.SetID)
 	return it, nil
 }

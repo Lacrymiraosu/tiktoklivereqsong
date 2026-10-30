@@ -95,3 +95,24 @@ func TestAnnounceNowPlayingAndGift(t *testing.T) {
 		t.Errorf("gift thanks: %q", s)
 	}
 }
+
+func TestAnnounceNp(t *testing.T) {
+	a := newTestApp(t, func(c *config.Config) { c.TTS.Announce = true })
+	a.command(tikfinity.Chat{User: "a", Comment: "!np"}, false)
+	if s := spoken(a); len(s) != 1 || s[0] != "ยังไม่มีเพลงที่เล่นอยู่" {
+		t.Errorf("np with nothing playing: %q", s)
+	}
+	a.Queue.Add(&queue.Item{ID: "x", User: "fan", SetID: 39804, Title: "FREEDOM DiVE", Artist: "xi", AddedAt: time.Now()})
+	a.Queue.Promote("x", "played")
+	a.command(tikfinity.Chat{User: "b", Comment: "!np"}, false)
+	if s := spoken(a)[0]; s != "กำลังเล่น xi - FREEDOM DiVE 39804" {
+		t.Errorf("np: %q", s)
+	}
+	c := a.Cfg.Get()
+	c.TTS.Templates["np"] = "{title} set {setid_digits} for {requester}"
+	a.Cfg.Set(c)
+	a.command(tikfinity.Chat{User: "c", Comment: "!np"}, false)
+	if s := spoken(a)[0]; s != "FREEDOM DiVE set 3 9 8 0 4 for fan" {
+		t.Errorf("np digits: %q", s)
+	}
+}

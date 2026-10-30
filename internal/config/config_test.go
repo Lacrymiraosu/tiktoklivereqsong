@@ -2,6 +2,8 @@ package config
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -80,5 +82,22 @@ func TestParseSongRule(t *testing.T) {
 	}
 	if (SongRule{Artist: "a_hisa"}).String() != `artist="a_hisa"` {
 		t.Error("String")
+	}
+}
+
+func TestOldConfigGetsNewAnnouncements(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	os.WriteFile(path, []byte(`{"tts":{"announce":true,"templates":{"added":"{user} requested {title}","rejected":""}}}`), 0o644)
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tpl := s.Get().TTS.Templates
+	if tpl["added"] != "{user} requested {title}" || tpl["rejected"] != "" {
+		t.Errorf("the streamer's lines must stay: %v", tpl)
+	}
+	if tpl["np"] != EnglishAnnouncements()["np"] {
+		t.Errorf("a new line should be added in the language of the others: %q", tpl["np"])
 	}
 }
