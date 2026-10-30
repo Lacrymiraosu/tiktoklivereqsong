@@ -36,14 +36,17 @@ type Diff struct {
 }
 
 type Set struct {
-	ID      int    `json:"id"`
-	Title   string `json:"title"`
-	Artist  string `json:"artist"`
-	Creator string `json:"creator"`
-	Status  string `json:"status"`
-	Video   bool   `json:"video"`
-	Cover   string `json:"cover"`
-	Diffs   []Diff `json:"diffs"`
+	ID     int    `json:"id"`
+	Title  string `json:"title"`
+	Artist string `json:"artist"`
+	// The names in their own script (日本語, ไทย…); often the same as above.
+	TitleUnicode  string `json:"titleUnicode,omitempty"`
+	ArtistUnicode string `json:"artistUnicode,omitempty"`
+	Creator       string `json:"creator"`
+	Status        string `json:"status"`
+	Video         bool   `json:"video"`
+	Cover         string `json:"cover"`
+	Diffs         []Diff `json:"diffs"`
 	// Converts are the osu! diffs as osu! rates them in taiko, catch and
 	// mania (same id and file, other mode and stars).
 	Converts []Diff    `json:"converts,omitempty"`
@@ -161,13 +164,15 @@ func (c *Client) fetchPage(ctx context.Context, url string) (*Set, error) {
 }
 
 type rawSet struct {
-	ID      int    `json:"id"`
-	Title   string `json:"title"`
-	Artist  string `json:"artist"`
-	Creator string `json:"creator"`
-	Status  string `json:"status"`
-	Video   bool   `json:"video"`
-	Covers  struct {
+	ID            int    `json:"id"`
+	Title         string `json:"title"`
+	Artist        string `json:"artist"`
+	TitleUnicode  string `json:"title_unicode"`
+	ArtistUnicode string `json:"artist_unicode"`
+	Creator       string `json:"creator"`
+	Status        string `json:"status"`
+	Video         bool   `json:"video"`
+	Covers        struct {
 		Cover string `json:"cover"`
 	} `json:"covers"`
 	Beatmaps []rawDiff `json:"beatmaps"`
@@ -204,7 +209,7 @@ func ParsePageJSON(b []byte) (*Set, error) {
 	if r.ID == 0 || len(r.Beatmaps) == 0 {
 		return nil, errNoJSON
 	}
-	s := &Set{ID: r.ID, Title: r.Title, Artist: r.Artist, Creator: r.Creator, Status: r.Status, Video: r.Video, Cover: r.Covers.Cover, Fetched: time.Now()}
+	s := &Set{ID: r.ID, Title: r.Title, Artist: r.Artist, TitleUnicode: r.TitleUnicode, ArtistUnicode: r.ArtistUnicode, Creator: r.Creator, Status: r.Status, Video: r.Video, Cover: r.Covers.Cover, Fetched: time.Now()}
 	for _, b := range r.Beatmaps {
 		s.Diffs = append(s.Diffs, b.diff())
 	}
