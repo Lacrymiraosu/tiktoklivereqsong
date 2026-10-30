@@ -2,6 +2,7 @@ package tikfinity
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -102,5 +103,20 @@ func TestAvatar(t *testing.T) {
 	g, ok := ParseGift(json.RawMessage(`{"uniqueId":"a","giftName":"Rose","diamondCount":1,"repeatCount":1,"profilePictureUrl":"` + pic + `"}`))
 	if !ok || g.Avatar != pic {
 		t.Errorf("gift avatar: %+v", g)
+	}
+}
+
+func TestKeepsFirstCommandAndCountedGift(t *testing.T) {
+	c := New(Env{}, func() Settings { return Settings{} })
+	c.handle([]byte(`{"event":"chat","data":{"uniqueId":"a","comment":"hello"}}`), false)
+	c.handle([]byte(`{"event":"chat","data":{"uniqueId":"b","comment":"!req 1","isModerator":true}}`), false)
+	c.handle([]byte(`{"event":"gift","data":{"uniqueId":"c","giftType":1,"repeatEnd":false,"diamondCount":1,"repeatCount":3}}`), false)
+	c.handle([]byte(`{"event":"gift","data":{"uniqueId":"c","giftType":1,"repeatEnd":true,"diamondCount":1,"repeatCount":5}}`), false)
+	_, first := c.Raw()
+	if !strings.Contains(first["chat"].Raw, "hello") || !strings.Contains(first["chat (command)"].Raw, "!req 1") {
+		t.Errorf("chat events: %+v", first)
+	}
+	if !strings.Contains(first["gift"].Raw, `"repeatEnd":false`) || !strings.Contains(first["gift (counted)"].Raw, `"repeatEnd":true`) {
+		t.Errorf("gift events: %+v", first)
 	}
 }
