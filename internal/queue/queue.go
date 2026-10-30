@@ -226,11 +226,23 @@ func (q *Queue) ValidationState(user string) validator.State {
 	return st
 }
 
-func (q *Queue) Add(it *Item) {
+func (q *Queue) Add(it *Item) { q.add(it, false) }
+
+// AddFair adds it at the end of its owner's round instead of the end of the
+// queue: a viewer's first waiting request is in round 1, the second in round
+// 2, and so on, so one viewer's requests take turns with everyone else's.
+// Priority requests stay on top.
+func (q *Queue) AddFair(it *Item) { q.add(it, true) }
+
+func (q *Queue) add(it *Item, fair bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	it.State = Queued
-	q.d.Items = append(q.d.Items, it)
+	at := len(q.d.Items)
+	if fair {
+		at = q.fairIndex(it.User)
+	}
+	q.d.Items = append(q.d.Items[:at], append([]*Item{it}, q.d.Items[at:]...)...)
 	if !it.Test || it.Simulated {
 		u := strings.ToLower(it.User)
 		q.d.LastReq[u] = it.AddedAt
@@ -242,6 +254,25 @@ func (q *Queue) Add(it *Item) {
 		}
 	}
 	q.changed()
+}
+
+// fairIndex is where a new request of user goes in a fair queue; q.mu must be held.
+func (q *Queue) fairIndex(user string) int {
+	rounds := map[string]int{}
+	round := make([]int, len(q.d.Items))
+	for i, it := range q.d.Items {
+		u := strings.ToLower(it.User)
+		rounds[u]++
+		round[i] = rounds[u]
+	}
+	mine := rounds[strings.ToLower(user)] + 1
+	at := 0
+	for i, it := range q.d.Items {
+		if it.Priority || round[i] <= mine {
+			at = i + 1
+		}
+	}
+	return at
 }
 
 // ClearTest removes everything the test panel created: test requests (also

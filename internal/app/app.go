@@ -278,7 +278,11 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin, rol
 		log.Printf("rejected @%s %q: %s", user, input, rej.Detail)
 		return nil, rej
 	}
-	a.Queue.Add(it)
+	if a.Cfg.Get().Queue.Fair {
+		a.Queue.AddFair(it)
+	} else {
+		a.Queue.Add(it)
+	}
 	a.applyCredit(user, nick, o != fromChat)
 	a.emit(FeedEvent{Kind: "added", User: user, Nick: nick, Title: it.Title, Artist: it.Artist, Version: it.Version,
 		Stars: it.Stars, Pos: a.Queue.Position(it.ID), Test: o != fromChat})
