@@ -101,3 +101,15 @@ func TestOldConfigGetsNewAnnouncements(t *testing.T) {
 		t.Errorf("a new line should be added in the language of the others: %q", tpl["np"])
 	}
 }
+
+func TestOldFollowersOnlyBecomesAllow(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(path, []byte(`{"tts":{"followersOnly":true}}`), 0o644)
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tts := s.Get().TTS; len(tts.Allow) != 1 || tts.Allow[0] != "follower" || tts.FollowersOnly {
+		t.Errorf("followersOnly should become allow [follower]: %+v", tts)
+	}
+}

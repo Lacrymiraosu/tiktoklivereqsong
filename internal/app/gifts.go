@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
@@ -29,6 +30,12 @@ func (a *App) SimulateGift(user string, coins int) (tokens, requests int, err er
 // priority (gifts.enabled), each on its own.
 func (a *App) gift(g tikfinity.Gift, test bool) (earned, requests int) {
 	a.rememberAvatar(g.User, g.Avatar)
+	a.mu.Lock()
+	if a.gifters == nil {
+		a.gifters = map[string]time.Time{}
+	}
+	a.gifters[strings.ToLower(g.User)] = time.Now() // for TTS "gifters only"
+	a.mu.Unlock()
 	a.announce(FeedEvent{Kind: "giftthanks", User: g.User, Nick: g.Nick, Test: test, Vars: map[string]string{"coins": strconv.Itoa(g.Coins), "gift": g.Name}})
 	cfg := a.Cfg.Get().Gifts
 	now := time.Now()

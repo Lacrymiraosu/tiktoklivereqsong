@@ -197,16 +197,20 @@ type Remote struct {
 // TTS reads chat aloud in the dashboard, without commands ("!req …"),
 // which TikFinity's own TTS cannot skip.
 type TTS struct {
-	Enabled       bool     `json:"enabled"`
-	Lang          string   `json:"lang"`  // auto (by the message's letters) | th | en
-	Voice         string   `json:"voice"` // a voice name from the browser; empty = best for the language
-	Rate          float64  `json:"rate"`  // 0.5-2
-	Volume        int      `json:"volume"`
-	ReadName      bool     `json:"readName"`    // "name says …"
-	MaxLength     int      `json:"maxLength"`   // longer messages are cut
-	CooldownSec   int      `json:"cooldownSec"` // per viewer
-	FollowersOnly bool     `json:"followersOnly"`
-	BlockedWords  []string `json:"blockedWords"` // messages containing one are not read
+	Enabled     bool    `json:"enabled"`
+	Lang        string  `json:"lang"`  // auto (by the message's letters) | th | en
+	Voice       string  `json:"voice"` // a voice name from the browser; empty = best for the language
+	Rate        float64 `json:"rate"`  // 0.5-2
+	Volume      int     `json:"volume"`
+	ReadName    bool    `json:"readName"`    // "name says …"
+	MaxLength   int     `json:"maxLength"`   // longer messages are cut
+	CooldownSec int     `json:"cooldownSec"` // per viewer
+	// Allow limits whose chat is read: subscriber (ใจส้ม, TikTok LIVE
+	// subscription), follower, gifter (sent a gift during this stream), mod.
+	// A viewer needs any one; empty = everyone. No-limit users always pass.
+	Allow         []string `json:"allow"`
+	FollowersOnly bool     `json:"followersOnly"` // older setting, read as allow: [follower]
+	BlockedWords  []string `json:"blockedWords"`  // messages containing one are not read
 	// Announce speaks what happens to requests from Templates (event ->
 	// text with {placeholders}; see app.Announcements). Empty or "-" = silent.
 	Announce  bool              `json:"announce"`
@@ -431,6 +435,11 @@ func (c *Config) Validate() error {
 	if t := c.TTS; t.Rate < 0.5 || t.Rate > 2 || t.Volume < 0 || t.Volume > 100 || t.MaxLength < 10 || t.MaxLength > 500 || t.CooldownSec < 0 {
 		add("tts_range", nil, "TTS: speed 0.5-2, volume 0-100, max length 10-500, cooldown 0 or more")
 	}
+	for _, w := range c.TTS.Allow {
+		if !slices.Contains([]string{"subscriber", "follower", "gifter", "mod"}, w) {
+			add("tts_allow", map[string]string{"who": w}, "unknown TTS group %q", w)
+		}
+	}
 	for k, v := range c.TTS.Templates {
 		if !slices.Contains(AnnounceEvents, k) {
 			add("tts_template", map[string]string{"event": k}, "unknown announcement %q", k)
@@ -648,6 +657,9 @@ func Load(path string) (*Store, error) {
 		return nil, fmt.Errorf("config.json: %w", err)
 	}
 	s.cfg.TTS.fillTemplates()
+	if s.cfg.TTS.FollowersOnly && len(s.cfg.TTS.Allow) == 0 {
+		s.cfg.TTS.Allow, s.cfg.TTS.FollowersOnly = []string{"follower"}, false
+	}
 	if err := s.cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("config.json: %w", err)
 	}
