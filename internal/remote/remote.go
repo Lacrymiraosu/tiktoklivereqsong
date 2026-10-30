@@ -330,6 +330,7 @@ type Item struct {
 	Priority bool    `json:"priority,omitempty"`
 	Phase    string  `json:"phase,omitempty"`
 	SetID    int     `json:"setId"`
+	Mods     string  `json:"mods,omitempty"`
 }
 
 func (s *Server) state(w http.ResponseWriter, r *http.Request) {
@@ -339,7 +340,7 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 		TikFinity: string(a.TF.Status().Level), Tosu: string(a.Tosu.Status().Level), VoteSkip: a.Votes(), Items: []Item{}}
 	conv := func(it queue.Item) Item {
 		return Item{ID: it.ID, User: it.User, Title: it.Title, Artist: it.Artist, Version: it.Version, Stars: it.Stars, Mode: it.Mode,
-			State: string(it.State), Priority: it.Priority, Phase: it.PlayPhase, SetID: it.SetID}
+			State: string(it.State), Priority: it.Priority, Phase: it.PlayPhase, SetID: it.SetID, Mods: it.Mods}
 	}
 	if snap.Now != nil {
 		n := conv(*snap.Now)

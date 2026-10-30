@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/mods"
 )
 
 type Connection struct {
@@ -74,9 +76,14 @@ type Rules struct {
 	// ModeStars overrides MinStars/MaxStars per mode (osu, taiko, fruits,
 	// mania); a 0 keeps the global value. Stars of different modes are not
 	// comparable, so a mania streamer can allow 4.5★ while osu! stops at 6★.
-	ModeStars       map[string]StarRange `json:"modeStars,omitempty"`
-	FollowersOnly   bool                 `json:"followersOnly"`          // reject viewers TikTok says do not follow
-	SubscriberLimit int                  `json:"subscriberPerUserLimit"` // per-user limit for subscribers; 0 = same as everyone
+	ModeStars map[string]StarRange `json:"modeStars,omitempty"`
+	// Mods in requests ("!req 123 HDHR"). Stars are always the no-mod rating;
+	// HardModMaxStars (0 = none) caps maps requested with DT, NC or HR.
+	AllowMods       bool     `json:"allowMods"`
+	BannedMods      []string `json:"bannedMods"`
+	HardModMaxStars float64  `json:"hardModMaxStars"`
+	FollowersOnly   bool     `json:"followersOnly"`          // reject viewers TikTok says do not follow
+	SubscriberLimit int      `json:"subscriberPerUserLimit"` // per-user limit for subscribers; 0 = same as everyone
 }
 
 // StarRange is a min/max star limit; 0 means "no override".
@@ -237,8 +244,9 @@ func Default() Config {
 			PosCmd: "!pos", NowCmd: "!np", VoteSkipCmd: "!voteskip"},
 		Rules: Rules{
 			MinStars: 0, MaxStars: 0, MaxLengthSec: 0,
-			Modes:    []string{"osu", "taiko", "fruits", "mania"},
-			Statuses: []string{"ranked", "approved", "qualified", "loved"},
+			Modes:     []string{"osu", "taiko", "fruits", "mania"},
+			Statuses:  []string{"ranked", "approved", "qualified", "loved"},
+			AllowMods: true,
 		},
 		Queue: Queue{MaxSize: 30, PerUserLimit: 2, CooldownSec: 60, NoRepeatMin: 60, PlayMode: "manual", AutoGapSec: 5},
 		Download: Download{
@@ -334,6 +342,14 @@ func (c *Config) Validate() error {
 	}
 	if c.Command.BareNumberAs != "beatmap" && c.Command.BareNumberAs != "set" {
 		add("bare_number", nil, "bare number must be beatmap or set")
+	}
+	if c.Rules.HardModMaxStars < 0 {
+		add("hard_mod_stars", nil, "star limit for DT/HR requests cannot be negative")
+	}
+	for _, m := range c.Rules.BannedMods {
+		if got, err := mods.Parse(m); err != nil || len(got) != 2 {
+			add("banned_mod", map[string]string{"mod": m}, "%q is not a mod (use two letters, e.g. FL)", m)
+		}
 	}
 	if c.Rules.MaxStars > 0 && c.Rules.MinStars > c.Rules.MaxStars {
 		add("stars_order", nil, "min stars is above max stars")
