@@ -101,11 +101,17 @@ func (r Rules) StarLimits(mode string) (min, max float64, perMode bool) {
 }
 
 type Queue struct {
-	MaxSize      int    `json:"maxSize"`
-	PerUserLimit int    `json:"perUserLimit"`
-	CooldownSec  int    `json:"cooldownSec"`
-	NoRepeatMin  int    `json:"noRepeatMin"`
-	Fair         bool   `json:"fair"`     // new requests take turns between viewers (queue.AddFair)
+	MaxSize      int  `json:"maxSize"`
+	PerUserLimit int  `json:"perUserLimit"`
+	CooldownSec  int  `json:"cooldownSec"`
+	NoRepeatMin  int  `json:"noRepeatMin"`
+	Fair         bool `json:"fair"` // new requests take turns between viewers (queue.AddFair)
+	// Requests close by themselves when AutoCloseAt requests are waiting (0 =
+	// off) and open again at AutoReopenAt or fewer; CloseAt ("HH:MM", local
+	// time, empty = off) closes them once a day, e.g. before the stream ends.
+	AutoCloseAt  int    `json:"autoCloseAt"`
+	AutoReopenAt int    `json:"autoReopenAt"`
+	CloseAt      string `json:"closeAt"`
 	PlayMode     string `json:"playMode"` // manual | auto
 	AutoGapSec   int    `json:"autoGapSec"`
 }
@@ -331,6 +337,12 @@ func (c *Config) Validate() error {
 			add("stars_order_mode", map[string]string{"mode": mode}, "%s: min stars is above max stars", mode)
 		}
 	}
+	if c.Queue.AutoCloseAt < 0 || c.Queue.AutoReopenAt < 0 || (c.Queue.AutoCloseAt > 0 && c.Queue.AutoReopenAt >= c.Queue.AutoCloseAt) {
+		add("auto_close", nil, "auto-close: reopen must be below the close size (both 0 or more)")
+	}
+	if _, ok := ClockTime(c.Queue.CloseAt); !ok && c.Queue.CloseAt != "" {
+		add("close_at", nil, "close time must be HH:MM, e.g. 23:30")
+	}
 	if c.Queue.PlayMode != "manual" && c.Queue.PlayMode != "auto" {
 		add("play_mode", nil, "play mode must be manual or auto")
 	}
@@ -362,6 +374,18 @@ func (c *Config) Validate() error {
 		return &ValidationError{Problems: probs}
 	}
 	return nil
+}
+
+// ClockTime parses "HH:MM" (24 h) into minutes after midnight.
+func ClockTime(s string) (int, bool) {
+	var h, m int
+	if len(s) != 5 || s[2] != ':' {
+		return 0, false
+	}
+	if _, err := fmt.Sscanf(s, "%02d:%02d", &h, &m); err != nil || h > 23 || m > 59 || h < 0 || m < 0 {
+		return 0, false
+	}
+	return h*60 + m, true
 }
 
 // HostAllowed reports whether an https URL points at a whitelisted host.
