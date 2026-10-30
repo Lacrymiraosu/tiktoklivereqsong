@@ -174,6 +174,7 @@ func TestVoteSkip(t *testing.T) {
 
 	c := a.Cfg.Get()
 	c.Command.VoteSkipVotes = 2
+	c.Test.DryRun = true // the next song "opens" without osu!
 	a.Cfg.Set(c)
 	if a.command(tikfinity.Chat{User: "v1", Comment: "!voteskip"}, false) != cmdDone {
 		t.Fatal("first vote should count")
@@ -187,18 +188,23 @@ func TestVoteSkip(t *testing.T) {
 	if f := a.Feed()[0]; f.Code != "vote" || f.Short != "1/2" {
 		t.Errorf("vote event: %+v", f)
 	}
+	a.Queue.Add(&queue.Item{ID: "next", User: "other", SetID: 2, AddedAt: time.Now()})
+	a.Queue.Update("next", func(it *queue.Item) { it.State = queue.Ready })
 	a.command(tikfinity.Chat{User: "v2", Comment: "!voteskip"}, false)
 	if f := a.Feed()[0]; f.Code != "voteskip" {
 		t.Errorf("enough votes should skip: %+v", f)
 	}
+	if got := a.command(tikfinity.Chat{User: "v3", Comment: "!voteskip"}, false); got != cmdNothing {
+		t.Errorf("a vote after it passed = %q, want nothing (it must not skip a second song)", got)
+	}
 	for i := 0; i < 100; i++ {
-		if _, playing := a.Queue.Now(); !playing {
+		if cur, _ := a.Queue.Now(); cur.ID != "song" {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if _, playing := a.Queue.Now(); playing {
-		t.Fatal("the song should have been skipped")
+	if cur, _ := a.Queue.Now(); cur.ID != "next" {
+		t.Fatalf("the voted song should be skipped and the next one playing, now %q", cur.ID)
 	}
 	if h := a.Queue.Snapshot().History; len(h) == 0 || h[0].Result != "skipped" {
 		t.Errorf("history should record the skip: %+v", h)

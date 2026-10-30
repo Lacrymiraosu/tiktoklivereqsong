@@ -180,14 +180,15 @@ func (a *App) voteSkip(ch tikfinity.Chat, ev FeedEvent, needed int) string {
 	user := strings.ToLower(ch.User)
 	a.mu.Lock()
 	if a.voteID != now.ID {
-		a.voteID, a.voters = now.ID, map[string]bool{}
+		a.voteID, a.voters, a.votePassed = now.ID, map[string]bool{}, false
 	}
-	if a.voters[user] {
+	if a.voters[user] || a.votePassed {
 		a.mu.Unlock()
-		return cmdNothing // already voted on this song
+		return cmdNothing // already voted, or the vote already passed
 	}
 	a.voters[user] = true
 	votes := len(a.voters)
+	a.votePassed = votes >= needed // decided here, so only one vote skips
 	a.mu.Unlock()
 
 	ev.Title, ev.Artist, ev.Version = now.Title, now.Artist, now.Version
@@ -201,6 +202,9 @@ func (a *App) voteSkip(ch tikfinity.Chat, ev FeedEvent, needed int) string {
 	log.Printf("chat: vote skip (%d/%d) on %s - %s", votes, needed, now.Artist, now.Title)
 	a.Say("info", "voteSkipped", map[string]string{"title": now.Artist + " - " + now.Title, "n": strconv.Itoa(votes)}, "%d viewers voted to skip %s - %s", votes, now.Artist, now.Title)
 	go func() {
+		if cur, ok := a.Queue.Now(); !ok || cur.ID != now.ID {
+			return // the streamer moved on already: never skip the next song
+		}
 		if err := a.Skip(""); err != nil {
 			a.Say("warn", "skipErr", map[string]string{"u": ch.User, "msg": err.Error()}, "vote skip: %v", err)
 		}
