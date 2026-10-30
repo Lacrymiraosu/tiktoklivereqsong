@@ -425,11 +425,11 @@ tiktoklivereqsong/
 | `internal/app/commands.go` | ~100 | Chat commands other than requests; `IsMod` (Mods list or TikTok moderator flag) | `command`, `IsMod` |
 | `internal/app/gifts.go` | ~60 | Gift coins → priority tokens → prioritised requests; simulated gifts | `HandleGift`, `SimulateGift`, `applyCredit` |
 | `internal/app/ban.go` | ~70 | Adds to a blacklist and removes matching waiting requests | `Ban` |
-| `internal/app/preflight.go` | ~200 | The pre-stream check | `Preflight`, `PreflightEnv`, `Check` |
-| `internal/search/search.go` | ~250 | catboy.best search (status filter, 1 request/s, 10 min cache), `Playable` (mode filter incl. converts), `Rank` | `Client`, `Find`, `Parse`, `Rank`, `Result` |
+| `internal/app/preflight.go` | ~180 | The pre-stream check | `Preflight`, `PreflightEnv`, `Check` |
+| `internal/search/search.go` | ~230 | catboy.best search (status filter, 1 request/s, 10 min cache), `Playable` (mode filter incl. converts), `Rank` | `Client`, `Find`, `Parse`, `Rank`, `Result` |
 | `internal/update/update.go` | ~130 | Release check: `Newer` compares x.y.z, dev builds and pre-releases are never offered, links only to this repo's releases | `Run`, `Latest`, `Newer`, `Release` |
-| `internal/remote/remote.go` | ~420 | Mod panel: `Apply` starts/stops the listener on config changes; `guard` (private addresses, local Host names, header, CSP); PIN login with lockouts; limited state and actions | `Server`, `Apply`, `Status`, `Handler` |
-| `internal/support/support.go` | ~150 | Support zip, home-folder redaction, log tail | `Write`, `Input` |
+| `internal/remote/remote.go` | ~440 | Mod panel: `Apply` starts/stops the listener on config changes; `guard` (private addresses, local Host names, header, CSP); PIN login with lockouts; limited state and actions | `Server`, `Apply`, `Status`, `Handler` |
+| `internal/support/support.go` | ~130 | Support zip, home-folder redaction, log tail | `Write`, `Input` |
 | `internal/queue/summary.go` | ~110 | Session start (kept across restarts, new after 6 idle hours) and the summary | `Summary`, `NewSession` |
 | `internal/config/config.go` | ~310 | All settings structs with JSON names, `Default()`, `Validate()`, download host whitelist, `Store` (atomic save via `.tmp` + rename, `OnChange` subscribers). Unknown/missing fields fall back to defaults because the file is unmarshalled over `Default()` | `Config`, `Connection`, `Osu`, `Command`, `Rules`, `Queue`, `Source`, `Download`, `MD5`, `Import`, `Overlay`, `Hotkeys`, `Test`, `HostAllowed`, `Store` |
 | `internal/parser/parser.go` | ~150 | Command matching (case-insensitive, aliases), ID and link parsing, `#mode/id` fragments, rejects foreign hosts and non-numeric IDs. `Bare` marks plain numbers so the app can retry as the other kind | `Parse`, `ParseArg`, `Request`, `Request.Flip`, `Kind` |
