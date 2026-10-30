@@ -8,6 +8,19 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
 
 [![build](https://github.com/Lacrymiraosu/tiktoklivereqsong/actions/workflows/build.yml/badge.svg)](https://github.com/Lacrymiraosu/tiktoklivereqsong/actions/workflows/build.yml)
 
+## ภาพรวม
+
+**แดชบอร์ด**: เพลงที่กำลังเล่น คิวพร้อมปุ่มจัดการ คำขอที่ถูกปฏิเสธ ประวัติ และสรุปไลฟ์
+
+![แดชบอร์ด osureq: เพลงที่กำลังเล่น คิวคำขอ คำขอที่ถูกปฏิเสธ และสรุปไลฟ์](images/dashboard-th.png)
+
+| Overlay ใน OBS | แผงม็อดบนมือถือ |
+|---|---|
+| <img src="images/overlay-th.png" alt="Overlay ใน OBS: เพลงที่กำลังเล่น คิวถัดไป และคำตอบ !pos ของผู้ชม" width="420"> | <img src="images/mod-panel-th.png" alt="แผงม็อดบนมือถือ: สวิตช์รับคำขอ เพลงที่กำลังเล่นพร้อมปุ่มข้ามและถัดไป และคิว" width="260"> |
+| สิ่งที่ผู้ชมเห็นในไลฟ์: เพลงที่กำลังเล่น คิวถัดไป วิธีขอเพลง และคำตอบ `!pos` `!np` หรือเหตุผลที่คำขอถูกปฏิเสธ | ม็อดคุมคิวจากมือถือที่ต่อ Wi-Fi เดียวกัน ใช้ PIN |
+
+<sub>ภาพหน้าจอใช้ข้อมูลตัวอย่าง</sub>
+
 ## ความสามารถ
 
 * รับคำขอจากแชท TikTok ผ่าน TikFinity รองรับทั้ง ID ลิงก์ osu! ทุกรูปแบบ และ**ชื่อเพลง** (`!req freedom dive`) ขอพร้อม **mod** ได้ (`!req 2096297 HDHR`)
