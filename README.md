@@ -22,6 +22,7 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 * Session summary (maps played, best play, top requesters) on the dashboard and, on request, the overlay
 * Fair queue (viewers take turns), requests that close by themselves at a queue size or a time, bans for a whole song or artist (`artist="a_hisa"`)
 * Optional mod panel: run the queue from a phone on the same Wi-Fi, protected by a PIN
+* Optional chat TTS that reads chat aloud but never the commands (`!req …`), links or emoji, instead of TikFinity's TTS
 * A support file (log, raw events, settings) to send after a stream with a problem
 * Switches between stable and lazer to match tosu, and tells you when a new osureq is released
 * Close tosu, TikFinity or everything from the dashboard
