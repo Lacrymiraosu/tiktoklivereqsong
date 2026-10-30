@@ -53,7 +53,8 @@ const T = {
   priority: ["priority", "คิวพิเศษ"],
   dryRun: ["Dry run", "ทดลองไม่เปิดเกม"],
   clearTest: ["Clear test data", "ล้างข้อมูลทดสอบ"],
-  testPh: ["!req 2096297, a link or a song name", "!req 2096297, ลิงก์ หรือชื่อเพลง"],
+  testPh: ["!req 2096297, a link or any chat message", "!req 2096297, ลิงก์ หรือแชททั่วไป"],
+  spokenTest: ["Not a request: read aloud by chat TTS", "ไม่ใช่คำขอ: ส่งให้เสียงอ่านแชทแล้ว"],
   testUserPh: ["@user", "@ผู้ใช้"],
   testBtn: ["Send", "ส่ง"],
   hintChat: ["Sends the message as if @user typed it in TikTok chat: command, requests on/off, per-user limit, cooldown and every map rule apply. Works offline. A bare ID or link gets {cmd} added.", "ส่งข้อความเหมือน @ผู้ใช้ พิมพ์ในแชท TikTok ใช้กฎทั้งหมด (คำสั่ง เปิด/ปิดรับ จำนวนต่อคน คูลดาวน์ กฎแมพ) ใช้ได้แม้ไม่ได้ไลฟ์ ถ้าพิมพ์แค่ ID หรือลิงก์จะเติม {cmd} ให้"],
@@ -258,7 +259,8 @@ const T = {
   ttsTitleOn: ["TTS is speaking in this tab (commands in chat are skipped). Click to stop.", "กำลังใช้เสียงอ่านในแท็บนี้ (ไม่อ่านคำสั่งในแชท) คลิกเพื่อหยุด"],
   sg_chat: ["Reading chat", "อ่านแชท"], sg_voice: ["Voice", "เสียง"], sg_announce: ["Announcements", "ประกาศเหตุการณ์"],
   modOn: ["on", "เปิดอยู่"], ttsSkip: ["Skip this message", "ข้ามข้อความนี้"],
-  ttsNoVoice: ["This browser has no voice for {lang}. In Windows: Settings → Time & language → Speech → add a voice.", "เบราว์เซอร์นี้ไม่มีเสียงภาษา {lang} ใน Windows: การตั้งค่า → เวลาและภาษา → คำพูด → เพิ่มเสียง"],
+  ttsNoVoice: ["This browser has no voice for {lang}. Set Settings → TTS → Who speaks to auto or Google, or open the dashboard in Microsoft Edge.", "เบราว์เซอร์นี้ไม่มีเสียงภาษา{lang} ตั้ง การตั้งค่า → TTS → ใครพูด เป็น auto หรือ Google หรือเปิดแดชบอร์ดใน Microsoft Edge"],
+  ttsOnlineFail: ["Google's voice did not answer ({err}).", "เสียงของ Google ไม่ตอบ ({err})"],
   ttsSays_en: ["{name} says {text}", "{name} says {text}"], ttsSays_th: ["{name} บอกว่า {text}", "{name} บอกว่า {text}"],
   ttsSample: ["This is how chat will sound.", "เสียงอ่านแชทจะเป็นแบบนี้"], ttsAuto: ["best for the language", "เลือกให้ตามภาษา"],
   e_tts_lang: ["TTS language must be auto, Thai or English", "ภาษาอ่านแชทต้องเป็น auto ไทย หรืออังกฤษ"],
@@ -867,30 +869,59 @@ $("#clearBtn").addEventListener("click", () => { if (confirm(t("confirmClear")))
 let ttsOn = false, ttsSeen = -1, ttsBusy = false;
 const ttsQueue = [], ttsWarned = {};
 const hasThai = s => /[\u0E00-\u0E7F]/.test(s);
+let ttsAudio = null; // Google's voice playing, if any
+// ttsVoice picks the browser voice for lang. The chosen voice is only used
+// for its own language: an English voice reads nothing of a Thai message.
 function ttsVoice(lang, voiceName) {
-  const voices = speechSynthesis.getVoices();
-  if (voiceName) { const v = voices.find(v => v.name === voiceName); if (v) return v; }
+  const voices = "speechSynthesis" in window ? speechSynthesis.getVoices() : [];
   const m = voices.filter(v => v.lang.toLowerCase().startsWith(lang));
+  if (voiceName) { const v = m.find(v => v.name === voiceName); if (v) return v; }
   return m.find(v => /natural|online/i.test(v.name)) || m.find(v => v.localService) || m[0] || null;
 }
-function ttsUtter(text, name, cfg) {
+// ttsSay reads one line and calls done when it has finished (or failed).
+// Who speaks follows tts.engine: the browser's voice, or Google's through
+// the helper (/api/tts) when the browser has none for the language, which
+// is the usual case for Thai in Chrome-based browsers.
+function ttsSay(text, name, cfg, done) {
   const lang = cfg.lang !== "auto" ? cfg.lang : hasThai(text + " " + (name || "")) ? "th" : "en";
   const line = cfg.readName && name ? (T["ttsSays_" + lang][0]).replace("{name}", name).replace("{text}", text) : text;
+  const volume = Math.max(0, Math.min(1, (cfg.volume ?? 80) / 100)), rate = cfg.rate || 1;
+  const v = ttsVoice(lang, cfg.voice), engine = cfg.engine || "auto";
+  if (engine === "google" || (engine === "auto" && !v)) {
+    const r = fetch("/api/tts", { method: "POST", headers: { "X-Osureq": "1", "Content-Type": "application/json" }, body: JSON.stringify({ lang, text: line }) })
+      .then(async r => { if (!r.ok) throw new Error((await r.text()).trim() || "HTTP " + r.status); return r.blob(); });
+    r.then(b => {
+      const a = new Audio(URL.createObjectURL(b));
+      a.volume = volume; a.playbackRate = rate;
+      let over = false; // pause and ended both fire at the end
+      const end = () => { if (over) return; over = true; URL.revokeObjectURL(a.src); if (ttsAudio === a) ttsAudio = null; done(); };
+      a.onended = a.onerror = a.onpause = end;
+      ttsAudio = a;
+      a.play().catch(end);
+    }).catch(e => {
+      if (!ttsWarned.online) { ttsWarned.online = true; toast(t("ttsOnlineFail", { err: e.message }), true); }
+      done();
+    });
+    return;
+  }
+  if (!v && !ttsWarned[lang]) { ttsWarned[lang] = true; toast(t("ttsNoVoice", { lang: lang === "th" ? "ไทย" : "English" }), true); }
   const u = new SpeechSynthesisUtterance(line);
-  const v = ttsVoice(lang, cfg.voice);
   if (v) u.voice = v;
-  else if (!ttsWarned[lang]) { ttsWarned[lang] = true; toast(t("ttsNoVoice", { lang: lang === "th" ? "ไทย" : "English" }), true); }
   u.lang = v ? v.lang : lang === "th" ? "th-TH" : "en-US";
-  u.rate = cfg.rate || 1;
-  u.volume = Math.max(0, Math.min(1, (cfg.volume ?? 80) / 100));
-  return u;
+  u.rate = rate; u.volume = volume;
+  u.onend = u.onerror = () => done();
+  speechSynthesis.speak(u);
+}
+// ttsStop silences whichever voice is speaking.
+function ttsStop() {
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  if (ttsAudio) ttsAudio.pause(); // its onpause ends the line
 }
 function ttsNext() {
   if (ttsBusy || !ttsOn || !ttsQueue.length) return;
-  const s = ttsQueue.shift(), u = ttsUtter(s.text, s.name, S.tts);
+  const s = ttsQueue.shift();
   ttsBusy = true;
-  u.onend = u.onerror = () => { ttsBusy = false; renderTTS(); ttsNext(); };
-  speechSynthesis.speak(u);
+  ttsSay(s.text, s.name, S.tts, () => { ttsBusy = false; renderTTS(); ttsNext(); });
   renderTTS();
 }
 function handleSpeech() {
@@ -906,7 +937,7 @@ function handleSpeech() {
 function renderTTS() {
   const on = !!(S && S.tts && (S.tts.enabled || S.tts.announce));
   $("#ttsWrap").hidden = !on || !("speechSynthesis" in window);
-  if (!on && ttsOn) { ttsOn = false; ttsQueue.length = 0; speechSynthesis.cancel(); }
+  if (!on && ttsOn) { ttsOn = false; ttsQueue.length = 0; ttsStop(); }
   const p = $("#ttsPill");
   p.textContent = ttsOn ? "🔊 " + t("ttsOn") : "🔈 " + t("ttsStart");
   p.title = t(ttsOn ? "ttsTitleOn" : "ttsTitleOff");
@@ -916,11 +947,11 @@ function renderTTS() {
 }
 $("#ttsPill").addEventListener("click", () => {
   ttsOn = !ttsOn;
-  if (!ttsOn) { ttsQueue.length = 0; speechSynthesis.cancel(); ttsBusy = false; }
+  if (!ttsOn) { ttsQueue.length = 0; ttsStop(); ttsBusy = false; }
   else speechSynthesis.speak(new SpeechSynthesisUtterance("")); // the click unlocks speech in this tab
   renderTTS();
 });
-$("#ttsSkip").addEventListener("click", () => speechSynthesis.cancel());
+$("#ttsSkip").addEventListener("click", ttsStop);
 if ("speechSynthesis" in window) speechSynthesis.addEventListener("voiceschanged", () => { if (!$("#settings").hidden && tab === "tts") renderSettings(); });
 
 /* ---------- master volume ---------- */
@@ -1035,12 +1066,14 @@ $("#testForm").addEventListener("submit", async e => {
       return;
     }
     if (testMode === "chat") {
-      if (!input.startsWith("!")) input = (S ? S.command : "!req") + " " + input;
+      // only a bare ID or osu! link gets the command; other text is plain chat (read by TTS)
+      if (/^(\d+|(https?:\/\/)?(osu|old)\.ppy\.sh\/\S+)$/i.test(input)) input = (S ? S.command : "!req") + " " + input;
       j = await api("POST", "/api/simulate", { user, message: input });
     } else {
       j = await api("POST", "/api/test", { input, user });
     }
     if (j.command) { toast(t("cmd_" + j.command, { u: user || "viewer" }), !j.ok); if (j.ok) $("#testIn").value = ""; }
+    else if (j.code === "spoken") { toast(t("spokenTest")); $("#testIn").value = ""; }
     else if (j.ok) { toast(t("added", { t: `${j.item.artist} - ${j.item.title} [${j.item.version}]` })); $("#testIn").value = ""; }
     else if (j.code === "ignored") toast(t("ignored"), true);
     else toast(j.code && T["r_" + j.code] ? t("r_" + j.code) + (j.short ? " · " + j.short : "") : j.error, true);
@@ -1176,7 +1209,8 @@ const SCHEMA = {
     F("tts.blockedWords", "list", "Blocked words", "คำต้องห้าม", "Comma separated. Messages containing one are not read.", "คั่นด้วยจุลภาค ข้อความที่มีคำเหล่านี้จะไม่ถูกอ่าน"),
     F("", "group", "sg_voice"),
     F("tts.lang", "seg", "Language", "ภาษา", "auto picks Thai or English for each message by its letters.", "auto เลือกไทยหรืออังกฤษตามตัวอักษรของแต่ละข้อความ", { options: [["auto", "auto"], ["th", "ไทย"], ["en", "English"]] }),
-    F("tts.voice", "voice", "Voice", "เสียง", "Voices come from Windows and the browser (Edge has natural ones). Add Thai in Windows: Settings → Time & language → Speech.", "เสียงมาจาก Windows และเบราว์เซอร์ (Edge มีเสียงแบบธรรมชาติ) เพิ่มเสียงไทยใน Windows: การตั้งค่า → เวลาและภาษา → คำพูด"),
+    F("tts.engine", "seg", "Who speaks", "ใครพูด", "auto uses the browser's voice when it has one for the language and Google's voice when it does not (Windows has no Thai voice, and Chrome or Dia only use Windows voices). Google sends the text being read to Google and needs internet.", "auto ใช้เสียงของเบราว์เซอร์ถ้ามีเสียงภาษานั้น ถ้าไม่มีจะใช้เสียงของ Google (Windows ไม่มีเสียงไทยมาให้ และ Chrome หรือ Dia ใช้ได้แค่เสียงของ Windows) แบบ Google จะส่งข้อความที่อ่านไปที่ Google และต้องต่ออินเทอร์เน็ต", { options: [["auto", "auto"], ["browser", ["browser", "เบราว์เซอร์"]], ["google", "Google"]] }),
+    F("tts.voice", "voice", "Browser voice", "เสียงของเบราว์เซอร์", "Used for its own language only. Voices come from Windows and the browser (Edge has natural ones, including Thai).", "ใช้กับภาษาของเสียงนั้นเท่านั้น เสียงมาจาก Windows และเบราว์เซอร์ (Edge มีเสียงแบบธรรมชาติ รวมถึงภาษาไทย)"),
     F("tts.rate", "number", "Speed", "ความเร็ว", null, null, { min: 0.5, max: 2, step: 0.1 }),
     F("tts.volume", "number", "Volume (%)", "ระดับเสียง (%)", null, null, { min: 0, max: 100 }),
     F("", "ttstest", "Test the voice", "ทดลองเสียง"),
@@ -1341,8 +1375,8 @@ function field(f) {
     }
     case "ttstest":
       return h("div", { class: "row" }, text, h("button", { class: "btn sm", type: "button", onclick: () => {
-        speechSynthesis.cancel();
-        speechSynthesis.speak(ttsUtter(t("ttsSample"), "osureq", draft.tts));
+        ttsStop();
+        ttsSay(t("ttsSample"), "osureq", draft.tts, () => {});
       } }, "▶ " + lbl(f.label)));
     case "remoteinfo": {
       const r = S && S.extra && S.extra.remote;

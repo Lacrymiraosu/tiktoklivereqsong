@@ -314,7 +314,8 @@ and announced on the overlay: `98.52% S · 812x · 2 miss · 301pp · HDHR`.
 The **Test** panel on the dashboard works while TikFinity is offline:
 
 * **Simulate chat** (`POST /api/simulate`): a message as any `@user`, through the real chat path (command, aliases, requests on/off,
-  per-user limit, cooldown, map rules). Non-requests are reported as "ignored". A bare ID or link gets the command prepended.
+  per-user limit, cooldown, map rules). Non-requests are reported as "ignored", or "spoken" when chat TTS reads them. Only a bare ID or osu! link gets the command prepended;
+  other text is sent as plain chat, so TTS can be tried from the panel.
 * **Quick add** (`POST /api/test`): straight into the queue, map rules only.
 * **Gift** (`POST /api/simulateGift`): pretends `@user` sent a gift worth N coins (gift priority or gift-only requests must be on).
 * **Pre-stream check** (`POST /api/preflight`, button next to Dry run): see [Pre-stream check](#pre-stream-check).
@@ -338,8 +339,15 @@ character, and cuts at `tts.maxLength`. The last 20 go out in the state as `spee
 
 The dashboard speaks them with the Web Speech API (`speechSynthesis`, i.e. the voices of Windows and the browser; Edge has natural ones).
 Browsers refuse to speak without a user gesture, so the top-bar **Start TTS** button starts it per tab; only tabs where it was clicked speak,
-nothing from before the click is read, and at most five messages wait. With `tts.lang` `auto`, Thai letters pick a Thai voice, else English
-(natural/online voices first); `tts.voice` forces one. OBS records it as desktop audio. Streamers should turn TikFinity's TTS off.
+nothing from before the click is read, and at most five messages wait. With `tts.lang` `auto`, Thai letters pick Thai, else English
+(natural/online voices first); `tts.voice` picks a browser voice, used only for its own language. OBS records it as desktop audio.
+Streamers should turn TikFinity's TTS off.
+
+Windows ships no Thai voice, and Chrome-based browsers (Chrome, Dia) can only use Windows voices, so `tts.engine` decides who speaks:
+`auto` (default) uses the browser's voice when it has one for the language and Google Translate's voice otherwise; `browser` never goes
+online; `google` always does. Google's voice goes through the helper (`POST /api/tts`, `internal/gtts`): it fetches
+`https://translate.google.com/translate_tts` in pieces of at most 180 letters, joins the MP3s, keeps the last 30 lines, and the dashboard
+plays the result with `<audio>` at the TTS volume and speed. The text being read is sent to Google.
 
 **Announcements** (`tts.announce`, `app/announce.go`): `App.emit` passes every feed event to `announce`, which picks the template
 (`tts.templates[event]`; a rejection uses `rejected_<code>` if that key exists, else `rejected`), fills it (`RenderAnnouncement`: unknown or
@@ -482,6 +490,7 @@ tiktoklivereqsong/
 | `internal/app/gifts.go` | ~60 | Gift coins → priority tokens → prioritised requests; simulated gifts | `HandleGift`, `SimulateGift`, `applyCredit` |
 | `internal/app/ban.go` | ~70 | Adds to a blacklist and removes matching waiting requests | `Ban` |
 | `internal/app/preflight.go` | ~180 | The pre-stream check | `Preflight`, `PreflightEnv`, `Check` |
+| `internal/gtts/gtts.go` | ~150 | Google Translate's voice for TTS when the browser has none for the language: 180-letter pieces joined as one MP3, last 30 lines cached | `Client`, `Speak`, `Split` |
 | `internal/search/search.go` | ~230 | catboy.best search (status filter, 1 request/s, 10 min cache), `Playable` (mode filter incl. converts), `Rank` | `Client`, `Find`, `Parse`, `Rank`, `Result` |
 | `internal/update/update.go` | ~130 | Release check: `Newer` compares x.y.z, dev builds and pre-releases are never offered, links only to this repo's releases | `Run`, `Latest`, `Newer`, `Release` |
 | `internal/mods/mods.go` | ~120 | Mod words → canonical string, clash rules, `Rate`, `Harder` (DT/NC/HR), `Missing` | `Parse`, `Has`, `Rate`, `Harder`, `Missing`, `Error` |
@@ -617,6 +626,7 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 | `POST /api/support` | the support zip (`application/zip`, attachment) |
 | `POST /api/preflight` | runs the pre-stream check (a few seconds) → `{ok, checks: [{id, status, key, vars, detail}]}` |
 | `POST /api/volume` | `{"volume": 0-100}` sets the master volume |
+| `POST /api/tts` | `{"lang": "th"\|"en", "text": "…"}` (at most 600 letters) → `audio/mpeg` from Google's voice; 502 with the reason if Google fails |
 | `POST /api/ban` | `{"kind": "user" \| "set" \| "mapper", "value": "…"}` → `{ok, removed}` |
 
 `State` fields: `version`, `tikfinity` (status), `tosu` (status incl. `game`), `autoGap`, `queue` (`items`, `now`, `history`, `rejected`),
@@ -732,13 +742,14 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `port` | `21281` | Its port (not the dashboard port) |
 | | `pin` | empty | 6-12 digits, not all the same, not `123456`/`987654`-style; required when enabled (the dashboard generates one) |
 | tts | `enabled` | `false` | Read chat aloud in the dashboard, without commands |
-| | `lang` / `voice` | `auto` / empty | `auto`, `th` or `en`; a voice name forces that voice |
+| | `lang` / `voice` | `auto` / empty | `auto`, `th` or `en`; a browser voice name, used for its own language only |
+| | `engine` | `auto` | Who speaks: `auto` (browser voice, Google's when the browser has none for the language), `browser`, `google` (text goes to Google) |
 | | `rate` / `volume` | `1` / `80` | Speed 0.5-2, volume 0-100 |
 | | `readName` | `true` | "name says …" |
 | | `maxLength` / `cooldownSec` | `120` / `3` | Letters per message (10-500); seconds between a viewer's read messages |
 | | `allow` | empty | Whose chat is read: `subscriber` (ใจส้ม), `follower`, `gifter`, `mod`; any one; empty = everyone |
 | | `blockedWords` | empty | |
-| | `announce` | `false` | Speak what happens to requests |
+| | `announce` | `true` | Speak what happens to requests (only in a tab where **Start TTS** was pressed) |
 | | `templates` | Thai set | Event → line with placeholders (see [Chat TTS](#chat-tts)); empty or `-` = silent |
 | hotkeys | `enabled` | `false` | Global hotkeys (work while osu! has focus) |
 | | `next` / `skip` / `removeLast` / `toggleRequests` | `Ctrl+Alt+N` / `Ctrl+Alt+S` / `Ctrl+Alt+Backspace` / `Ctrl+Alt+R` | |
@@ -909,7 +920,7 @@ Read this before changing anything.
 | Phone cannot open the mod panel | Same Wi-Fi (not a guest network, which isolates devices)? Allowed in the Windows firewall for **private** networks? Windows network profile set to Private? Use an address from Settings → Mod panel. |
 | Windows says the app is unsafe / "Windows protected your PC" | That is SmartScreen warning about an **unsigned** program, usually one that was downloaded or received in a zip. Windows Defender finds nothing in it. Click **More info → Run anyway**, or right-click `osureq.exe` → **Properties** → tick **Unblock**. Only a code-signing certificate removes the warning for everyone. |
 | TikFinity's TTS reads `!req 123…` | Turn TikFinity's TTS off and use **Settings → TTS**, which never reads commands. |
-| Chat TTS is silent | Press **Start TTS** at the top (browsers need a click). No Thai voice: Windows Settings → Time & language → Speech → add Thai, or use Edge. |
+| Chat TTS is silent | Press **Start TTS** at the top (browsers need a click). Thai is silent with **Settings → TTS → Who speaks** on `browser` in Chrome or Dia (no Thai voice there): use `auto` or `Google`, or open the dashboard in Edge. |
 | Anything else | `osureq.log` next to the exe. |
 
 ---

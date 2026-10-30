@@ -212,6 +212,7 @@ type SimKind string
 
 const (
 	SimIgnored  SimKind = "ignored" // neither a request nor a command: real chat ignores it
+	SimSpoken   SimKind = "spoken"  // not a request, but chat TTS reads it
 	SimRequest  SimKind = "request" // a request (see item / rejection)
 	SimCmdDone  SimKind = "cmd_done"
 	SimCmdNoMod SimKind = "cmd_not_mod"
@@ -224,7 +225,7 @@ const (
 func (a *App) SimulateChat(user, comment string) (it *queue.Item, rej *validator.Rejection, kind SimKind) {
 	cfg := a.Cfg.Get()
 	user = testUser(user, "viewer")
-	a.speakChat(tikfinity.Chat{User: user, Nick: user, Comment: comment}, true)
+	spoken := a.speakChat(tikfinity.Chat{User: user, Nick: user, Comment: comment}, true)
 	switch a.command(tikfinity.Chat{User: user, Nick: user, Comment: comment}, true) {
 	case cmdDone:
 		return nil, nil, SimCmdDone
@@ -235,6 +236,9 @@ func (a *App) SimulateChat(user, comment string) (it *queue.Item, rej *validator
 	}
 	req, ok := parser.Parse(comment, a.parseOptions(cfg))
 	if !ok {
+		if spoken {
+			return nil, nil, SimSpoken
+		}
 		return nil, nil, SimIgnored
 	}
 	if !cfg.Command.Enabled {

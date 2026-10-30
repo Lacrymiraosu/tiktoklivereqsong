@@ -19,6 +19,7 @@ import (
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/app"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/gtts"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/support"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
@@ -36,6 +37,7 @@ type Server struct {
 	Extra   func() map[string]any // platform info (hotkey errors, paths)
 	Quit    func()                // stops the helper (dashboard's Quit button)
 	LogPath string                // osureq.log, for the support file
+	Voice   *gtts.Client          // Google's voice, for languages the browser cannot read
 
 	mu       sync.Mutex
 	clients  map[chan []byte]bool
@@ -44,7 +46,7 @@ type Server struct {
 }
 
 func New(a *app.App, version string) *Server {
-	return &Server{App: a, Version: version, clients: map[chan []byte]bool{}}
+	return &Server{App: a, Version: version, Voice: gtts.New(), clients: map[chan []byte]bool{}}
 }
 
 type State struct {
@@ -141,6 +143,7 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/volume", s.volume)
 	mux.HandleFunc("POST /api/preflight", s.preflight)
 	mux.HandleFunc("POST /api/support", s.supportFile)
+	mux.HandleFunc("POST /api/tts", s.tts)
 	return guard(port, mux)
 }
 
@@ -387,6 +390,8 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case kind == app.SimIgnored:
 		writeJSON(w, map[string]any{"ok": false, "code": "ignored", "error": "not a request: real chat would ignore this message"})
+	case kind == app.SimSpoken:
+		writeJSON(w, map[string]any{"ok": true, "code": "spoken"})
 	case kind != app.SimRequest: // a chat command: say whether it ran
 		writeJSON(w, map[string]any{"ok": kind == app.SimCmdDone, "command": string(kind)})
 	case rej != nil:
@@ -440,6 +445,27 @@ func (s *Server) volume(w http.ResponseWriter, r *http.Request) {
 	err := s.App.SetVolume(body.Volume)
 	s.Push()
 	result(w, err)
+}
+
+// tts returns MP3 of text read by Google's voice, for the dashboard's TTS
+// when the browser has no voice for the language (tts.engine).
+func (s *Server) tts(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Lang string `json:"lang"`
+		Text string `json:"text"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&body) != nil {
+		httpErr(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	b, err := s.Voice.Speak(r.Context(), body.Lang, body.Text)
+	if err != nil {
+		httpErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "audio/mpeg")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(b)
 }
 
 // ban blacklists a user, beatmapset or mapper and drops matching requests.

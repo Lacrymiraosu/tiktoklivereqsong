@@ -297,3 +297,25 @@ func TestSupportFile(t *testing.T) {
 		}
 	}
 }
+
+func TestTTSProxy(t *testing.T) {
+	voice := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.Write([]byte("mp3:" + r.URL.Query().Get("q")))
+	}))
+	defer voice.Close()
+	s, h := newTestServer(t)
+	s.Voice.URL = voice.URL
+
+	w := do(h, http.MethodPost, "/api/tts", `{"lang":"th","text":"สวัสดีครับ"}`)
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "audio/mpeg" || w.Body.String() != "mp3:สวัสดีครับ" {
+		t.Fatalf("got %d %q %q", w.Code, w.Header().Get("Content-Type"), w.Body)
+	}
+	if w := do(h, http.MethodPost, "/api/tts", `{"lang":"xx","text":"hi"}`); w.Code != http.StatusBadGateway {
+		t.Errorf("unknown language: got %d", w.Code)
+	}
+	w = do(h, http.MethodPost, "/api/tts", `{"lang":"th","text":"hi"}`, func(r *http.Request) { r.Header.Del("X-Osureq") })
+	if w.Code != http.StatusForbidden {
+		t.Errorf("without X-Osureq another site could use it: got %d", w.Code)
+	}
+}

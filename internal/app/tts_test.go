@@ -70,8 +70,8 @@ func TestSpeakChatSkipsCommands(t *testing.T) {
 
 func TestSimulatedChatIsReadToo(t *testing.T) {
 	a := newTestApp(t, func(c *config.Config) { c.TTS.Enabled = true })
-	if _, _, kind := a.SimulateChat("viewer", "hi from the test panel"); kind != SimIgnored {
-		t.Fatalf("plain chat is still not a request: %v", kind)
+	if _, _, kind := a.SimulateChat("viewer", "hi from the test panel"); kind != SimSpoken {
+		t.Fatalf("plain chat is not a request but is read: %v", kind)
 	}
 	if s := a.Speech(); len(s) != 1 || !s[0].Test {
 		t.Errorf("simulated chat should be read, marked as test: %+v", s)

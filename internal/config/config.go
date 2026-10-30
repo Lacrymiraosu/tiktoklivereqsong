@@ -197,10 +197,14 @@ type Remote struct {
 // TTS reads chat aloud in the dashboard, without commands ("!req …"),
 // which TikFinity's own TTS cannot skip.
 type TTS struct {
-	Enabled     bool    `json:"enabled"`
-	Lang        string  `json:"lang"`  // auto (by the message's letters) | th | en
-	Voice       string  `json:"voice"` // a voice name from the browser; empty = best for the language
-	Rate        float64 `json:"rate"`  // 0.5-2
+	Enabled bool   `json:"enabled"`
+	Lang    string `json:"lang"`  // auto (by the message's letters) | th | en
+	Voice   string `json:"voice"` // a voice name from the browser; empty = best for the language
+	// Engine is who speaks: auto (the browser's voice when it has one for the
+	// language, Google's otherwise), browser, or google (always Google's
+	// voice; the text is sent to Google).
+	Engine      string  `json:"engine"`
+	Rate        float64 `json:"rate"` // 0.5-2
 	Volume      int     `json:"volume"`
 	ReadName    bool    `json:"readName"`    // "name says …"
 	MaxLength   int     `json:"maxLength"`   // longer messages are cut
@@ -350,7 +354,7 @@ func Default() Config {
 		Overlay: Overlay{Visible: 5, Requester: true, Theme: "pink", Scale: 100, Position: "top-left", Feedback: true, FeedbackSec: 7, Lang: "auto", Avatars: true},
 		Gifts:   Gifts{Enabled: false, CoinsPerPriority: 30, CreditMinutes: 60},
 		Remote:  Remote{Port: 21281},
-		TTS:     TTS{Lang: "auto", Rate: 1, Volume: 80, ReadName: true, MaxLength: 120, CooldownSec: 3, Templates: ThaiAnnouncements()},
+		TTS:     TTS{Lang: "auto", Engine: "auto", Rate: 1, Volume: 80, ReadName: true, MaxLength: 120, CooldownSec: 3, Announce: true, Templates: ThaiAnnouncements()},
 		Hotkeys: Hotkeys{Enabled: false, Next: "Ctrl+Alt+N", Skip: "Ctrl+Alt+S", Remove: "Ctrl+Alt+Backspace", Toggle: "Ctrl+Alt+R"},
 	}
 }
@@ -431,6 +435,9 @@ func (c *Config) Validate() error {
 	}
 	if t := c.TTS; t.Lang != "auto" && t.Lang != "th" && t.Lang != "en" {
 		add("tts_lang", nil, "TTS language must be auto, th or en")
+	}
+	if t := c.TTS; !slices.Contains([]string{"auto", "browser", "google"}, t.Engine) {
+		add("tts_engine", nil, "TTS voice must be auto, browser or google")
 	}
 	if t := c.TTS; t.Rate < 0.5 || t.Rate > 2 || t.Volume < 0 || t.Volume > 100 || t.MaxLength < 10 || t.MaxLength > 500 || t.CooldownSec < 0 {
 		add("tts_range", nil, "TTS: speed 0.5-2, volume 0-100, max length 10-500, cooldown 0 or more")
