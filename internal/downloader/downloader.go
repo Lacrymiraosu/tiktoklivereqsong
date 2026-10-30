@@ -466,19 +466,27 @@ type ProbeResult struct {
 // browser) for the first bytes of setID and checks that a ZIP comes back.
 // Nothing is stored; it is the pre-stream check's "can we download?".
 func (d *Downloader) Probe(ctx context.Context, setID int) []ProbeResult {
-	var out []ProbeResult
+	var srcs []config.Source
 	for _, src := range d.Cfg().Download.Sources {
-		if !src.Enabled || src.Official {
-			continue
+		if src.Enabled && !src.Official {
+			srcs = append(srcs, src)
 		}
-		start := time.Now()
-		err := d.probe(ctx, src, setID)
-		r := ProbeResult{Source: src.Name, OK: err == nil, Ms: time.Since(start).Milliseconds()}
-		if err != nil {
-			r.Error = err.Error()
-		}
-		out = append(out, r)
 	}
+	out := make([]ProbeResult, len(srcs))
+	var wg sync.WaitGroup
+	for i, src := range srcs { // side by side: a hanging mirror must not add up
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start := time.Now()
+			err := d.probe(ctx, src, setID)
+			out[i] = ProbeResult{Source: src.Name, OK: err == nil, Ms: time.Since(start).Milliseconds()}
+			if err != nil {
+				out[i].Error = err.Error()
+			}
+		}()
+	}
+	wg.Wait()
 	return out
 }
 
