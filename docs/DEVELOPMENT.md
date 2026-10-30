@@ -441,7 +441,7 @@ tiktoklivereqsong/
 | `internal/app/preflight.go` | ~180 | The pre-stream check | `Preflight`, `PreflightEnv`, `Check` |
 | `internal/search/search.go` | ~230 | catboy.best search (status filter, 1 request/s, 10 min cache), `Playable` (mode filter incl. converts), `Rank` | `Client`, `Find`, `Parse`, `Rank`, `Result` |
 | `internal/update/update.go` | ~130 | Release check: `Newer` compares x.y.z, dev builds and pre-releases are never offered, links only to this repo's releases | `Run`, `Latest`, `Newer`, `Release` |
-| `internal/mods/mods.go` | ~130 | Mod words → canonical string, clash rules, `Rate`, `Harder` (DT/NC/HR), `Missing` | `Parse`, `Has`, `Rate`, `Harder`, `Missing`, `Error` |
+| `internal/mods/mods.go` | ~120 | Mod words → canonical string, clash rules, `Rate`, `Harder` (DT/NC/HR), `Missing` | `Parse`, `Has`, `Rate`, `Harder`, `Missing`, `Error` |
 | `internal/remote/remote.go` | ~440 | Mod panel: `Apply` starts/stops the listener on config changes; `guard` (private addresses, local Host names, header, CSP); PIN login with lockouts; limited state and actions | `Server`, `Apply`, `Status`, `Handler` |
 | `internal/support/support.go` | ~130 | Support zip, home-folder redaction, log tail | `Write`, `Input` |
 | `internal/queue/summary.go` | ~110 | Session start (kept across restarts, new after 6 idle hours) and the summary | `Summary`, `NewSession` |
