@@ -14,11 +14,12 @@ import (
 // said aloud from the streamer's templates, e.g. "{user} ขอเพลง {title}".
 //
 // Placeholders: {user} {title} {artist} {mapper} {diff} {mods} {stars}
-// {pos} and, for rejections, {reason} {max} {min} {length} {wait}; for
+// {pos} {setid} {setid_digits} ("3 9 8 0 4", read digit by digit); for !np
+// also {requester}; for rejections {reason} {max} {min} {length} {wait}; for
 // results {acc} {rank} {combo} {misses} {pp}; for gifts {coins} {gift}. Unknown or
 // empty ones are left out.
 
-var rePlaceholder = regexp.MustCompile(`\{([a-z]+)\}`)
+var rePlaceholder = regexp.MustCompile(`\{([a-z_]+)\}`)
 
 // RenderAnnouncement fills a template. "@" is dropped (voices read it as
 // "at"), and so are the spaces an empty placeholder leaves behind.
@@ -40,8 +41,9 @@ func announceKey(e FeedEvent) string {
 	case "giftthanks": // once per gift (a gift can also make several "gift" events)
 		return "gift"
 	case "command":
-		if e.Code == "voteskip" {
-			return "voteskip"
+		switch e.Code {
+		case "voteskip", "np", "np_none", "pos":
+			return e.Code
 		}
 	case "status":
 		if e.Code == "time_off" {
@@ -75,6 +77,12 @@ func (a *App) announce(e FeedEvent) {
 	if e.Pos > 0 {
 		vars["pos"] = strconv.Itoa(e.Pos)
 	}
+	if e.SetID > 0 {
+		vars["setid"] = strconv.Itoa(e.SetID)
+	}
+	if e.Kind == "command" && e.Code == "np" {
+		vars["requester"] = e.Target
+	}
 	if e.Kind == "rejected" {
 		vars["reason"] = reasonText(e.Code, hasThai(tpl))
 	}
@@ -84,6 +92,7 @@ func (a *App) announce(e FeedEvent) {
 		}
 		vars[k] = v
 	}
+	vars["setid_digits"] = strings.Join(strings.Split(vars["setid"], ""), " ")
 	if text := RenderAnnouncement(tpl, vars); text != "" {
 		a.queueSpeech(Speech{User: e.User, Text: text, Test: e.Test, Kind: "say"})
 	}
@@ -91,7 +100,7 @@ func (a *App) announce(e FeedEvent) {
 
 // announcePlaying says which request opens now (template "nowplaying").
 func (a *App) announcePlaying(it queue.Item) {
-	a.announce(FeedEvent{Kind: "nowplaying", User: it.User, Nick: it.Nick, Title: it.Title, Artist: it.Artist, Mapper: it.Creator,
+	a.announce(FeedEvent{Kind: "nowplaying", User: it.User, Nick: it.Nick, Title: it.Title, Artist: it.Artist, Mapper: it.Creator, SetID: it.SetID,
 		Version: it.Version, Mods: it.Mods, Stars: it.Stars, Test: it.Test})
 }
 

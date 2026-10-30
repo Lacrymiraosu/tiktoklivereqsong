@@ -154,6 +154,7 @@ func (a *App) infoEvent(ev FeedEvent, code, user string) FeedEvent {
 			return ev
 		}
 		ev.Code, ev.Title, ev.Artist, ev.Version, ev.Stars, ev.Target = "np", now.Title, now.Artist, now.Version, now.Stars, now.User
+		ev.Mapper, ev.Mods, ev.SetID = now.Creator, now.Mods, now.SetID
 		return ev
 	}
 	items, pos := a.Queue.ByUser(user)
@@ -162,6 +163,7 @@ func (a *App) infoEvent(ev FeedEvent, code, user string) FeedEvent {
 		return ev
 	}
 	ev.Code, ev.Pos, ev.Title, ev.Artist, ev.Version, ev.Stars = "pos", pos[0], items[0].Title, items[0].Artist, items[0].Version, items[0].Stars
+	ev.Mapper, ev.Mods, ev.SetID = items[0].Creator, items[0].Mods, items[0].SetID
 	if len(pos) > 1 {
 		nums := make([]string, len(pos))
 		for i, p := range pos {
