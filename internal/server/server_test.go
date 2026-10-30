@@ -1,9 +1,12 @@
 package server
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -269,11 +272,28 @@ func TestPreflightEndpoint(t *testing.T) {
 func TestSupportFile(t *testing.T) {
 	s, h := newTestServer(t)
 	s.LogPath = filepath.Join(t.TempDir(), "osureq.log")
+	c := s.App.Cfg.Get()
+	c.Remote = config.Remote{Enabled: true, Port: 21281, PIN: "482915"}
+	if err := s.App.Cfg.Set(c); err != nil {
+		t.Fatal(err)
+	}
 	if w := do(h, http.MethodPost, "/api/support", "", func(r *http.Request) { r.Header.Del("X-Osureq") }); w.Code != http.StatusForbidden {
 		t.Errorf("without X-Osureq: %d", w.Code)
 	}
 	w := do(h, http.MethodPost, "/api/support", "")
 	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "application/zip" || !strings.HasPrefix(w.Body.String(), "PK") {
 		t.Fatalf("got %d %s", w.Code, w.Header())
+	}
+	zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range zr.File {
+		rc, _ := f.Open()
+		b, _ := io.ReadAll(rc)
+		rc.Close()
+		if strings.Contains(string(b), "482915") {
+			t.Errorf("%s contains the mod panel PIN", f.Name)
+		}
 	}
 }
