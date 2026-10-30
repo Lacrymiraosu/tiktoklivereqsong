@@ -31,12 +31,14 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 .who em{font-style:normal;color:var(--acc);font-weight:600}
 .mode{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;margin-right:6px;vertical-align:1px;background:rgba(255,255,255,.14)}
 .mode-osu{background:rgba(255,102,170,.3)}.mode-taiko{background:rgba(255,128,104,.3)}.mode-fruits{background:rgba(124,255,79,.25)}.mode-mania{background:rgba(102,204,255,.3)}
+.mods{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.5px;padding:1px 7px;border-radius:9px;margin-right:6px;vertical-align:1px;background:var(--acc);color:var(--accdk)}
 .star{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;color:#1c1726;margin-right:6px;vertical-align:1px}
 .up{display:flex;flex-direction:column;gap:5px}
 .row{display:flex;align-items:center;gap:10px;padding:7px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-size:13px;animation:in .4s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i) * 60ms)}
 .row .n{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:600;background:var(--acc);color:var(--accdk)}
 .row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.row .r{flex:0 0 auto;color:var(--dim);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .r{flex:0 1 auto;color:var(--dim);font-size:12px;max-width:90px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .t{min-width:96px}
 .cmd{font-size:12px;color:var(--dim);padding:6px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);align-self:flex-start}
 .cmd b{color:var(--acc)}
 @keyframes in{from{opacity:0;transform:translateY(10px)}}
@@ -54,17 +56,30 @@ html,body{margin:0;background:transparent!important;color:var(--ink);overflow:hi
 .toast b i{font-style:normal;flex:0 0 auto;max-width:100%}
 .toast span{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .toast em{font-style:normal;color:var(--c);font-weight:600}
+.av{width:20px;height:20px;border-radius:50%;object-fit:cover;flex:0 0 auto;background:rgba(255,255,255,.12);box-shadow:0 0 0 1.5px var(--c,var(--acc))}
+.who .av{width:18px;height:18px;vertical-align:-4px;margin-right:5px}
 .toast.added{--c:var(--ok)}
 .toast.rejected{--c:var(--err)}
 .toast.command{--c:var(--sky)}
 .toast.gift{--c:var(--gold)}
 .toast.result{--c:var(--acc)}
+.toast.status{--c:var(--sky)}
 @keyframes pop{from{opacity:0;transform:scale(.92) translateY(8px)}}
+
+/* end-of-stream summary, shown for a while when the streamer asks */
+.sum{border-radius:18px;padding:12px 14px;background:var(--card);border:2px solid var(--acc);box-shadow:0 10px 30px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:6px;animation:pop .5s cubic-bezier(.2,.8,.2,1);transition:opacity .5s}
+.sum.out{opacity:0}
+.sum .nums{display:flex;gap:8px}
+.sum .nums div{flex:1;text-align:center;padding:6px 4px;border-radius:12px;background:rgba(255,255,255,.07)}
+.sum .nums b{display:block;font-size:20px;color:var(--acc)}
+.sum .nums small{font-size:11px;color:var(--dim)}
+.sum p{margin:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sum p em{font-style:normal;color:var(--dim)}
 </style>
 </head>
 <body>
 <!-- pop-ups come after the list, so they never push the now-playing card around -->
-<div id="wrap"><div id="main"></div><div id="toasts"></div></div>
+<div id="wrap"><div id="sum"></div><div id="main"></div><div id="toasts"></div></div>
 <script>
 "use strict";
 const wrap = document.getElementById("wrap"), main = document.getElementById("main"), toasts = document.getElementById("toasts");
@@ -84,11 +99,13 @@ function starColor(s) {
 const star = it => `<span class="star" style="background:${starColor(it.stars)};color:${it.stars >= 6.7 ? "#fff" : "#1c1726"}">${it.stars >= 0 ? it.stars.toFixed(2) : "?"}★</span>`;
 // mode tag: "osu!", "taiko", "catch", "mania 7K" (+ convert), coloured per mode
 const MODE = { osu: "osu!", taiko: "taiko", fruits: "catch", mania: "mania" };
+const modsTag = it => it.mods ? `<span class="mods">+${esc(it.mods)}</span>` : "";
 const modeTag = it => it.mode ? `<span class="mode mode-${esc(it.mode)}">${MODE[it.mode] || esc(it.mode)}${it.mode === "mania" && it.keys ? " " + it.keys + "K" : ""}${it.convert ? " · convert" : ""}</span>` : "";
 
 // Viewer-facing text. Reasons are phrased for the person who asked.
 const TX = {
   nowPlaying: ["Now playing", "กำลังเล่น"], reqBy: ["requested by", "ขอโดย"], request: ["Request", "ขอเพลง"],
+  reqArg: ["ID / link", "ID / ลิงก์"], reqArgName: ["song name / ID / link", "ชื่อเพลง / ID / ลิงก์"],
   added: ["added to the queue", "เพิ่มเข้าคิวแล้ว"], pos: ["#{n} in queue", "คิวที่ {n}"], next: ["up next", "เพลงถัดไป"],
   r_user_blacklisted: ["can't request right now", "ขอเพลงไม่ได้ในตอนนี้"], r_queue_full: ["the queue is full", "คิวเต็มแล้ว"],
   r_user_limit: ["you already have requests waiting", "คุณมีคำขอรออยู่แล้ว"], r_cooldown: ["please wait before the next request", "รอสักครู่ก่อนขอใหม่"],
@@ -97,9 +114,17 @@ const TX = {
   r_recently_played: ["played recently", "เพิ่งเล่นไป"], r_not_found: ["map not found", "ไม่พบแมพ"], r_mode: ["this mode isn't accepted", "ไม่รับโหมดนี้"],
   r_stars_low: ["too easy", "ง่ายเกินไป"], r_stars_high: ["too hard", "ยากเกินไป"], r_too_long: ["too long", "ยาวเกินไป"],
   r_meta_error: ["couldn't check the map, try again", "ตรวจแมพไม่ได้ ลองใหม่อีกครั้ง"], r_bad_input: ["not a map ID or link", "ไม่ใช่ ID หรือลิงก์แมพ"],
-  r_requests_off: ["requests are closed", "ปิดรับคำขออยู่"], r_followers_only: ["follow the stream to request", "ต้องกดติดตามก่อนถึงขอเพลงได้"],
+  r_requests_off: ["requests are closed", "ปิดรับคำขออยู่"], r_search_none: ["no map found with that name", "ไม่พบแมพชื่อนี้"], r_needs_gift: ["send a gift to request", "ส่งของขวัญก่อนถึงขอเพลงได้"], r_song_blacklisted: ["this song is blocked", "เพลงนี้ถูกบล็อก"], r_artist_blacklisted: ["this artist is blocked", "ศิลปินนี้ถูกบล็อก"], r_bad_mods: ["unknown or clashing mods", "mod ไม่ถูกต้องหรือใช้ด้วยกันไม่ได้"],
+  r_mods_off: ["mods are not allowed", "ไม่รับคำขอที่มี mod"], r_mod_not_allowed: ["that mod is not allowed", "ไม่อนุญาต mod นี้"], r_mod_stars: ["too hard with that mod", "ยากเกินไปเมื่อใส่ mod นี้"], r_search_error: ["search failed, try an ID or link", "ค้นหาไม่ได้ ลองใช้ ID หรือลิงก์"], r_followers_only: ["follow the stream to request", "ต้องกดติดตามก่อนถึงขอเพลงได้"],
   c_skip: ["skipped the song", "ข้ามเพลงนี้"], c_remove: ["removed a request", "ลบคำขอ"], c_on: ["opened requests", "เปิดรับคำขอแล้ว"], c_off: ["closed requests", "ปิดรับคำขอแล้ว"],
-  gift: ["priority request!", "ได้คิวพิเศษ!"], giftCredit: ["next request gets priority", "คำขอถัดไปจะได้คิวพิเศษ"],
+  c_pos: ["is #{n} in the queue", "อยู่คิวที่ {n}"], c_pos_none: ["has no request in the queue", "ยังไม่มีคำขอในคิว"],
+  c_np: ["asked what's playing", "ถามว่าเพลงอะไร"], c_np_none: ["nothing is playing yet", "ยังไม่มีเพลงที่เล่นอยู่"],
+  c_vote: ["voted to skip ({n})", "โหวตข้ามเพลง ({n})"], c_voteskip: ["vote passed, skipping", "โหวตครบ ข้ามเพลงนี้"],
+  gift: ["priority request!", "ได้คิวพิเศษ!"], giftReq: ["can request {n} song(s)!", "ขอเพลงได้ {n} เพลง!"], reqCost: ["gift {n} coins", "ของขวัญ {n} เหรียญ"], giftCredit: ["next request gets priority", "คำขอถัดไปจะได้คิวพิเศษ"],
+  s_auto_off: ["Requests paused: the queue is full", "พักรับคำขอ: คิวเต็มแล้ว"], s_auto_on: ["Requests are open again!", "เปิดรับคำขออีกครั้งแล้ว!"],
+  s_time_off: ["Requests are closed for today", "ปิดรับคำขอสำหรับวันนี้แล้ว"], s_back: ["they open again when the queue gets shorter", "จะเปิดอีกครั้งเมื่อคิวสั้นลง"],
+  sumTitle: ["Stream summary", "สรุปไลฟ์นี้"], sumPlayed: ["played", "เล่นแล้ว"], sumPassed: ["cleared", "ผ่าน"], sumViewers: ["viewers", "ผู้ชมที่ขอ"],
+  sumBest: ["Best", "ดีที่สุด"], sumTop: ["Most requests", "ขอมากที่สุด"], sumThanks: ["Thanks for the requests!", "ขอบคุณที่ขอเพลงกันนะ!"],
   res_passed: ["cleared", "ผ่าน"], res_failed: ["failed", "ตาย"], res_quit: ["quit", "ออกกลางเพลง"], resOf: ["{u}'s request", "เพลงที่ @{u} ขอ"],
 };
 let LANG = "en";
@@ -111,14 +136,47 @@ function toastHTML(e) {
   const who = "@" + esc(e.user);
   const map = e.title ? `${esc(e.artist)} - ${esc(e.title)}${e.version ? " [" + esc(e.version) + "]" : ""}` : "";
   switch (e.kind) {
-    case "added": return ["✓", who, tx("added"), `${e.stars ? star(e) : ""}${map} · ${e.pos === 1 ? tx("next") : tx("pos", { n: e.pos })}`];
+    case "added": return ["✓", who, tx("added"), `${e.stars ? star(e) : ""}${modsTag(e)}${map} · ${e.pos === 1 ? tx("next") : tx("pos", { n: e.pos })}`];
     case "rejected": return ["✕", who, tx("r_" + e.code), esc(e.short || "")];
-    case "command": return ["!", who, tx("c_" + e.code), e.target ? "@" + esc(e.target) : map];
-    case "gift": return ["★", who, tx(e.code === "credit" ? "giftCredit" : "gift"), [esc(e.short || ""), map].filter(Boolean).join(" · ")];
+    case "command":
+      switch (e.code) {
+        case "pos": return ["#", who, tx("c_pos", { n: e.pos }), [map, esc(e.short || "")].filter(Boolean).join(" · ")];
+        case "np": return ["♪", who, tx("c_np"), `${tx("reqBy")} @${esc(e.target)} · ${e.stars ? star(e) : ""}${map}`];
+        case "vote": return ["!", who, tx("c_vote", { n: esc(e.short) }), map];
+        case "pos_none": case "np_none": return ["!", who, tx("c_" + e.code), ""];
+      }
+      return ["!", who, tx("c_" + e.code), e.target ? "@" + esc(e.target) : map];
+    case "gift":
+      if (e.code === "requests") return ["★", who, tx("giftReq", { n: e.pos }), esc(e.short || "")];
+      return ["★", who, tx(e.code === "credit" ? "giftCredit" : "gift"), [esc(e.short || ""), map].filter(Boolean).join(" · ")];
+    case "status": return [e.code === "auto_on" ? "▶" : "⏸", tx("s_" + e.code), "", e.code === "auto_off" ? `${tx("s_back")} · ${esc(e.short)}` : ""];
     case "result": return ["♪", esc(e.title), tx("res_" + e.code), `${esc(e.short || "")} · ${tx("resOf", { u: esc(e.user) })}`];
   }
   return null;
 }
+
+// The summary card appears when the streamer presses "Show on overlay"
+// (summaryShown changes), never on load, and fades after 20 s.
+const sumEl = document.getElementById("sum");
+let sumSeen = -1, sumT;
+function showSummary(S) {
+  if (sumSeen < 0 || S.summaryShown < sumSeen) { sumSeen = S.summaryShown; return; }
+  if (S.summaryShown === sumSeen) return;
+  sumSeen = S.summaryShown;
+  const s = S.summary, best = s.best, top = (s.top || []).map(u => "@" + esc(u.user) + " ×" + u.count).join(" · ");
+  const r = best && best.play;
+  sumEl.innerHTML = `<div class="sum"><div class="lab"><i></i>${tx("sumTitle")}</div>
+    <div class="nums"><div><b>${s.played}</b><small>${tx("sumPlayed")}</small></div><div><b>${s.passed}</b><small>${tx("sumPassed")}</small></div><div><b>${s.viewers}</b><small>${tx("sumViewers")}</small></div></div>
+    ${r ? `<p><em>${tx("sumBest")}:</em> ${esc(best.title)} · ${r.accuracy.toFixed(2)}%${r.rank ? " " + esc(r.rank) : ""}${r.pp >= 1 ? " · " + Math.round(r.pp) + "pp" : ""} · @${esc(best.user)}</p>` : ""}
+    ${top ? `<p><em>${tx("sumTop")}:</em> ${top}</p>` : ""}
+    <p>${tx("sumThanks")}</p></div>`;
+  clearTimeout(sumT);
+  sumT = setTimeout(() => { const c = sumEl.firstElementChild; if (c) c.classList.add("out"); sumT = setTimeout(() => sumEl.replaceChildren(), 500); }, 20000);
+}
+
+// av is a viewer's TikTok picture (only https URLs on TikTok's CDN reach the
+// overlay; see tikfinity.Avatar); a picture that fails to load just disappears.
+const av = (url, o) => url && o.avatars ? `<img class="av" src="${esc(url)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : "";
 
 let lastID = -1, cfgO = null;
 function showToasts(feed, o) {
@@ -131,7 +189,7 @@ function showToasts(feed, o) {
     if (!parts) continue;
     const el = document.createElement("div");
     el.className = "toast " + e.kind;
-    el.innerHTML = `<span class="ic">${parts[0]}</span><span class="tx"><b><em>${parts[1]}</em><i>${parts[2]}</i></b>${parts[3] ? `<span>${parts[3]}</span>` : ""}</span>`;
+    el.innerHTML = `<span class="ic">${parts[0]}</span><span class="tx"><b>${e.kind === "result" ? "" : av(e.avatar, o)}<em>${parts[1]}</em><i>${parts[2]}</i></b>${parts[3] ? `<span>${parts[3]}</span>` : ""}</span>`;
     toasts.prepend(el);
     while (toasts.children.length > 3) toasts.lastChild.remove();
     setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 450); }, Math.max(2, o.feedbackSec || 7) * 1000);
@@ -164,14 +222,15 @@ function render(S) {
   wrap.className = o.position;
   wrap.style.transform = `scale(${(o.scale || 100) / 100})`;
   showToasts(S.feed || [], o);
+  showSummary(S);
 
   let np = "";
   if (n) {
     const cover = esc(n.cover || `https://assets.ppy.sh/beatmaps/${n.setId}/covers/cover.jpg`);
     np = `<div class="np" style="background-image:url('${cover}')"><div class="npi">
       <div class="lab"><i></i>${tx("nowPlaying")}</div>
-      <b>${esc(n.title)}</b><span>${star(n)}${modeTag(n)}${esc(n.artist)} · [${esc(n.version)}] · ${esc(n.creator)}</span>
-      ${o.showRequester ? `<div class="who">${tx("reqBy")} <em>@${esc(n.user)}</em></div>` : ""}</div></div>`;
+      <b>${esc(n.title)}</b><span>${star(n)}${modsTag(n)}${modeTag(n)}${esc(n.artist)} · [${esc(n.version)}] · ${esc(n.creator)}</span>
+      ${o.showRequester ? `<div class="who">${tx("reqBy")} ${av(n.avatar, o)}<em>@${esc(n.user)}</em></div>` : ""}</div></div>`;
   }
   if (setHTML(npSlot, np) && npSlot.firstElementChild) {
     const card = npSlot.firstElementChild;
@@ -181,7 +240,7 @@ function render(S) {
   npID = n ? n.id : "";
 
   const next = items.map((it, i) => {
-    const html = `<span class="n"${it.priority ? ' style="background:var(--gold);color:#1c1726"' : ""}>${it.priority ? "★" : i + 1}</span><span class="t">${star(it)}${modeTag(it)}${esc(it.artist)} - ${esc(it.title)}</span>${o.showRequester ? `<span class="r">@${esc(it.user)}</span>` : ""}`;
+    const html = `<span class="n"${it.priority ? ' style="background:var(--gold);color:#1c1726"' : ""}>${it.priority ? "★" : i + 1}</span><span class="t">${star(it)}${modsTag(it)}${modeTag(it)}${esc(it.artist)} - ${esc(it.title)}</span>${o.showRequester ? `<span class="r">@${esc(it.user)}</span>` : ""}`;
     let row = rows.get(it.id);
     if (!row) {
       row = document.createElement("div");
@@ -198,11 +257,11 @@ function render(S) {
   const cur = [...upSlot.children];
   if (cur.length !== next.length || cur.some((c, i) => c !== next[i])) upSlot.replaceChildren(...next);
 
-  setHTML(cmdSlot, S.requests && S.tikfinity.level === "green" ? `<div class="cmd">${tx("request")}: <b>${esc(S.command)}</b> &lt;ID / link&gt;</div>` : "");
+  setHTML(cmdSlot, S.requests && S.tikfinity.level === "green" ? `<div class="cmd">${tx("request")}: <b>${esc(S.command)}</b> &lt;${tx(S.search ? "reqArgName" : "reqArg")}&gt;${S.requestCoins > 0 ? " · 🎁 " + tx("reqCost", { n: S.requestCoins }) : ""}</div>` : "");
 }
 let retry = 0;
 (function connect() {
-  const ws = new WebSocket("ws://" + location.host + "/ws");
+  const ws = new WebSocket("ws://" + location.host + "/ws?client=overlay"); // counted by the pre-stream check
   ws.onopen = () => retry = 0;
   ws.onmessage = e => render(JSON.parse(e.data));
   ws.onclose = () => setTimeout(connect, Math.min(5000, 500 * 2 ** retry++));

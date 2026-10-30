@@ -271,3 +271,143 @@ func TestPerModeStarLimits(t *testing.T) {
 		t.Errorf("mania 2.5★ over its own 2★: %+v", rej)
 	}
 }
+
+func TestSongKey(t *testing.T) {
+	same := [][2][2]string{
+		{{"xi", "FREEDOM DiVE"}, {"Xi", "Freedom Dive (Cut Ver.)"}},
+		{{"Natsukawa", "Kani*Do-Luck!"}, {"natsukawa", "Kani*Do-Luck! (TV Size)"}},
+		{{"Camellia", "Ghost"}, {"Camellia", "Ghost [Extended Mix] (Sped Up Ver.)"}},
+		{{"Hanatan", "Harumachi Clover"}, {"Hanatan", "Harumachi Clover ～Short ver.～"}},
+		{{"u's", "Snow Halation"}, {"u's", "Snow Halation -TV Size-"}},
+		{{"a", "Song"}, {"a", "Song -Extended Mix-"}},
+	}
+	for _, c := range same {
+		if a, b := SongKey(c[0][0], c[0][1]), SongKey(c[1][0], c[1][1]); a != b {
+			t.Errorf("%v and %v should be one song: %q vs %q", c[0], c[1], a, b)
+		}
+	}
+	if SongKey("xi", "FREEDOM DiVE") == SongKey("xi", "Blue Zenith") || SongKey("xi", "Ghost") == SongKey("Camellia", "Ghost") {
+		t.Error("different songs must not match")
+	}
+}
+
+func TestSongBlacklist(t *testing.T) {
+	list := []string{"xi - FREEDOM DiVE", "Ghost", "  "}
+	cases := []struct {
+		artist, title string
+		banned        bool
+	}{
+		{"xi", "FREEDOM DiVE (Cut Ver.)", true},
+		{"xi", "Blue Zenith", false},
+		{"Camellia", "Ghost (TV Size)", true}, // title-only entry: any artist
+		{"Someone", "Ghost", true},
+		{"Someone", "Ghostly", false},
+		{"other", "FREEDOM DiVE", false}, // artist given in the entry must match
+	}
+	for _, c := range cases {
+		if _, got := SongBanned(list, Song{Artist: c.artist, Title: c.title}); got != c.banned {
+			t.Errorf("%s - %s: banned=%v, want %v", c.artist, c.title, got, c.banned)
+		}
+	}
+	rules := config.Default().Rules
+	rules.BlacklistSongs = list
+	set := &osumeta.Set{ID: 9, Artist: "xi", Title: "FREEDOM DiVE (Long Ver.)", Status: "ranked", Diffs: []osumeta.Diff{{ID: 1, Mode: "osu", Stars: 5}}}
+	if _, r := CheckMap(Input{Set: set}, State{}, rules, config.Default().Queue, time.Now()); r == nil || r.Code != "song_blacklisted" {
+		t.Errorf("CheckMap: %+v", r)
+	}
+}
+
+func TestModRules(t *testing.T) {
+	set := &osumeta.Set{ID: 1, Artist: "a", Title: "t", Status: "ranked", Diffs: []osumeta.Diff{
+		{ID: 10, Mode: "osu", Stars: 4.5, Length: 240, Version: "Insane"},
+		{ID: 11, Mode: "osu", Stars: 6.2, Length: 240, Version: "Extra"},
+	}}
+	rules := config.Default().Rules
+	q := config.Default().Queue
+	check := func(r config.Rules, beatmap int, m string) (*osumeta.Diff, *Rejection) {
+		return CheckMap(Input{Set: set, BeatmapID: beatmap, Mods: m}, State{}, r, q, time.Now())
+	}
+	if _, rej := check(rules, 11, "HDHR"); rej != nil {
+		t.Fatalf("mods allowed by default: %v", rej)
+	}
+
+	r := rules
+	r.AllowMods = false
+	if _, rej := check(r, 11, "HD"); rej == nil || rej.Code != "mods_off" {
+		t.Errorf("mods off: %v", rej)
+	}
+	if _, rej := check(r, 11, ""); rej != nil {
+		t.Errorf("no mods is always fine: %v", rej)
+	}
+
+	r = rules
+	r.BannedMods = []string{"fl"}
+	if _, rej := check(r, 11, "HDFL"); rej == nil || rej.Code != "mod_not_allowed" || rej.Short != "FL" {
+		t.Errorf("banned FL: %+v", rej)
+	}
+
+	r = rules
+	r.HardModMaxStars = 5
+	if _, rej := check(r, 11, "DT"); rej == nil || rej.Code != "mod_stars" || rej.Short != "6.20★ > 5.00★ +DT" {
+		t.Errorf("DT on 6.2★ with a 5★ cap: %+v", rej)
+	}
+	if _, rej := check(r, 11, "HDEZ"); rej != nil {
+		t.Errorf("EZ does not make it harder: %v", rej)
+	}
+	if d, rej := check(r, 0, "NC"); rej != nil || d.ID != 10 {
+		t.Errorf("whole set with NC should pick the diff under the cap: %v %v", d, rej)
+	}
+
+	r = rules
+	r.MaxLengthSec = 200
+	if _, rej := check(r, 10, ""); rej == nil || rej.Code != "too_long" {
+		t.Errorf("4:00 is over 3:20: %v", rej)
+	}
+	if _, rej := check(r, 10, "DT"); rej != nil {
+		t.Errorf("4:00 with DT is 2:40: %v", rej)
+	}
+	if _, rej := check(r, 10, "HT"); rej == nil || rej.Short != "5:20 > 3:20" {
+		t.Errorf("HT makes it 5:20: %+v", rej)
+	}
+
+	c := config.Default()
+	c.Rules.BannedMods = []string{"XX"}
+	if c.Validate() == nil {
+		t.Error("unknown banned mod should not validate")
+	}
+}
+
+func TestArtistRejectionCode(t *testing.T) {
+	rules := config.Default().Rules
+	rules.BlacklistSongs = []string{`artist="xi"`}
+	set := &osumeta.Set{ID: 9, Artist: "xi", Title: "FREEDOM DiVE", Status: "ranked", Diffs: []osumeta.Diff{{ID: 1, Mode: "osu", Stars: 5}}}
+	if _, r := CheckMap(Input{Set: set}, State{}, rules, config.Default().Queue, time.Now()); r == nil || r.Code != "artist_blacklisted" || r.Short != "xi" {
+		t.Errorf("artist rule: %+v", r)
+	}
+}
+
+func TestSongRulesKeyValue(t *testing.T) {
+	list := []string{`Artist=“a_hisa”`, `title="Ghost"`, `artist='xi' title="Blue Zenith"`, `artist=ナナヒラ`}
+	cases := []struct {
+		s      Song
+		banned bool
+	}{
+		{Song{Artist: "a_hisa", Title: "Anything"}, true},
+		{Song{Artist: "A_HISA", Title: "Other (TV Size)"}, true},
+		{Song{Artist: "a_hisa feat. someone", Title: "x"}, true}, // whole words in a row
+		{Song{Artist: "a_hisashi", Title: "x"}, false},
+		{Song{Artist: "Camellia", Title: "Ghost (Extended Mix)"}, true},
+		{Song{Artist: "xi", Title: "Blue Zenith (Cut Ver.)"}, true},
+		{Song{Artist: "xi", Title: "FREEDOM DiVE"}, false}, // artist alone is not enough for that rule
+		{Song{Artist: "Nanahira", ArtistUnicode: "ナナヒラ", Title: "x"}, true},
+		{Song{Artist: "xinxin", Title: "Blue Zenith"}, false},
+	}
+	for _, c := range cases {
+		if _, got := SongBanned(list, c.s); got != c.banned {
+			t.Errorf("%+v: banned=%v, want %v", c.s, got, c.banned)
+		}
+	}
+	if RuleKey("xi - FREEDOM DiVE") != RuleKey(`artist="Xi" title="Freedom Dive (TV Size)"`) || RuleKey("") != "" {
+		t.Error("RuleKey should treat the two forms alike")
+	}
+}

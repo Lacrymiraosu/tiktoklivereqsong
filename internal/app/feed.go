@@ -20,14 +20,23 @@ type FeedEvent struct {
 	Artist  string    `json:"artist,omitempty"`
 	Version string    `json:"version,omitempty"`
 	Stars   float64   `json:"stars,omitempty"`
-	Pos     int       `json:"pos,omitempty"` // queue position (1 = next)
+	Mods    string    `json:"mods,omitempty"` // requested mods of an added request
+	Pos     int       `json:"pos,omitempty"`  // queue position (1 = next)
 	Target  string    `json:"target,omitempty"`
 	Test    bool      `json:"test,omitempty"`
+	Avatar  string    `json:"avatar,omitempty"` // User's TikTok picture, when TikFinity sent one
+	Mapper  string    `json:"mapper,omitempty"`
+	SetID   int       `json:"setId,omitempty"`
+	// Vars are a rejection's or result's numbers one by one, for announcements.
+	Vars map[string]string `json:"vars,omitempty"`
 }
 
 const maxFeed = 30
 
 func (a *App) emit(e FeedEvent) {
+	if e.Avatar == "" && e.Kind != "result" {
+		e.Avatar = a.avatar(e.User)
+	}
 	a.mu.Lock()
 	a.feedSeq++
 	e.ID = a.feedSeq
@@ -39,6 +48,7 @@ func (a *App) emit(e FeedEvent) {
 		a.feed = a.feed[:maxFeed]
 	}
 	a.mu.Unlock()
+	a.announce(e)
 	a.Changed()
 }
 
