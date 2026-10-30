@@ -92,7 +92,7 @@ pre-stream check, the osu.direct fix and the update check were also run against 
 * **Requests with mods** (`!req 2096297 HDHR`, `!req freedom dive +DT`): shown as a tag everywhere; rules for allowed mods and a star cap for DT/NC/HR.
 * **Fair queue** (opt-in): a viewer's second request waits behind everyone's first, and so on.
 * **Automatic open/close**: requests close at a queue size and reopen when it is short again, and close at a set time.
-* **Song bans**: ban a song by artist and title; every set of it (TV size, cut, remaps) is rejected.
+* **Song and artist bans**: rules like `artist="a_hisa"`, `title="Ghost"` or both; every set of a song (TV size, cut, remaps) is caught, also by Japanese/Thai names.
 * **Mod panel** (opt-in): a PIN-protected phone page on the home network for Next, Skip, moving/removing requests and requests on/off.
 * **Support file**: one zip (log, raw TikFinity events, settings, state) to send after a stream with a problem.
 * **Viewer roles**: followers-only mode and a higher per-user limit for subscribers (when TikFinity sends these flags).
@@ -236,15 +236,27 @@ Mods are the users in **Settings → Command → Mods**, plus TikTok moderators 
 Rejection reason codes (shown translated on the dashboard): `user_blacklisted`, `queue_full`, `user_limit`, `cooldown`, `set_blacklisted`,
 `mapper_blacklisted`, `status`, `duplicate`, `recently_played`, `not_found`, `mode`, `stars_low`, `stars_high`, `too_long`, `meta_error`,
 `bad_input`, `requests_off`, `followers_only`, `now_playing`, `no_convert` (a taiko/catch/mania map requested in another mode: only osu! maps convert),
-`search_none`, `search_error`, `needs_gift`, `song_blacklisted`, `bad_mods`, `mods_off`, `mod_not_allowed`, `mod_stars`.
+`search_none`, `search_error`, `needs_gift`, `song_blacklisted`, `artist_blacklisted`, `bad_mods`, `mods_off`, `mod_not_allowed`, `mod_stars`.
 
 **Mods and stars:** star ratings with mods are only available from osu!'s authenticated API (catboy's `/api/meta` says it is not implemented,
 osu.direct has none), so every star check uses the real **no-mod** rating. `rules.hardModMaxStars` is a separate no-mod cap for requests with
 DT, NC or HR. The length limit uses the real speed (DT/NC ÷1.5, HT ÷0.75). osu! cannot be told which mods to use: they are shown, and when
 tosu's result lacks a requested mod, `Result.missing` is set and Activity warns.
 
-Song bans (`rules.blacklistSongs`) compare `validator.SongKey(artist, title)`: lower case, letters and digits only, with trailing version tags
-removed from the title (`(TV Size)`, `[Extended Mix]`, `～Short ver.～`, `-Cut Ver.-`). An entry without " - " is a title for any artist.
+Song rules (`rules.blacklistSongs`, parsed by `config.ParseSongRule`, one per line):
+
+| Rule | Bans |
+|---|---|
+| `artist="a_hisa"` | every song by that artist (`artist_blacklisted`) |
+| `title="Ghost"` | that song by anyone |
+| `artist="xi" title="Blue Zenith"` or `xi - Blue Zenith` | that song by that artist |
+| `Blue Zenith` | a title by anyone |
+
+Keys are case-insensitive; quotes may be straight, curly (`“…”`, as phones type them) or left out for one word; `artist=""` or other text
+after the pairs is refused when saving (`song_rule`). Titles are compared after `validator.SongKey` (lower case, letters and digits only,
+trailing version tags such as `(TV Size)`, `[Extended Mix]`, `～Short ver.～`, `-Cut Ver.-` removed). Artists match as whole words in a row,
+so `artist="xi"` also bans "xi remixed by cosMo" but not "xinxin". Both are tried against `artist`/`title` and `artist_unicode`/`title_unicode`
+from the osu! page (**verified** field names).
 
 ### Automatic open/close
 
@@ -535,7 +547,8 @@ nerinyan is deliberately not used (it was not working). Allowed hosts: `catboy.b
   ranked 1, approved 2, qualified 3, loved 4`) from `rules.statuses`. Answers a JSON array of beatmapsets (`id`, `artist`, `title`,
   `creator`, `status`, `play_count`, `beatmaps[].mode`). **Verified** against the live API; a trimmed real response is the test fixture.
 * catboy refuses requests without an identifying User-Agent. `sort` is ignored by the API and its own order favours obscure uploads and
-  tag matches, hence `Rank`: title contains every word → artist + title contains every word → the rest, each by play count.
+  tag matches, hence `Rank`: title contains every word → artist + title contains every word, each by play count; results that match only
+  on tags are dropped (so a request answers "no map found" rather than queueing an unrelated map). `artist_unicode`/`title_unicode` count too.
 
 ### GitHub releases (`internal/update`)
 
@@ -650,7 +663,7 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `modes` | all four | `osu`, `taiko`, `fruits`, `mania` |
 | | `statuses` | ranked, approved, qualified, loved | plus `pending`, `wip`, `graveyard` |
 | | `blacklistSets` / `blacklistMappers` / `blacklistUsers` | empty | |
-| | `blacklistSongs` | empty | `Artist - Title` (or `Title`) per entry; matches every set of the song |
+| | `blacklistSongs` | empty | Song rules: `artist="…"`, `title="…"`, both, `Artist - Title` or a title (see [How a request is handled](#how-a-request-is-handled)) |
 | | `exemptUsers` | empty | TikTok users who skip followers-only, the per-user limit and cooldown |
 | | `allowMods` | `true` | Requests may carry mods |
 | | `bannedMods` | empty | Mods that may not be requested, e.g. `["FL"]` |
@@ -859,7 +872,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
-| unreleased | branch `feature/stream-tools` | Requests with mods; support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
+| unreleased | branch `feature/stream-tools` | Artist/title ban rules (`artist="…"`); search ignores tag-only matches; requests with mods; support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
 | 1.0.0 | `d106295` | First version: TikFinity chat, parser, osu! metadata, validation, queue, mirrors + MD5, import modes, preload, dashboard (EN/TH) and overlay, hotkeys, tests |
 | 1.0.1 | `9fabc98` | The map being played no longer counts toward the per-user limit; exempt users; bare number retried as set ID; osu! folder from the registry and `BeatmapDirectory`; pop-up on rejected chat requests |
 | 1.1.0 | `15f15b3` | Test panel: simulated chat, quick add, dry run, clear test data |
