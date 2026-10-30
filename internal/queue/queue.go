@@ -57,6 +57,9 @@ type Item struct {
 	Priority  bool      `json:"priority,omitempty"`  // bought with gifts: kept at the top of the queue
 	Avatar    string    `json:"avatar,omitempty"`    // requester's TikTok picture
 	Mods      string    `json:"mods,omitempty"`      // mods the viewer asked for, e.g. "HDHR"
+	// osu!'s names in their own script, for song rules written that way
+	ArtistUnicode string `json:"artistUnicode,omitempty"`
+	TitleUnicode  string `json:"titleUnicode,omitempty"`
 
 	State     State     `json:"state"`
 	File      string    `json:"file,omitempty"`
