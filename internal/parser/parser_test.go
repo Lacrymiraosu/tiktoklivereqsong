@@ -139,7 +139,15 @@ func TestMods(t *testing.T) {
 	}{
 		{"!req 2096297 HDHR", "HDHR", "", ""},
 		{"!req 2096297 +hdhr", "HDHR", "", ""},
-		{"!req 2096297 hd dt please", "HDDT", "", ""},
+		{"!req 2096297 HD DT please", "HDDT", "", ""},
+		{"!req 2096297 hd dt", "HDDT", "", ""}, // lower case: only when nothing else follows
+		{"!req 2096297 hd dt please", "", "", ""},
+		{"!req 2096297 so good", "", "", ""}, // "so" is chat here, not SpunOut
+		{"!req 2096297 OK", "", "", ""},
+		{"!req 2096297 GG thanks", "", "", ""},
+		{"!req 2096297 +HD pls", "HD", "", ""},
+		{"!req 2096297 HDDT pls", "HDDT", "", ""},
+		{"!req freedom dive OK", "", "", "freedom dive OK"},
 		{"!req https://osu.ppy.sh/b/1 DTNC", "NC", "", ""},
 		{"!req 2096297 please", "", "", ""}, // not mods: ignored as before
 		{"!req 2096297 +HDXX", "", "unknown", ""},
