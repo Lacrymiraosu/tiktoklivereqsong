@@ -20,7 +20,8 @@ type FeedEvent struct {
 	Artist  string    `json:"artist,omitempty"`
 	Version string    `json:"version,omitempty"`
 	Stars   float64   `json:"stars,omitempty"`
-	Pos     int       `json:"pos,omitempty"` // queue position (1 = next)
+	Mods    string    `json:"mods,omitempty"` // requested mods of an added request
+	Pos     int       `json:"pos,omitempty"`  // queue position (1 = next)
 	Target  string    `json:"target,omitempty"`
 	Test    bool      `json:"test,omitempty"`
 	Avatar  string    `json:"avatar,omitempty"` // User's TikTok picture, when TikFinity sent one

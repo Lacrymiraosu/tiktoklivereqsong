@@ -233,6 +233,12 @@ const T = {
   e_remote_pin: ["Mod panel PIN must be 6-12 digits, not all the same and not 123456-style", "PIN แผงม็อดต้องเป็นตัวเลข 6-12 หลัก ไม่ซ้ำกันทั้งหมด และไม่ใช่แบบ 123456"],
   n_modLogin: ["Mod panel: signed in from {ip}", "แผงม็อด: มีคนเข้าใช้จาก {ip}"],
   n_modAction: ["Mod panel ({ip}): {action}", "แผงม็อด ({ip}): {action}"],
+  modsTitle: ["Mods the viewer asked for. Select them in osu! yourself; the stars shown are without mods.", "mod ที่ผู้ชมขอ เลือกใน osu! เอง ดาวที่แสดงเป็นแบบไม่มี mod"],
+  ph_missing: ["played without {m}", "เล่นโดยไม่ได้ใส่ {m}"],
+  n_modsMissing: ["{title} was played without {missing} (asked +{mods})", "{title} เล่นโดยไม่ได้ใส่ {missing} (ขอ +{mods})"],
+  r_bad_mods: ["unknown or clashing mods", "mod ไม่ถูกต้องหรือใช้ด้วยกันไม่ได้"], r_mods_off: ["mods not allowed", "ไม่รับคำขอที่มี mod"],
+  r_mod_not_allowed: ["mod not allowed", "mod นี้ไม่อนุญาต"], r_mod_stars: ["too hard with that mod", "ยากเกินไปเมื่อใส่ mod นี้"],
+  e_hard_mod_stars: ["The star limit for DT/HR cannot be negative", "ดาวสูงสุดสำหรับ DT/HR ติดลบไม่ได้"], e_banned_mod: ["{mod} is not a mod", "{mod} ไม่ใช่ mod"],
   n_gameDetected: ["tosu sees osu! {game} running, so Settings → osu! → Game is now {game}", "tosu เห็นว่าเปิด osu! {game} อยู่ จึงเปลี่ยน ตั้งค่า → osu! → เกม เป็น {game} ให้"],
   n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
   e_vote_skip: ["Votes to skip cannot be negative", "จำนวนโหวตข้ามเพลงติดลบไม่ได้"],
@@ -421,6 +427,7 @@ function tagsFor(it) {
   return h("div", { class: "tags" },
     h("em", { class: "star", style: `background:${starColor(it.stars)};color:${it.stars >= 6.7 ? "#fff" : "#1c1726"}` }, it.stars >= 0 ? it.stars.toFixed(2) + "★" : "?★"),
     h("em", { class: "mode mode-" + it.mode }, modeText(it)),
+    it.mods ? h("em", { class: "mods", title: t("modsTitle") }, "+" + it.mods) : null,
     h("em", {}, clock(it.length)),
     it.status ? h("em", { class: "st-" + it.status }, it.status) : null,
     it.md5 ? h("em", { class: "md5-" + it.md5 }, "MD5 " + it.md5) : null,
@@ -509,6 +516,7 @@ function updatePhase() {
     text += " · " + (!auto ? t("ph_pressNext") : !hasNext ? t("ph_queueEmpty") : t("ph_nextIn", { n: Math.max(0, left) }));
   }
   if (n.result) text += " · " + t("res_" + n.result.outcome) + " " + resultShort(n.result);
+  if (n.result && n.result.missing) text += " · ⚠ " + t("ph_missing", { m: n.result.missing });
   const vs = S.voteSkip || {};
   if (vs.needed > 0 && vs.votes > 0) text += " · " + t("ph_votes", { v: vs.votes, n: vs.needed });
   el.className = "phase " + cls;
@@ -719,7 +727,7 @@ function renderSide() {
   }), [rej.slice(0, 40), [...banned]]);
   fill("#noteLog", notes.map(n => logItem({ error: "err", warn: "warn" }[n.kind] || "info", t("k_" + n.kind), "", n.at,
     n.key && T["n_" + n.key] ? t("n_" + n.key, n.vars || {}) : n.text)), notes);
-  fill("#histLog", hist.map(p => logItem(p.result === "played" ? "ok" : "warn", p.title, "@" + p.user, p.at,
+  fill("#histLog", hist.map(p => logItem(p.result === "played" ? "ok" : "warn", p.title + (p.mods ? " +" + p.mods : ""), "@" + p.user, p.at,
     t(p.result) + (p.play ? " · " + t("res_" + p.play.outcome) + " " + resultShort(p.play) : ""))), hist);
   fill("#rawLog", raw.map(r => logItem("info", r.event, "", r.at, "", r.raw)), raw.map(r => [r.at, r.event]));
   renderSummary(S.summary);
@@ -990,6 +998,9 @@ const SCHEMA = {
     F("rules.maxLengthSec", "number", "Max length (s)", "ความยาวสูงสุด (วินาที)", "0 = no limit", "0 = ไม่จำกัด", { min: 0 }),
     F("rules.modes", "multi", "Allowed modes", "โหมดที่อนุญาต", null, null, { options: MODES }),
     F("rules.statuses", "multi", "Allowed statuses", "สถานะที่อนุญาต", null, null, { options: STATUSES.map(s => [s, s]) }),
+    F("rules.allowMods", "switch", "Requests with mods", "ขอเพลงพร้อม mod", "Viewers can add mods: !req 2096297 HDHR, or a song name ending in +HDHR. osu! cannot be told to use them: the mods show on the dashboard and overlay and you select them yourself (Activity warns if a result lacks one).", "ผู้ชมใส่ mod ได้ เช่น !req 2096297 HDHR หรือชื่อเพลงตามด้วย +HDHR โปรแกรมสั่ง osu! ให้ใส่ mod ไม่ได้ mod จะแสดงบนแดชบอร์ดและ overlay ให้คุณเลือกเอง (ถ้าเล่นไม่ครบ กิจกรรม จะแจ้งเตือน)"),
+    F("rules.bannedMods", "multi", "Mods not allowed", "mod ที่ไม่อนุญาต", null, null, { options: ["NF", "EZ", "HD", "HR", "SD", "DT", "HT", "NC", "FL", "SO", "PF", "FI", "MR"].map(m => [m, m]) }),
+    F("rules.hardModMaxStars", "number", "Max stars with DT/NC/HR", "ดาวสูงสุดเมื่อใส่ DT/NC/HR", "Stars are always the no-mod rating (osu! gives modded ratings only through its login API). Use this to stop, say, DT on maps above 5★. 0 = only the normal limit. Length counts DT/HT speed.", "ดาวที่ใช้เป็นแบบไม่มี mod เสมอ (osu! ให้ดาวพร้อม mod ผ่าน API ที่ต้องล็อกอินเท่านั้น) ใช้ค่านี้กัน เช่น DT บนแมพเกิน 5★ 0 = ใช้แค่ขีดจำกัดปกติ ความยาวคิดตามความเร็วของ DT/HT"),
     F("rules.followersOnly", "switch", "Followers only", "เฉพาะผู้ติดตาม", "Rejects viewers TikTok reports as not following. If TikFinity does not send follow status, requests are let through and Activity shows a warning.", "ปฏิเสธผู้ชมที่ TikTok แจ้งว่ายังไม่ได้ติดตาม ถ้า TikFinity ไม่ส่งสถานะการติดตามมา จะปล่อยผ่านและแจ้งเตือนใน กิจกรรม"),
     F("rules.subscriberPerUserLimit", "number", "Requests per subscriber", "คำขอต่อคนสำหรับสมาชิก", "Waiting requests allowed for TikTok subscribers. 0 = same as everyone.", "จำนวนคำขอที่รอได้ของสมาชิก TikTok 0 = เท่ากับคนอื่น", { min: 0 }),
     F("rules.blacklistSets", "numlist", "Blacklisted set IDs", "ID เซ็ตที่แบน", "Comma separated", "คั่นด้วยจุลภาค"),

@@ -15,6 +15,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/downloader"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/importer"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/mods"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/parser"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
@@ -288,8 +289,8 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin, rol
 	}
 	a.applyCredit(user, nick, o != fromChat)
 	a.emit(FeedEvent{Kind: "added", User: user, Nick: nick, Title: it.Title, Artist: it.Artist, Version: it.Version,
-		Stars: it.Stars, Pos: a.Queue.Position(it.ID), Test: o != fromChat})
-	log.Printf("queued @%s: %s - %s [%s] (%d)", user, it.Artist, it.Title, it.Version, it.SetID)
+		Stars: it.Stars, Mods: it.Mods, Pos: a.Queue.Position(it.ID), Test: o != fromChat})
+	log.Printf("queued @%s: %s - %s [%s] +%s (%d)", user, it.Artist, it.Title, it.Version, it.Mods, it.SetID)
 	return it, nil
 }
 
@@ -320,15 +321,19 @@ func (a *App) resolve(user, nick, input string, req parser.Request, o origin, ro
 		}()
 	}
 
+	if e := req.ModsErr; e != nil {
+		return nil, &validator.Rejection{Code: "bad_mods", Detail: e.Error(), Short: e.Short}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(max(cfg.MD5.MetaTimeoutSec, 5))*time.Second)
 	defer cancel()
 	var set *osumeta.Set
 	if req.Kind == parser.KindSearch {
 		var rej *validator.Rejection
-		if set, rej = a.find(ctx, req.Query, st, cfg, now); rej != nil {
+		if set, rej = a.find(ctx, req.Query, req.Mods, st, cfg, now); rej != nil {
 			return nil, rej
 		}
-		req = parser.Request{Kind: parser.KindSet, SetID: set.ID}
+		req = parser.Request{Kind: parser.KindSet, SetID: set.ID, Mods: req.Mods}
 	} else {
 		var err error
 		set, err = a.lookup(ctx, req)
@@ -347,7 +352,7 @@ func (a *App) resolve(user, nick, input string, req parser.Request, o origin, ro
 	if req.Kind == parser.KindBeatmap {
 		beatmapID = req.BeatmapID
 	}
-	diff, rej := validator.CheckMap(validator.Input{Set: set, BeatmapID: beatmapID, Mode: req.Mode}, st, cfg.Rules, cfg.Queue, now)
+	diff, rej := validator.CheckMap(validator.Input{Set: set, BeatmapID: beatmapID, Mode: req.Mode, Mods: req.Mods}, st, cfg.Rules, cfg.Queue, now)
 	if rej != nil {
 		return nil, rej
 	}
@@ -359,7 +364,7 @@ func (a *App) resolve(user, nick, input string, req parser.Request, o origin, ro
 		ID: queue.NewID(), User: user, Nick: nick, SetID: set.ID, BeatmapID: diff.ID, BySet: beatmapID == 0,
 		Title: set.Title, Artist: set.Artist, Creator: set.Creator, Version: diff.Version, Mode: mode, Keys: diff.Keys, Convert: diff.Convert,
 		Stars: diff.Stars, Length: diff.Length, Status: set.Status, Cover: set.Cover, AddedAt: now, Test: o != fromChat, Simulated: o == fromSim,
-		Avatar: a.avatar(user),
+		Avatar: a.avatar(user), Mods: req.Mods,
 	}
 	if set.Partial {
 		it.Warning = "osu! page unavailable; star rating, length and status were not checked"
@@ -374,7 +379,7 @@ const searchTries = 3
 // find turns a song name into the best matching set that passes the map
 // rules. If none of the first results passes, the first one's rejection is
 // returned with the map's title in front, so the viewer sees what was found.
-func (a *App) find(ctx context.Context, query string, st validator.State, cfg config.Config, now time.Time) (*osumeta.Set, *validator.Rejection) {
+func (a *App) find(ctx context.Context, query, mods string, st validator.State, cfg config.Config, now time.Time) (*osumeta.Set, *validator.Rejection) {
 	rs, err := a.Search.Find(ctx, query, cfg.Rules.Statuses, cfg.Rules.Modes)
 	if err != nil {
 		return nil, &validator.Rejection{Code: "search_error", Detail: "song search failed: " + err.Error()}
@@ -394,7 +399,7 @@ func (a *App) find(ctx context.Context, query string, st validator.State, cfg co
 			}
 			continue
 		}
-		if _, rej := validator.CheckMap(validator.Input{Set: set}, st, cfg.Rules, cfg.Queue, now); rej != nil {
+		if _, rej := validator.CheckMap(validator.Input{Set: set, Mods: mods}, st, cfg.Rules, cfg.Queue, now); rej != nil {
 			if first == nil {
 				first = &validator.Rejection{Code: rej.Code, Detail: set.Title + ": " + rej.Detail, Short: strings.TrimSuffix(set.Title+" · "+rej.Short, " · ")}
 			}
@@ -570,6 +575,14 @@ func (a *App) OnGame(g tosu.Game) {
 	a.mu.Unlock()
 	if !changed {
 		return
+	}
+	if res != nil && now.Mods != "" {
+		// osu! cannot be told which mods to use; say when asked-for ones were not played
+		if miss := mods.Missing(now.Mods, res.Mods); len(miss) > 0 {
+			res.Missing = strings.Join(miss, "")
+			a.Say("warn", "modsMissing", map[string]string{"title": now.Artist + " - " + now.Title, "mods": now.Mods, "missing": res.Missing},
+				"%s - %s was played without %s (requested +%s)", now.Artist, now.Title, res.Missing, now.Mods)
+		}
 	}
 	a.Queue.Update(now.ID, func(x *queue.Item) {
 		x.PlayPhase, x.PhaseAt = string(phase), since

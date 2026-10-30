@@ -178,6 +178,7 @@ textarea{height:auto;min-height:70px;padding:10px 12px;resize:vertical}
 .st-loved{background:#a3406f!important}
 .st-qualified{background:#2f6d99!important}
 .tags em.mode{font-weight:600}
+.tags em.mods{font-weight:700;letter-spacing:.5px;background:var(--pink);color:var(--pinkdk)}
 .tags em.mode-osu{background:rgba(255,102,170,.22)!important;color:#ffb3d6}
 .tags em.mode-taiko{background:rgba(255,128,104,.22)!important;color:#ffb8a8}
 .tags em.mode-fruits{background:rgba(124,255,79,.18)!important;color:#b8f59c}
