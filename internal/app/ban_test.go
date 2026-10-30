@@ -80,6 +80,10 @@ func TestBanArtist(t *testing.T) {
 	if l := a.Cfg.Get().Rules.BlacklistSongs; len(l) != 1 || l[0] != `artist="a_hisa"` {
 		t.Errorf("stored rule: %v", l)
 	}
+	a.Queue.Add(&queue.Item{ID: "j", User: "u4", SetID: 4, Artist: "Nanahira", ArtistUnicode: "ななひら", Title: "Four", AddedAt: now})
+	if n, _ := a.Ban("song", `artist="ななひら"`); n != 1 {
+		t.Errorf("a rule in the original script should also drop waiting requests, removed %d", n)
+	}
 	if _, err := a.Ban("song", `artist=""`); err == nil {
 		t.Error("an invalid rule should be refused")
 	}
