@@ -329,8 +329,11 @@ The **Test** panel on the dashboard works while TikFinity is offline:
 
 TikFinity's TTS has no way to skip commands (its comment filter is "all messages" or "only messages starting with `.` or `/`"), so osureq
 can read chat itself (`tts.enabled`). `app.speakChat` runs for every chat event (and simulated chat): messages starting with `!` are never
-queued; blacklisted users, `tts.blockedWords`, `tts.followersOnly` (TikFinity's follow flag) and the per-viewer `tts.cooldownSec` filter the
-rest; `SpeakableText` removes links, emoji (symbol categories, joiners, skin tones, variation selectors) and runs longer than four of the same
+queued; blacklisted users, `tts.blockedWords`, `tts.allow` and the per-viewer `tts.cooldownSec` filter the rest. `tts.allow` lists the groups
+whose chat is read (any one is enough, empty = everyone, no-limit users always): `subscriber` (ใจส้ม, the TikTok LIVE subscription; TikFinity's
+`isSubscriber`), `follower` (`followRole`/`isFollower`), `gifter` (sent a gift since the session started; kept in memory) and `mod`. A missing
+subscriber or follower flag counts as no, with one Activity warning (`ttsSubUnknown`, `ttsFollowUnknown`); the old `followersOnly` is read as
+`allow: ["follower"]`. `SpeakableText` removes links, emoji (symbol categories, joiners, skin tones, variation selectors) and runs longer than four of the same
 character, and cuts at `tts.maxLength`. The last 20 go out in the state as `speech` (newest first, increasing `id`).
 
 The dashboard speaks them with the Web Speech API (`speechSynthesis`, i.e. the voices of Windows and the browser; Edge has natural ones).
@@ -733,7 +736,8 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `rate` / `volume` | `1` / `80` | Speed 0.5-2, volume 0-100 |
 | | `readName` | `true` | "name says …" |
 | | `maxLength` / `cooldownSec` | `120` / `3` | Letters per message (10-500); seconds between a viewer's read messages |
-| | `followersOnly` / `blockedWords` | `false` / empty | |
+| | `allow` | empty | Whose chat is read: `subscriber` (ใจส้ม), `follower`, `gifter`, `mod`; any one; empty = everyone |
+| | `blockedWords` | empty | |
 | | `announce` | `false` | Speak what happens to requests |
 | | `templates` | Thai set | Event → line with placeholders (see [Chat TTS](#chat-tts)); empty or `-` = silent |
 | hotkeys | `enabled` | `false` | Global hotkeys (work while osu! has focus) |
@@ -910,7 +914,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
-| unreleased | branch `feature/stream-tools` | Spoken announcements from templates; chat TTS without commands; artist/title ban rules (`artist="…"`); search ignores tag-only matches; requests with mods; support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
+| unreleased | branch `feature/stream-tools` | TTS for subscribers (ใจส้ม) / followers / gifters / mods only; spoken announcements from templates; chat TTS without commands; artist/title ban rules (`artist="…"`); search ignores tag-only matches; requests with mods; support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
 | 1.0.0 | `d106295` | First version: TikFinity chat, parser, osu! metadata, validation, queue, mirrors + MD5, import modes, preload, dashboard (EN/TH) and overlay, hotkeys, tests |
 | 1.0.1 | `9fabc98` | The map being played no longer counts toward the per-user limit; exempt users; bare number retried as set ID; osu! folder from the registry and `BeatmapDirectory`; pop-up on rejected chat requests |
 | 1.1.0 | `15f15b3` | Test panel: simulated chat, quick add, dry run, clear test data |

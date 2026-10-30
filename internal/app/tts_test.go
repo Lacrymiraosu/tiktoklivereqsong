@@ -76,3 +76,49 @@ func TestSimulatedChatIsReadToo(t *testing.T) {
 		t.Errorf("simulated chat should be read, marked as test: %+v", s)
 	}
 }
+
+func TestTTSAllowGroups(t *testing.T) {
+	a := newTestApp(t, func(c *config.Config) {
+		c.TTS.Enabled, c.TTS.CooldownSec = true, 0
+		c.TTS.Allow = []string{"subscriber", "gifter"}
+		c.Rules.ExemptUsers = []string{"streamer"}
+	})
+	read := func(ch tikfinity.Chat) bool {
+		before := len(a.Speech())
+		ch.Nick = ch.User
+		a.speakChat(ch, false)
+		return len(a.Speech()) > before
+	}
+	if read(tikfinity.Chat{User: "nobody", Comment: "hi", Subscriber: tikfinity.No}) {
+		t.Error("not a subscriber and no gift: not read")
+	}
+	if !read(tikfinity.Chat{User: "sub", Comment: "hi", Subscriber: tikfinity.Yes}) {
+		t.Error("ใจส้ม subscribers are read")
+	}
+	a.HandleGift(tikfinity.Gift{User: "Giver", Coins: 1})
+	if !read(tikfinity.Chat{User: "giver", Comment: "thanks!"}) {
+		t.Error("a viewer who sent a gift this stream is read")
+	}
+	if !read(tikfinity.Chat{User: "streamer", Comment: "hello chat"}) {
+		t.Error("no-limit users are always read")
+	}
+	if read(tikfinity.Chat{User: "unknown", Comment: "hi"}) {
+		t.Error("an unknown subscriber flag counts as no")
+	}
+	if n := a.Notices(); len(n) == 0 || n[0].Key != "ttsSubUnknown" {
+		t.Errorf("Activity should say the flag is missing: %+v", n)
+	}
+
+	a.NewSession()
+	if read(tikfinity.Chat{User: "giver", Comment: "again"}) {
+		t.Error("a gift from before the session started does not count")
+	}
+
+	c := a.Cfg.Get()
+	c.TTS.Allow = []string{"follower", "mod"}
+	c.Command.Mods = []string{"modman"}
+	a.Cfg.Set(c)
+	if !read(tikfinity.Chat{User: "f", Comment: "hi", Follower: tikfinity.Yes}) || !read(tikfinity.Chat{User: "modman", Comment: "hi"}) {
+		t.Error("followers and mods are read")
+	}
+}

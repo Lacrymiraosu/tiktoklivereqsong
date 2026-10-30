@@ -261,6 +261,9 @@ const T = {
   ttsSample: ["This is how chat will sound.", "เสียงอ่านแชทจะเป็นแบบนี้"], ttsAuto: ["best for the language", "เลือกให้ตามภาษา"],
   e_tts_lang: ["TTS language must be auto, Thai or English", "ภาษาอ่านแชทต้องเป็น auto ไทย หรืออังกฤษ"],
   e_tts_range: ["TTS: speed 0.5-2, volume 0-100, max length 10-500", "อ่านแชท: ความเร็ว 0.5-2 ระดับเสียง 0-100 ความยาว 10-500"],
+  n_ttsSubUnknown: ["TTS: TikFinity did not say whether viewers are subscribers (ใจส้ม), so only your other groups are read", "TTS: TikFinity ไม่ได้บอกว่าผู้ชมเป็นสมาชิก (ใจส้ม) หรือไม่ จึงอ่านเฉพาะกลุ่มอื่นที่เลือกไว้"],
+  n_ttsFollowUnknown: ["TTS: TikFinity did not say whether viewers follow, so only your other groups are read", "TTS: TikFinity ไม่ได้บอกว่าผู้ชมกดติดตามหรือไม่ จึงอ่านเฉพาะกลุ่มอื่นที่เลือกไว้"],
+  e_tts_allow: ["Unknown TTS group {who}", "ไม่รู้จักกลุ่ม {who} ของเสียงอ่าน"],
   n_gameDetected: ["tosu sees osu! {game} running, so Settings → osu! → Game is now {game}", "tosu เห็นว่าเปิด osu! {game} อยู่ จึงเปลี่ยน ตั้งค่า → osu! → เกม เป็น {game} ให้"],
   n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
   e_vote_skip: ["Votes to skip cannot be negative", "จำนวนโหวตข้ามเพลงติดลบไม่ได้"],
@@ -1160,7 +1163,8 @@ const SCHEMA = {
     F("tts.readName", "switch", "Say who wrote it", "บอกชื่อคนพิมพ์", "\"name says …\"", "\"ชื่อ บอกว่า …\""),
     F("tts.maxLength", "number", "Max letters per message", "ความยาวสูงสุดต่อข้อความ", "Longer messages are cut.", "ข้อความที่ยาวกว่านี้จะถูกตัด", { min: 10, max: 500 }),
     F("tts.cooldownSec", "number", "Per-viewer cooldown (s)", "คูลดาวน์ต่อคน (วินาที)", "A viewer's next message within this time is not read.", "ข้อความถัดไปของคนเดิมภายในเวลานี้จะไม่ถูกอ่าน", { min: 0 }),
-    F("tts.followersOnly", "switch", "Followers only", "เฉพาะผู้ติดตาม", "When TikFinity says the viewer does not follow.", "เมื่อ TikFinity แจ้งว่าผู้ชมยังไม่ได้ติดตาม"),
+    F("tts.allow", "multi", "Whose chat is read", "อ่านแชทของใคร", "None selected = everyone. Otherwise a viewer needs any one: a subscription (ใจส้ม), following, a gift during this stream, or being a mod. No-limit users are always read. Subscriber and follower come from TikFinity; when it does not send them, they count as no (Activity says so once).", "ไม่เลือกเลย = อ่านทุกคน ถ้าเลือก ผู้ชมต้องตรงอย่างน้อยหนึ่งข้อ: สมัครสมาชิก (ใจส้ม), กดติดตาม, ส่งของขวัญในไลฟ์นี้ หรือเป็นม็อด ผู้ใช้ที่ไม่จำกัดจะถูกอ่านเสมอ สถานะสมาชิกและผู้ติดตามมาจาก TikFinity ถ้าไม่ส่งมาจะถือว่าไม่ใช่ (แจ้งใน กิจกรรม ครั้งเดียว)",
+      { options: [["subscriber", ["ใจส้ม (subscriber)", "ใจส้ม (สมาชิก)"]], ["follower", ["follower", "ผู้ติดตาม"]], ["gifter", ["sent a gift", "ส่งของขวัญแล้ว"]], ["mod", ["mod", "ม็อด"]]] }),
     F("tts.blockedWords", "list", "Blocked words", "คำต้องห้าม", "Comma separated. Messages containing one are not read.", "คั่นด้วยจุลภาค ข้อความที่มีคำเหล่านี้จะไม่ถูกอ่าน"),
     F("", "ttstest", "Test the voice", "ทดลองเสียง"),
     F("tts.announce", "switch", "Announce requests", "ประกาศคำขอด้วยเสียง", "Says what happens to requests with the lines below, e.g. \"test1 ขอเพลง …\" or \"เพลง … ยากเกินไป 7.25 ดาว\". Uses the same voice settings and the same TTS button at the top; works with chat reading on or off.", "พูดว่าเกิดอะไรกับคำขอตามข้อความด้านล่าง เช่น \"test1 ขอเพลง …\" หรือ \"เพลง … ยากเกินไป 7.25 ดาว\" ใช้การตั้งค่าเสียงและปุ่มเสียงด้านบนเดียวกัน ใช้ได้ทั้งตอนเปิดหรือปิดการอ่านแชท"),
@@ -1270,7 +1274,7 @@ function field(f) {
         const cur = getP(draft, f.path) || [];
         c.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: "chip" + (cur.includes(val) ? " on" : ""), onclick: () => {
           set(cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val]); draw();
-        } }, name)));
+        } }, lbl(name))));
       };
       draw();
       return h("div", { class: "row stack" }, text, c);

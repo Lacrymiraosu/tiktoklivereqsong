@@ -66,6 +66,7 @@ type App struct {
 	speech     []Speech          // chat for the dashboard to read aloud, newest first
 	speechSeq  int64
 	ttsAt      map[string]time.Time // user -> last message read (TTS cooldown)
+	gifters    map[string]time.Time // user -> last gift, for TTS "gifters only"
 }
 
 type Notice struct {

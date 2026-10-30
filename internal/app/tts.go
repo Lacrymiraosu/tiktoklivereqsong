@@ -37,7 +37,7 @@ func (a *App) speakChat(ch tikfinity.Chat, test bool) {
 	if !t.Enabled || strings.HasPrefix(strings.TrimSpace(ch.Comment), "!") {
 		return
 	}
-	if containsFold(cfg.Rules.BlacklistUsers, ch.User) || (t.FollowersOnly && ch.Follower == tikfinity.No) {
+	if containsFold(cfg.Rules.BlacklistUsers, ch.User) || !a.ttsAllowed(ch, t.Allow, cfg.Rules.ExemptUsers) {
 		return
 	}
 	lower := strings.ToLower(ch.Comment)
@@ -79,6 +79,52 @@ func (a *App) addSpeechLocked(s Speech) {
 		a.speech = a.speech[:maxSpeech]
 	}
 	go a.Changed()
+}
+
+// ttsAllowed reports whether a viewer is in one of the groups whose chat is
+// read. TikTok's subscriber and follower flags come through TikFinity and
+// may be missing; missing counts as no (or the filter would let everyone
+// through), and Activity says so once.
+func (a *App) ttsAllowed(ch tikfinity.Chat, allow, exempt []string) bool {
+	if len(allow) == 0 || containsFold(exempt, ch.User) {
+		return true
+	}
+	for _, g := range allow {
+		switch g {
+		case "subscriber":
+			if ch.Subscriber == tikfinity.Unknown {
+				a.warnOnce("ttsSubUnknown", nil, "TTS: TikFinity did not say whether viewers are subscribers, so only other groups are read")
+			}
+			if ch.Subscriber == tikfinity.Yes {
+				return true
+			}
+		case "follower":
+			if ch.Follower == tikfinity.Unknown {
+				a.warnOnce("ttsFollowUnknown", nil, "TTS: TikFinity did not say whether viewers follow, so only other groups are read")
+			}
+			if ch.Follower == tikfinity.Yes {
+				return true
+			}
+		case "gifter":
+			if a.gaveGift(ch.User) {
+				return true
+			}
+		case "mod":
+			if a.IsMod(ch) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// gaveGift reports whether user sent a gift during this stream session.
+func (a *App) gaveGift(user string) bool {
+	start := a.Queue.Summary().Start
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	at, ok := a.gifters[strings.ToLower(user)]
+	return ok && !at.Before(start)
 }
 
 // Speech returns the recent messages to read, newest first.
