@@ -24,13 +24,16 @@ const DefaultURL = "https://catboy.best/api/v2/search"
 
 // Result is one beatmapset the search found.
 type Result struct {
-	SetID   int      `json:"setId"`
-	Artist  string   `json:"artist"`
-	Title   string   `json:"title"`
-	Creator string   `json:"creator"`
-	Status  string   `json:"status"`
-	Plays   int64    `json:"plays"`
-	Modes   []string `json:"modes"` // osu taiko fruits mania
+	SetID  int    `json:"setId"`
+	Artist string `json:"artist"`
+	Title  string `json:"title"`
+	// The names in their own script, when osu! has them (日本語, ไทย…).
+	ArtistUnicode string   `json:"artistUnicode,omitempty"`
+	TitleUnicode  string   `json:"titleUnicode,omitempty"`
+	Creator       string   `json:"creator"`
+	Status        string   `json:"status"`
+	Plays         int64    `json:"plays"`
+	Modes         []string `json:"modes"` // osu taiko fruits mania
 }
 
 // statusCodes are osu!'s numeric ranked states, which catboy filters by.
@@ -116,13 +119,15 @@ func (c *Client) fetch(ctx context.Context, u string) ([]Result, error) {
 // Parse reads catboy's search response (a JSON array of beatmapsets).
 func Parse(r io.Reader) ([]Result, error) {
 	var raw []struct {
-		ID        int    `json:"id"`
-		Artist    string `json:"artist"`
-		Title     string `json:"title"`
-		Creator   string `json:"creator"`
-		Status    string `json:"status"`
-		PlayCount int64  `json:"play_count"`
-		Beatmaps  []struct {
+		ID            int    `json:"id"`
+		Artist        string `json:"artist"`
+		Title         string `json:"title"`
+		ArtistUnicode string `json:"artist_unicode"`
+		TitleUnicode  string `json:"title_unicode"`
+		Creator       string `json:"creator"`
+		Status        string `json:"status"`
+		PlayCount     int64  `json:"play_count"`
+		Beatmaps      []struct {
 			Mode string `json:"mode"`
 		} `json:"beatmaps"`
 	}
@@ -134,7 +139,8 @@ func Parse(r io.Reader) ([]Result, error) {
 		if s.ID <= 0 {
 			continue
 		}
-		r := Result{SetID: s.ID, Artist: s.Artist, Title: s.Title, Creator: s.Creator, Status: s.Status, Plays: s.PlayCount}
+		r := Result{SetID: s.ID, Artist: s.Artist, Title: s.Title, ArtistUnicode: s.ArtistUnicode, TitleUnicode: s.TitleUnicode,
+			Creator: s.Creator, Status: s.Status, Plays: s.PlayCount}
 		seen := map[string]bool{}
 		for _, b := range s.Beatmaps {
 			if b.Mode != "" && !seen[b.Mode] {
@@ -170,22 +176,29 @@ func Playable(rs []Result, modes []string) []Result {
 	return out
 }
 
-// Rank orders results by how well the title matches the query, then by
-// play count. catboy's own order puts obscure uploads first and matches on
-// tags too, so "freedom dive" would otherwise find a graveyard copy or a
-// compilation before the map everyone means.
+// Rank keeps the results whose title, or artist and title, contain every
+// word of the query (in Latin letters or the original script), title
+// matches first, each by play count. catboy also matches on tags and puts
+// obscure uploads first, so "freedom dive" would otherwise find a graveyard
+// copy or a compilation, and "night of nights" a map that only has those
+// words in its tags.
 func Rank(query string, rs []Result) []Result {
 	words := tokens(query)
 	tier := func(r Result) int {
 		switch {
-		case containsAll(tokens(r.Title), words):
+		case containsAll(tokens(r.Title), words) || containsAll(tokens(r.TitleUnicode), words):
 			return 0
-		case containsAll(tokens(r.Artist+" "+r.Title), words):
+		case containsAll(tokens(r.Artist+" "+r.Title), words) || containsAll(tokens(r.ArtistUnicode+" "+r.TitleUnicode), words):
 			return 1
 		}
 		return 2
 	}
-	out := append([]Result(nil), rs...)
+	var out []Result
+	for _, r := range rs {
+		if tier(r) < 2 {
+			out = append(out, r)
+		}
+	}
 	sort.SliceStable(out, func(i, j int) bool {
 		ti, tj := tier(out[i]), tier(out[j])
 		if ti != tj {
