@@ -8,6 +8,19 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 
 [![build](https://github.com/Lacrymiraosu/tiktoklivereqsong/actions/workflows/build.yml/badge.svg)](https://github.com/Lacrymiraosu/tiktoklivereqsong/actions/workflows/build.yml)
 
+## Overview
+
+**Dashboard**: the map being played, the queue with one-click controls, rejected requests, history and a summary of the stream.
+
+![osureq dashboard: now playing, the request queue, rejected requests and the stream summary](docs/images/dashboard-en.png)
+
+| OBS overlay | Mod panel on a phone |
+|---|---|
+| <img src="docs/images/overlay-en.png" alt="OBS overlay: now playing, upcoming requests and a viewer's !pos answer" width="420"> | <img src="docs/images/mod-panel-en.png" alt="Mod panel on a phone: requests switch, now playing with Skip and Next, and the queue" width="260"> |
+| What viewers see on stream: now playing, the next requests, how to request, and answers to `!pos`, `!np` and rejected requests. | Mods run the queue from a phone on the same Wi-Fi, with a PIN. |
+
+<sub>Screenshots use example data.</sub>
+
 ## Features
 
 * Takes requests from TikTok chat through TikFinity, as IDs, any common osu! link or a **song name** (`!req freedom dive`), optionally **with mods** (`!req 2096297 HDHR`)
