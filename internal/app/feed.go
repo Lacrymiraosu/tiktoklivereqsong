@@ -26,6 +26,7 @@ type FeedEvent struct {
 	Test    bool      `json:"test,omitempty"`
 	Avatar  string    `json:"avatar,omitempty"` // User's TikTok picture, when TikFinity sent one
 	Mapper  string    `json:"mapper,omitempty"`
+	SetID   int       `json:"setId,omitempty"`
 	// Vars are a rejection's or result's numbers one by one, for announcements.
 	Vars map[string]string `json:"vars,omitempty"`
 }

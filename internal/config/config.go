@@ -218,7 +218,7 @@ type TTS struct {
 // "rejected_<code>" template.
 var AnnounceEvents = []string{"added", "rejected", "rejected_stars_high", "rejected_stars_low", "rejected_mod_stars", "rejected_too_long",
 	"rejected_duplicate", "rejected_recently_played", "rejected_cooldown", "rejected_user_limit", "rejected_search_none",
-	"nowplaying", "result_passed", "result_failed", "gift", "voteskip", "auto_off", "auto_on"}
+	"nowplaying", "np", "np_none", "pos", "result_passed", "result_failed", "gift", "voteskip", "auto_off", "auto_on"}
 
 // ThaiAnnouncements are the default templates.
 func ThaiAnnouncements() map[string]string {
@@ -235,6 +235,9 @@ func ThaiAnnouncements() map[string]string {
 		"rejected_user_limit":      "-",
 		"rejected_search_none":     "ไม่เจอเพลงที่ {user} ขอ",
 		"nowplaying":               "ต่อไปเพลง {title} ที่ {user} ขอ",
+		"np":                       "กำลังเล่น {artist} - {title} {setid}",
+		"np_none":                  "ยังไม่มีเพลงที่เล่นอยู่",
+		"pos":                      "-",
 		"result_passed":            "ผ่านเพลง {title} ความแม่นยำ {acc} เปอร์เซ็นต์",
 		"result_failed":            "-",
 		"gift":                     "ขอบคุณ {user} สำหรับของขวัญ",
@@ -259,6 +262,9 @@ func EnglishAnnouncements() map[string]string {
 		"rejected_user_limit":      "-",
 		"rejected_search_none":     "No map found for {user}",
 		"nowplaying":               "Next up, {title}, requested by {user}",
+		"np":                       "Now playing {artist} - {title}, set {setid}",
+		"np_none":                  "Nothing is playing yet",
+		"pos":                      "-",
 		"result_passed":            "Cleared {title} with {acc} percent",
 		"result_failed":            "-",
 		"gift":                     "Thank you {user} for the gift",
@@ -634,14 +640,36 @@ func Load(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Unmarshal over the defaults so new fields keep sane values.
+	// Unmarshal over the defaults so new fields keep sane values. The
+	// announcement lines are filled in afterwards instead (fillTemplates):
+	// merged into the Thai defaults, an English set would get Thai lines.
+	s.cfg.TTS.Templates = nil
 	if err := json.Unmarshal(b, &s.cfg); err != nil {
 		return nil, fmt.Errorf("config.json: %w", err)
 	}
+	s.cfg.TTS.fillTemplates()
 	if err := s.cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("config.json: %w", err)
 	}
 	return s, nil
+}
+
+// fillTemplates gives announcements added in a newer version their default
+// line, in the language the streamer's own lines are written in. The
+// dashboard always saves every line, so a missing one was never seen.
+func (t *TTS) fillTemplates() {
+	if t.Templates == nil {
+		t.Templates = map[string]string{}
+	}
+	defaults := ThaiAnnouncements()
+	if added := t.Templates["added"]; added != "" && !strings.ContainsFunc(added, func(r rune) bool { return r >= 0x0E00 && r <= 0x0E7F }) {
+		defaults = EnglishAnnouncements()
+	}
+	for k, v := range defaults {
+		if _, ok := t.Templates[k]; !ok {
+			t.Templates[k] = v
+		}
+	}
 }
 
 func (s *Store) Get() Config {

@@ -53,7 +53,7 @@ func (r *Rejection) WithMap(s *osumeta.Set) *Rejection {
 	if s == nil {
 		return r
 	}
-	return r.set("title", s.Title, "artist", s.Artist, "mapper", s.Creator)
+	return r.set("title", s.Title, "artist", s.Artist, "mapper", s.Creator, "setid", strconv.Itoa(s.ID))
 }
 
 func f2(v float64) string { return strconv.FormatFloat(v, 'f', 2, 64) }
