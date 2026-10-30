@@ -537,6 +537,13 @@ func (q *Queue) ByUser(user string) (items []Item, pos []int) {
 	return items, pos
 }
 
+// Len is the number of waiting requests.
+func (q *Queue) Len() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return len(q.d.Items)
+}
+
 // Head returns the first item, if any.
 func (q *Queue) Head() (Item, bool) {
 	q.mu.Lock()
