@@ -67,7 +67,10 @@ type Rules struct {
 	BlacklistSets   []int    `json:"blacklistSets"`
 	BlacklistMapper []string `json:"blacklistMappers"`
 	BlacklistUsers  []string `json:"blacklistUsers"`
-	ExemptUsers     []string `json:"exemptUsers"` // no per-user limit or cooldown (streamer, mods)
+	// BlacklistSongs are "Artist - Title" (or just "Title" for any artist);
+	// they match every set of that song, see validator.SongKey.
+	BlacklistSongs []string `json:"blacklistSongs"`
+	ExemptUsers    []string `json:"exemptUsers"` // no per-user limit or cooldown (streamer, mods)
 	// ModeStars overrides MinStars/MaxStars per mode (osu, taiko, fruits,
 	// mania); a 0 keeps the global value. Stars of different modes are not
 	// comparable, so a mania streamer can allow 4.5★ while osu! stops at 6★.

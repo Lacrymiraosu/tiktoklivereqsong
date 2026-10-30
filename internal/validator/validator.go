@@ -3,8 +3,10 @@ package validator
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
@@ -112,6 +114,9 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 			return nil, reject("mapper_blacklisted", "maps by %s are blacklisted", s.Creator).with("%s", s.Creator)
 		}
 	}
+	if entry, ok := SongBanned(rules.BlacklistSongs, s.Artist, s.Title); ok {
+		return nil, reject("song_blacklisted", "%s - %s is blacklisted (%s)", s.Artist, s.Title, entry).with("%s", s.Title)
+	}
 	if !s.Partial && len(rules.Statuses) > 0 && !contains(rules.Statuses, s.Status) {
 		return nil, reject("status", "status %q is not allowed", s.Status).with("%s", s.Status)
 	}
@@ -200,6 +205,50 @@ func CheckMap(in Input, st State, rules config.Rules, q config.Queue, now time.T
 		return nil, first
 	}
 	return best, nil
+}
+
+// reSuffix matches the version tags mappers add to a title: "(TV Size)",
+// "[Extended Mix]", "(Cut Ver.)", "～Short ver.～" and the like, at the end.
+var reSuffix = regexp.MustCompile(`\s*(\([^()]*\)|\[[^\[\]]*\]|～[^～]*～|-[^-]*(ver\.?|version|size|edit|mix|cut)\s*-)\s*$`)
+
+// SongKey makes artist and title comparable across the sets of one song:
+// lower case, letters and digits only, and the title without version tags.
+// "xi", "FREEDOM DiVE (Cut Ver.)" and "Xi", "Freedom Dive" give the same key.
+func SongKey(artist, title string) string {
+	for t := ""; t != title; {
+		t, title = title, reSuffix.ReplaceAllString(title, "")
+	}
+	return squash(artist) + "|" + squash(title)
+}
+
+func squash(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// SongBanned reports which blacklist entry matches the song. An entry
+// "Artist - Title" needs both to match; a bare "Title" matches any artist.
+func SongBanned(list []string, artist, title string) (string, bool) {
+	key := SongKey(artist, title)
+	_, titleKey, _ := strings.Cut(key, "|")
+	for _, e := range list {
+		a, t, both := strings.Cut(strings.TrimSpace(e), " - ")
+		if !both {
+			if k := SongKey("", a); k != "|" && strings.TrimPrefix(k, "|") == titleKey {
+				return e, true
+			}
+			continue
+		}
+		if k := SongKey(a, t); k != "|" && k == key {
+			return e, true
+		}
+	}
+	return "", false
 }
 
 func checkDiff(d *osumeta.Diff, mode string, rules config.Rules) *Rejection {
