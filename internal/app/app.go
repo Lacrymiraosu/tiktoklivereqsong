@@ -249,8 +249,8 @@ func (a *App) TestRequest(user, input string) (*queue.Item, *validator.Rejection
 	user = testUser(user, "dashboard")
 	input = strings.TrimSpace(input)
 	words := strings.Fields(input)
-	if len(words) >= 2 && strings.HasPrefix(words[0], "!") {
-		words = words[1:]
+	if len(words) > 0 && strings.HasPrefix(words[0], "!") {
+		words = words[1:] // "!req" alone leaves nothing, not a search for "!req"
 	}
 	o := a.parseOptions(cfg)
 	req, ok := parser.ParseInput(words, o.BareNumberAs, o.Search)
