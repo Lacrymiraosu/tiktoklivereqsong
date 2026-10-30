@@ -95,6 +95,7 @@ pre-stream check, the osu.direct fix and the update check were also run against 
 * **Song and artist bans**: rules like `artist="a_hisa"`, `title="Ghost"` or both; every set of a song (TV size, cut, remaps) is caught, also by Japanese/Thai names.
 * **Mod panel** (opt-in): a PIN-protected phone page on the home network for Next, Skip, moving/removing requests and requests on/off.
 * **Chat TTS** (opt-in): reads chat aloud in the dashboard and never reads commands (`!req …`), links or emoji; replaces TikFinity's TTS, which cannot skip them.
+* **Spoken announcements** (opt-in): "test1 ขอเพลง …", "เพลง … ยากเกินไป 7.25 ดาว", next map, results, gifts, from templates the streamer edits.
 * **Support file**: one zip (log, raw TikFinity events, settings, state) to send after a stream with a problem.
 * **Viewer roles**: followers-only mode and a higher per-user limit for subscribers (when TikFinity sends these flags).
 * **One-click bans** of a requester, map or mapper from a queue card or the rejection log.
@@ -336,6 +337,16 @@ The dashboard speaks them with the Web Speech API (`speechSynthesis`, i.e. the v
 Browsers refuse to speak without a user gesture, so the top-bar **Start TTS** button starts it per tab; only tabs where it was clicked speak,
 nothing from before the click is read, and at most five messages wait. With `tts.lang` `auto`, Thai letters pick a Thai voice, else English
 (natural/online voices first); `tts.voice` forces one. OBS records it as desktop audio. Streamers should turn TikFinity's TTS off.
+
+**Announcements** (`tts.announce`, `app/announce.go`): `App.emit` passes every feed event to `announce`, which picks the template
+(`tts.templates[event]`; a rejection uses `rejected_<code>` if that key exists, else `rejected`), fills it (`RenderAnnouncement`: unknown or
+empty placeholders vanish, `@` is dropped because voices say "at") and queues it as a `say` speech item. Events (`config.AnnounceEvents`):
+`added`, `rejected`, `rejected_stars_high|stars_low|mod_stars|too_long|duplicate|recently_played|cooldown|user_limit|search_none`, `nowplaying`
+(from `play`), `result_passed|result_failed`, `gift` (once per gift, from `gift`), `voteskip`, `auto_off` (also the closing time), `auto_on`.
+Empty or `-` is silent. Placeholders: `{user}` (display name) `{title}` `{artist}` `{mapper}` `{diff}` `{mods}` (spaced: "HD HR") `{stars}`
+`{pos}`; rejections add `validator.Rejection.Vars` (`{max}` `{min}` `{length}` `{wait}` `{n}` …) and `{reason}` (Thai when the template has
+Thai letters, else English); results `{acc}` `{rank}` `{combo}` `{misses}` `{pp}`; gifts `{coins}` `{gift}`. Defaults are
+`config.ThaiAnnouncements()`; the settings tab can load those or `EnglishAnnouncements()` (sent with `GET /api/config` as `announcements`).
 
 ### Pre-stream check
 
@@ -722,6 +733,8 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `readName` | `true` | "name says …" |
 | | `maxLength` / `cooldownSec` | `120` / `3` | Letters per message (10-500); seconds between a viewer's read messages |
 | | `followersOnly` / `blockedWords` | `false` / empty | |
+| | `announce` | `false` | Speak what happens to requests |
+| | `templates` | Thai set | Event → line with placeholders (see [Chat TTS](#chat-tts)); empty or `-` = silent |
 | hotkeys | `enabled` | `false` | Global hotkeys (work while osu! has focus) |
 | | `next` / `skip` / `removeLast` / `toggleRequests` | `Ctrl+Alt+N` / `Ctrl+Alt+S` / `Ctrl+Alt+Backspace` / `Ctrl+Alt+R` | |
 | test | `dryRun` | `false` | Next/Play never open osu! or touch Songs |
@@ -886,7 +899,7 @@ Read this before changing anything.
 | Port already in use | Another copy is running, or change `dashboardPort`. |
 | Phone cannot open the mod panel | Same Wi-Fi (not a guest network, which isolates devices)? Allowed in the Windows firewall for **private** networks? Windows network profile set to Private? Use an address from Settings → Mod panel. |
 | Windows says the app is unsafe / "Windows protected your PC" | That is SmartScreen warning about an **unsigned** program, usually one that was downloaded or received in a zip. Windows Defender finds nothing in it. Click **More info → Run anyway**, or right-click `osureq.exe` → **Properties** → tick **Unblock**. Only a code-signing certificate removes the warning for everyone. |
-| TikFinity's TTS reads `!req 123…` | Turn TikFinity's TTS off and use **Settings → Chat TTS**, which never reads commands. |
+| TikFinity's TTS reads `!req 123…` | Turn TikFinity's TTS off and use **Settings → TTS**, which never reads commands. |
 | Chat TTS is silent | Press **Start TTS** at the top (browsers need a click). No Thai voice: Windows Settings → Time & language → Speech → add Thai, or use Edge. |
 | Anything else | `osureq.log` next to the exe. |
 
@@ -896,7 +909,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
-| unreleased | branch `feature/stream-tools` | Chat TTS without commands; artist/title ban rules (`artist="…"`); search ignores tag-only matches; requests with mods; support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
+| unreleased | branch `feature/stream-tools` | Spoken announcements from templates; chat TTS without commands; artist/title ban rules (`artist="…"`); search ignores tag-only matches; requests with mods; support file; song bans; fair queue; automatic open/close of requests; mod panel on a phone (LAN + PIN); song-name requests (catboy search); `!pos`, `!np`, `!voteskip`; pre-stream check; session summary; gift-only requests; viewers' TikTok pictures; stable/lazer detection from tosu; update check; **fix:** osu.direct downloads (redirect to `storage.osu.direct` was refused) and every redirect hop is checked; tests for `server` |
 | 1.0.0 | `d106295` | First version: TikFinity chat, parser, osu! metadata, validation, queue, mirrors + MD5, import modes, preload, dashboard (EN/TH) and overlay, hotkeys, tests |
 | 1.0.1 | `9fabc98` | The map being played no longer counts toward the per-user limit; exempt users; bare number retried as set ID; osu! folder from the registry and `BeatmapDirectory`; pop-up on rejected chat requests |
 | 1.1.0 | `15f15b3` | Test panel: simulated chat, quick add, dry run, clear test data |
