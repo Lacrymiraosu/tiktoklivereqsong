@@ -133,6 +133,13 @@ func (a *App) infoAllowed(user, code string) bool {
 	if now.Sub(a.infoAt[key]) < infoEvery {
 		return false
 	}
+	if len(a.infoAt) > 500 { // a busy chat: forget answers that no longer limit anyone
+		for k, at := range a.infoAt {
+			if now.Sub(at) >= infoEvery {
+				delete(a.infoAt, k)
+			}
+		}
+	}
 	a.infoAt[key] = now
 	return true
 }
