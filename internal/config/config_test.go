@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -159,5 +160,67 @@ func TestAutoUpdate(t *testing.T) {
 	os.WriteFile(path, []byte(`{"connection":{"autoUpdate":false}}`), 0o644)
 	if s, _ := Load(path); s.Get().Connection.AutoUpdate {
 		t.Error("a streamer who turned automatic updates off must keep them off")
+	}
+}
+
+func TestOldSourcesGetNewMirrors(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(path, []byte(`{"download":{"sources":[
+		{"name":"catboy","enabled":false,"url":"https://catboy.best/d/{id}","timeoutSec":30},
+		{"name":"osu.direct","enabled":true,"url":"https://osu.direct/api/d/{id}","timeoutSec":60},
+		{"name":"official","enabled":true,"url":"https://osu.ppy.sh/beatmapsets/{id}/download","timeoutSec":180,"official":true}]}}`), 0o644)
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, src := range s.Get().Download.Sources {
+		names = append(names, src.Name)
+		if src.Name == "catboy" && (src.Enabled || src.TimeoutSec != 30) {
+			t.Errorf("a mirror the streamer had keeps their settings: %+v", src)
+		}
+	}
+	if got := strings.Join(names, " "); got != "hinai nekoha beatconnect osu.direct catboy sayobot official" {
+		t.Errorf("sources = %s", got)
+	}
+
+	// A list saved after that is what the streamer chose: a mirror they
+	// removed stays removed.
+	c := s.Get()
+	c.Download.Sources = c.Download.Sources[3:]
+	c.Download.SourcesRev = 0
+	if err := s.Set(c); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Load(path)
+	if err != nil || len(s.Get().Download.Sources) != 4 {
+		t.Errorf("a saved list should not get mirrors back: %v %+v", err, s.Get().Download.Sources)
+	}
+}
+
+func TestHostAllowed(t *testing.T) {
+	for u, want := range map[string]bool{
+		"https://mirror.hinamizawa.ai/api/v1/hinai/d/1":                true,
+		"https://mirror.nekoha.moe/api/download/1?noVideo=1":           true,
+		"https://beatconnect.io/b/1/":                                  true,
+		"https://tc1.sayobot.cn:25225/beatmaps/0/1/novideo?filename=x": true,
+		"https://sayobot.cn.evil.example/x":                            false,
+		"https://evilsayobot.cn/x":                                     false,
+		"https://.sayobot.cn/x":                                        false,
+		"https://osu.ppy.sh@evil.example/x":                            false,
+		"https://osu.ppy.sh:abc/x":                                     false,
+		"http://catboy.best/d/1":                                       false,
+		"https://api.nerinyan.moe/d/1":                                 false,
+	} {
+		if got := HostAllowed(u); got != want {
+			t.Errorf("HostAllowed(%q) = %v, want %v", u, got, want)
+		}
+	}
+	for _, s := range DefaultSources() {
+		for _, u := range []string{s.URL, s.NoVideoURL} {
+			if u != "" && !HostAllowed(strings.ReplaceAll(u, "{id}", "1")) {
+				t.Errorf("default source %s uses a host that is not allowed: %s", s.Name, u)
+			}
+		}
 	}
 }

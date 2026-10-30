@@ -197,3 +197,65 @@ func TestOsuDirectStorageAllowed(t *testing.T) {
 		t.Error("only the exact host is allowed")
 	}
 }
+
+func TestMirrorErrors(t *testing.T) {
+	var limited atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/banned/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"error":"you have been banned from our services"}`))
+	})
+	mux.HandleFunc("/limited/", func(w http.ResponseWriter, r *http.Request) {
+		limited.Add(1)
+		w.Header().Set("Retry-After", "300")
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+	mux.HandleFunc("/good/", func(w http.ResponseWriter, r *http.Request) { w.Write(osz(good)) })
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	cfg := config.Default()
+	cfg.Download.Sources = []config.Source{
+		{Name: "banned", Enabled: true, URL: srv.URL + "/banned/{id}", TimeoutSec: 5},
+		{Name: "limited", Enabled: true, URL: srv.URL + "/limited/{id}", TimeoutSec: 5},
+		{Name: "good", Enabled: true, URL: srv.URL + "/good/{id}", TimeoutSec: 5},
+	}
+	d := New(func() config.Config { return cfg }, t.TempDir(), func(string) error { return nil })
+	d.Allow = func(u string) bool { return strings.HasPrefix(u, srv.URL) }
+	var last []queue.Attempt
+	for _, id := range []int{9, 10} {
+		if _, err := d.Get(context.Background(), Job{SetID: id, Ref: ref()}, func(a []queue.Attempt) { last = a }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !strings.Contains(last[0].Message, "HTTP 403: you have been banned") {
+		t.Errorf("the mirror's own words should show: %q", last[0].Message)
+	}
+	if limited.Load() != 1 || !strings.Contains(last[1].Message, "resting") {
+		t.Errorf("after HTTP 429 the mirror rests for its Retry-After: %d requests, %q", limited.Load(), last[1].Message)
+	}
+}
+
+func TestContentRemovedStops(t *testing.T) {
+	var asked atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/hinai/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"success":false,"code":"content_removed","error":"removed"}`))
+	})
+	mux.HandleFunc("/next/", func(w http.ResponseWriter, r *http.Request) { asked.Add(1); w.Write(osz(good)) })
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	cfg := config.Default()
+	cfg.Download.Sources = []config.Source{
+		{Name: "hinai", Enabled: true, URL: srv.URL + "/hinai/{id}", TimeoutSec: 5},
+		{Name: "next", Enabled: true, URL: srv.URL + "/next/{id}", TimeoutSec: 5},
+	}
+	d := New(func() config.Config { return cfg }, t.TempDir(), func(string) error { return nil })
+	d.Allow = func(u string) bool { return strings.HasPrefix(u, srv.URL) }
+	_, err := d.Get(context.Background(), Job{SetID: 9, Ref: ref()}, nil)
+	if err == nil || !strings.Contains(err.Error(), "rights holder") || asked.Load() != 0 {
+		t.Errorf("a map taken down for its rights holder is not fetched elsewhere: %v, next asked %d times", err, asked.Load())
+	}
+}

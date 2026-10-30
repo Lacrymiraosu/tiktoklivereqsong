@@ -4,7 +4,9 @@ package downloader
 
 import (
 	"bytes"
+	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -49,10 +51,15 @@ type Downloader struct {
 
 	mu       sync.Mutex
 	verified map[string]bool
+	resting  map[string]time.Time // source name → when it may be asked again after HTTP 429
 }
 
+// errRemoved is a map taken down at the rights holder's request (hinai's
+// 404 "content_removed"): no other mirror should be asked for it.
+var errRemoved = errors.New("removed at the rights holder's request")
+
 func New(cfg func() config.Config, cacheDir string, openURL func(string) error) *Downloader {
-	d := &Downloader{Cfg: cfg, CacheDir: cacheDir, OpenURL: openURL, Allow: config.HostAllowed, verified: map[string]bool{}}
+	d := &Downloader{Cfg: cfg, CacheDir: cacheDir, OpenURL: openURL, Allow: config.HostAllowed, verified: map[string]bool{}, resting: map[string]time.Time{}}
 	d.HTTP = &http.Client{
 		// Every hop must stay on a whitelisted host, not only the last one.
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -144,6 +151,11 @@ func (d *Downloader) Get(ctx context.Context, job Job, progress Progress) (Outco
 		if src.Official && !check {
 			continue // without MD5 checks the official site is never used
 		}
+		if wait := d.restingFor(src.Name); wait > 0 {
+			attempts = append(attempts, queue.Attempt{Source: src.Name, Status: "failed", Message: fmt.Sprintf("rate limited, resting %ds", int(wait.Seconds())+1)})
+			report()
+			continue
+		}
 		attempts = append(attempts, queue.Attempt{Source: src.Name, Status: "running"})
 		i := len(attempts) - 1
 		report()
@@ -166,6 +178,9 @@ func (d *Downloader) Get(ctx context.Context, job Job, progress Progress) (Outco
 		if err != nil {
 			attempts[i].Status, attempts[i].Message = "failed", err.Error()
 			report()
+			if errors.Is(err, errRemoved) {
+				return Outcome{}, err
+			}
 			continue
 		}
 		if !check {
@@ -251,7 +266,7 @@ func (d *Downloader) fetch(ctx context.Context, src config.Source, setID int, no
 		return nil, fmt.Errorf("redirected to a host that is not whitelisted: %s", resp.Request.URL.Host)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return nil, d.httpError(src.Name, resp)
 	}
 	if resp.ContentLength > maxOsz {
 		return nil, errors.New("file is too large")
@@ -294,6 +309,48 @@ func (d *Downloader) fetch(ctx context.Context, src config.Source, setID int, no
 		return nil, notZip(buf.Bytes())
 	}
 	return buf.Bytes(), nil
+}
+
+// httpError explains a refused download with the mirror's own words
+// ("HTTP 403: you have been banned…"). After HTTP 429 the mirror rests
+// for its Retry-After (60 seconds when it gives none).
+func (d *Downloader) httpError(name string, resp *http.Response) error {
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+	var body struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+		Code    string `json:"code"`
+	}
+	json.Unmarshal(b, &body)
+	if resp.StatusCode == http.StatusNotFound && body.Code == "content_removed" {
+		return errRemoved
+	}
+	msg := fmt.Sprintf("HTTP %d", resp.StatusCode)
+	if resp.StatusCode == http.StatusTooManyRequests {
+		wait := 60 * time.Second
+		if n, err := strconv.Atoi(strings.TrimSpace(resp.Header.Get("Retry-After"))); err == nil && n > 0 {
+			wait = min(time.Duration(n)*time.Second, time.Hour)
+		}
+		d.mu.Lock()
+		d.resting[name] = time.Now().Add(wait)
+		d.mu.Unlock()
+		msg += fmt.Sprintf(" (rate limited, resting %ds)", int(wait.Seconds()))
+	}
+	why := cmp.Or(body.Error, body.Message)
+	if len(why) > 120 {
+		why = why[:120] + "…"
+	}
+	if why != "" {
+		msg += ": " + why
+	}
+	return errors.New(msg)
+}
+
+// restingFor is how long a rate-limited source still rests.
+func (d *Downloader) restingFor(name string) time.Duration {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return time.Until(d.resting[name])
 }
 
 func notZip(b []byte) error {
@@ -519,7 +576,7 @@ func (d *Downloader) probe(ctx context.Context, src config.Source, setID int) er
 		return fmt.Errorf("redirected to a host that is not whitelisted: %s", resp.Request.URL.Host)
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
-		return fmt.Errorf("HTTP %d", resp.StatusCode)
+		return d.httpError(src.Name, resp)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 1024)) // mirrors that ignore Range are cut off here
 	if err != nil && len(b) < 4 {

@@ -25,7 +25,7 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 
 * Takes requests from TikTok chat through TikFinity, as IDs, any common osu! link or a **song name** (`!req freedom dive`), optionally **with mods** (`!req 2096297 HDHR`)
 * Rules: star range (per mode if you like), length, mode, ranked status, requests per viewer, cooldown, duplicates, bans, followers only
-* Downloads from mirrors (catboy.best → osu.direct → the official site) and checks the MD5 against the current version on osu!
+* Downloads from mirrors (hinai → Nekoha → beatconnect → osu.direct → catboy.best → Sayobot → the official site; a mirror that fails hands over to the next) and checks the MD5 against the current version on osu!
 * Opens the map in osu! (stable and lazer) when you press **Next**, or automatically once the previous song has ended (seen through tosu)
 * All four modes: osu!, taiko, catch and mania (converts use osu!'s star rating for that mode)
 * The overlay tells viewers whether a request was added or why it was rejected, and shows now playing, the upcoming queue and play results
@@ -80,7 +80,7 @@ Every command name can be changed in the settings.
 ```
 TikTok chat ──► TikFinity ──WebSocket──► osureq ──► osu.ppy.sh (map info, MD5)
                                            │
-                                           ├──► catboy.best / osu.direct (download .osz) ──► cache\
+                                           ├──► mirrors: hinai, Nekoha, … (download .osz) ──► cache\
                                            ├──► osu! (opens the .osz or copies it into Songs)
            tosu ──WebSocket (game state)──►│
                                            └──► dashboard + overlay (http://127.0.0.1:21280)
@@ -90,7 +90,7 @@ TikTok chat ──► TikFinity ──WebSocket──► osureq ──► osu.pp
    osureq only looks at messages that start with a command such as `!req`.
 2. **Requester checks**: ban list, full queue, requests per viewer and cooldown, all without network access.
 3. **Map info**: the map's page on osu.ppy.sh is read (no API key needed) for title, stars, length, mode, status and the MD5 of every difficulty.
-   A song name is first searched on catboy.best; the best title matches (most played first) are tried until one passes the rules.
+   A song name is first searched on the mirrors (hinai, then Nekoha, osu.direct, catboy.best if one fails); the best title matches (most played first) are tried until one passes the rules.
 4. **Map rules**: stars, length, mode, status, duplicates and recently played maps.
    A rejected request shows its reason on the overlay, because TikFinity cannot write back into TikTok chat.
 5. **Queue**: saved in `queue.json`, so it survives a restart. Viewers whose gifts add up to enough coins get priority (when turned on).
@@ -112,7 +112,7 @@ You need [Go](https://go.dev/dl/) 1.23 or newer on Windows (`winget install GoLa
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
 cd tiktoklivereqsong
-.\build.ps1 -Version 1.4.2
+.\build.ps1 -Version 1.4.3
 ```
 
 `build.ps1` runs `go vet` and `go test`, generates the Windows resources (icon, name, version) and builds `dist\osureq.exe`.
@@ -120,19 +120,19 @@ If PowerShell refuses to run scripts, build by hand:
 
 ```powershell
 $env:CGO_ENABLED = "0"
-go run ./tools/winres -version 1.4.2
-go build -trimpath -ldflags "-X main.version=1.4.2" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.3
+go build -trimpath -ldflags "-X main.version=1.4.3" -o dist\osureq.exe .
 ```
 
 ### Automatic builds and releases (GitHub Actions)
 
 * Every push to `main` and every pull request is vetted, tested and built; the exe stays on the Actions page for 14 days.
 * To release a new version, update the version number in `build.ps1` (and the changelog) and merge it into `main`. Then either
-  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.4.2`) and press **Run workflow**, or push a tag:
+  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.4.3`) and press **Run workflow**, or push a tag:
 
   ```powershell
-  git tag v1.4.2
-  git push origin v1.4.2
+  git tag v1.4.3
+  git push origin v1.4.3
   ```
 
   GitHub builds with the tag's version and publishes a release with `osureq-<version>-windows-x64.zip` (the exe, `LICENSE` and `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
@@ -144,7 +144,7 @@ Beatmap data, covers and audio previews come from osu! (ppy Pty Ltd). Beatmaps b
 * [osu!](https://osu.ppy.sh) by ppy Pty Ltd: the game
 * [TikFinity](https://tikfinity.zerody.one/) by zerody: chat and gifts from TikTok LIVE
 * [tosu](https://github.com/tosuapp/tosu): live osu! game state
-* Beatmap mirrors: [catboy.best](https://catboy.best) and [osu.direct](https://osu.direct), where the `.osz` files are downloaded from (catboy.best also powers the song search)
+* Beatmap mirrors, where the `.osz` files are downloaded from: [hinai](https://mirror.hinamizawa.ai), [Nekoha](https://mirror.nekoha.moe), [beatconnect](https://beatconnect.io), [osu.direct](https://osu.direct), [catboy.best](https://catboy.best) and [Sayobot](https://osu.sayobot.cn) (hinai, Nekoha, osu.direct and catboy.best also power the song search)
 * Go libraries: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys),
   [tc-hib/winres](https://github.com/tc-hib/winres), [nfnt/resize](https://github.com/nfnt/resize), [golang.org/x/image](https://pkg.go.dev/golang.org/x/image)
 * Fonts: [Varela Round](https://fonts.google.com/specimen/Varela+Round) and [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) from Google Fonts
