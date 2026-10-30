@@ -99,7 +99,7 @@ You need [Go](https://go.dev/dl/) 1.23 or newer on Windows (`winget install GoLa
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
 cd tiktoklivereqsong
-.\build.ps1 -Version 1.3.7
+.\build.ps1 -Version 1.4.0
 ```
 
 `build.ps1` runs `go vet` and `go test`, generates the Windows resources (icon, name, version) and builds `dist\osureq.exe`.
@@ -107,8 +107,8 @@ If PowerShell refuses to run scripts, build by hand:
 
 ```powershell
 $env:CGO_ENABLED = "0"
-go run ./tools/winres -version 1.3.7
-go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.0
+go build -trimpath -ldflags "-X main.version=1.4.0" -o dist\osureq.exe .
 ```
 
 ### Automatic builds and releases (GitHub Actions)
@@ -117,8 +117,8 @@ go build -trimpath -ldflags "-X main.version=1.3.7" -o dist\osureq.exe .
 * To release a new version, update the version number in `build.ps1`, then push a tag:
 
   ```powershell
-  git tag v1.3.7
-  git push origin v1.3.7
+  git tag v1.4.0
+  git push origin v1.4.0
   ```
 
   GitHub builds with the tag's version and publishes a release with `osureq-<version>-windows-x64.zip` (the exe, `LICENSE` and `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
