@@ -85,3 +85,53 @@ func TestClearTestRemovesTestCredits(t *testing.T) {
 		t.Error("real credits must stay")
 	}
 }
+
+func TestRequestCoins(t *testing.T) {
+	q := openQ(t)
+	now := time.Now()
+	if q.TakeRequest("fan", now) {
+		t.Fatal("no gift, no request")
+	}
+	if n := q.AddRequestCoins("fan", 20, 30, time.Hour, false, now); n != 0 {
+		t.Fatalf("20 of 30 coins earned %d", n)
+	}
+	if n := q.AddRequestCoins("Fan", 70, 30, time.Hour, false, now); n != 3 {
+		t.Fatalf("90 coins in total should be 3 requests, got %d", n)
+	}
+	if r, c := q.Requests("fan", now); r != 3 || c != 0 {
+		t.Errorf("requests=%d coins=%d", r, c)
+	}
+	if !q.TakeRequest("FAN", now) {
+		t.Fatal("a paid request should be usable")
+	}
+	q.RefundRequest("fan")
+	if r, _ := q.Requests("fan", now); r != 3 {
+		t.Errorf("refund should give it back: %d", r)
+	}
+	if q.TakeRequest("fan", now.Add(2*time.Hour)) {
+		t.Error("paid requests expire with creditMinutes")
+	}
+
+	// priority expiring must not wipe paid requests
+	q.AddCoins("fan", 30, 30, time.Minute, false, now)
+	q.AddRequestCoins("fan", 30, 30, 3*time.Hour, false, now.Add(2*time.Hour))
+	q.AddCoins("fan", 5, 30, time.Minute, false, now.Add(2*time.Hour))
+	if r, _ := q.Requests("fan", now.Add(2*time.Hour)); r != 1 {
+		t.Errorf("paid request lost when priority expired: %d", r)
+	}
+}
+
+func TestClearTestKeepsRealCredit(t *testing.T) {
+	q := openQ(t)
+	now := time.Now()
+	q.AddRequestCoins("fan", 60, 30, time.Hour, false, now) // real: 2 paid requests
+	q.AddRequestCoins("fan", 30, 30, time.Hour, true, now)  // the streamer tests with the same name
+	q.AddCoins("tester", 30, 30, time.Hour, true, now)      // only test coins
+	q.ClearTest()
+	if r, _ := q.Requests("fan", now); r != 3 {
+		t.Errorf("a real viewer's paid requests must survive Clear test data, got %d", r)
+	}
+	if tok, coins := q.Tokens("tester", now); tok != 0 || coins != 0 {
+		t.Errorf("test-only credit should be cleared: %d %d", tok, coins)
+	}
+}

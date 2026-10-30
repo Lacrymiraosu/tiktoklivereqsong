@@ -55,6 +55,11 @@ type Item struct {
 	Test      bool      `json:"test,omitempty"`      // added from the dashboard's test panel
 	Simulated bool      `json:"simulated,omitempty"` // simulated chat: counts for cooldown/limits like a real one
 	Priority  bool      `json:"priority,omitempty"`  // bought with gifts: kept at the top of the queue
+	Avatar    string    `json:"avatar,omitempty"`    // requester's TikTok picture
+	Mods      string    `json:"mods,omitempty"`      // mods the viewer asked for, e.g. "HDHR"
+	// osu!'s names in their own script, for song rules written that way
+	ArtistUnicode string `json:"artistUnicode,omitempty"`
+	TitleUnicode  string `json:"titleUnicode,omitempty"`
 
 	State     State     `json:"state"`
 	File      string    `json:"file,omitempty"`
@@ -81,6 +86,7 @@ type Result struct {
 	PP       float64 `json:"pp,omitempty"`
 	Mods     string  `json:"mods,omitempty"`
 	Misses   int     `json:"misses"`
+	Missing  string  `json:"missing,omitempty"` // requested mods that were not played
 }
 
 type Played struct {
@@ -91,6 +97,7 @@ type Played struct {
 	Result string    `json:"result"` // played | skipped
 	Test   bool      `json:"test,omitempty"`
 	Play   *Result   `json:"play,omitempty"` // tosu's numbers, when the map was played
+	Mods   string    `json:"mods,omitempty"` // requested mods
 }
 
 type Rejected struct {
@@ -112,6 +119,9 @@ type data struct {
 	// users whose cooldown was set by a simulated chat, reset by ClearTest
 	TestUsers map[string]bool    `json:"testUsers,omitempty"`
 	Credits   map[string]*Credit `json:"credits,omitempty"` // gift coins and priority tokens per user
+	// The stream session the summary covers (see summary.go).
+	SessionStart    time.Time `json:"sessionStart"`
+	SessionRejected int       `json:"sessionRejected"`
 }
 
 // Snapshot is a deep enough copy for rendering.
@@ -155,6 +165,7 @@ func Open(path string) (*Queue, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
+	q.maybeNewSession(time.Now())
 	return q, nil
 }
 
@@ -221,11 +232,23 @@ func (q *Queue) ValidationState(user string) validator.State {
 	return st
 }
 
-func (q *Queue) Add(it *Item) {
+func (q *Queue) Add(it *Item) { q.add(it, false) }
+
+// AddFair adds it at the end of its owner's round instead of the end of the
+// queue: a viewer's first waiting request is in round 1, the second in round
+// 2, and so on, so one viewer's requests take turns with everyone else's.
+// Priority requests stay on top.
+func (q *Queue) AddFair(it *Item) { q.add(it, true) }
+
+func (q *Queue) add(it *Item, fair bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	it.State = Queued
-	q.d.Items = append(q.d.Items, it)
+	at := len(q.d.Items)
+	if fair {
+		at = q.fairIndex(it.User)
+	}
+	q.d.Items = append(q.d.Items[:at], append([]*Item{it}, q.d.Items[at:]...)...)
 	if !it.Test || it.Simulated {
 		u := strings.ToLower(it.User)
 		q.d.LastReq[u] = it.AddedAt
@@ -237,6 +260,25 @@ func (q *Queue) Add(it *Item) {
 		}
 	}
 	q.changed()
+}
+
+// fairIndex is where a new request of user goes in a fair queue; q.mu must be held.
+func (q *Queue) fairIndex(user string) int {
+	rounds := map[string]int{}
+	round := make([]int, len(q.d.Items))
+	for i, it := range q.d.Items {
+		u := strings.ToLower(it.User)
+		rounds[u]++
+		round[i] = rounds[u]
+	}
+	mine := rounds[strings.ToLower(user)] + 1
+	at := 0
+	for i, it := range q.d.Items {
+		if it.Priority || round[i] <= mine {
+			at = i + 1
+		}
+	}
+	return at
 }
 
 // ClearTest removes everything the test panel created: test requests (also
@@ -289,6 +331,9 @@ func (q *Queue) ClearTest() []string {
 func (q *Queue) Reject(r Rejected) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if !r.Test {
+		q.d.SessionRejected++
+	}
 	q.d.Rejected = append([]Rejected{r}, q.d.Rejected...)
 	if len(q.d.Rejected) > maxRejected {
 		q.d.Rejected = q.d.Rejected[:maxRejected]
@@ -447,7 +492,7 @@ func (q *Queue) finishLocked(result string) {
 
 // record adds it to the history; q.mu must be held.
 func (q *Queue) record(it *Item, result string) {
-	q.d.History = append([]Played{{SetID: it.SetID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test, Play: it.Result}}, q.d.History...)
+	q.d.History = append([]Played{{SetID: it.SetID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test, Play: it.Result, Mods: it.Mods}}, q.d.History...)
 	if len(q.d.History) > maxHistory {
 		q.d.History = q.d.History[:maxHistory]
 	}
@@ -482,6 +527,27 @@ func (q *Queue) Position(id string) int {
 		}
 	}
 	return 0
+}
+
+// ByUser returns copies of user's waiting requests with their 1-based
+// positions, nearest first.
+func (q *Queue) ByUser(user string) (items []Item, pos []int) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for i, it := range q.d.Items {
+		if strings.EqualFold(it.User, user) {
+			items = append(items, copyItem(it))
+			pos = append(pos, i+1)
+		}
+	}
+	return items, pos
+}
+
+// Len is the number of waiting requests.
+func (q *Queue) Len() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return len(q.d.Items)
 }
 
 // Head returns the first item, if any.

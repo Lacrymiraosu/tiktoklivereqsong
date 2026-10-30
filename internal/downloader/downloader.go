@@ -52,19 +52,20 @@ type Downloader struct {
 }
 
 func New(cfg func() config.Config, cacheDir string, openURL func(string) error) *Downloader {
-	return &Downloader{
-		Cfg: cfg, CacheDir: cacheDir, OpenURL: openURL,
-		HTTP: &http.Client{
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) > 5 {
-					return errors.New("too many redirects")
-				}
-				return nil
-			},
+	d := &Downloader{Cfg: cfg, CacheDir: cacheDir, OpenURL: openURL, Allow: config.HostAllowed, verified: map[string]bool{}}
+	d.HTTP = &http.Client{
+		// Every hop must stay on a whitelisted host, not only the last one.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) > 5 {
+				return errors.New("too many redirects")
+			}
+			if !d.Allow(req.URL.String()) {
+				return fmt.Errorf("redirected to a host that is not whitelisted: %s", req.URL.Host)
+			}
+			return nil
 		},
-		Allow:    config.HostAllowed,
-		verified: map[string]bool{},
 	}
+	return d
 }
 
 // Trusted reports whether path is an archive this helper downloaded and checked.
@@ -451,4 +452,81 @@ func (d *Downloader) CacheSize() int64 {
 		}
 	}
 	return total
+}
+
+// ProbeResult says whether one mirror answered with an .osz.
+type ProbeResult struct {
+	Source string `json:"source"`
+	OK     bool   `json:"ok"`
+	Error  string `json:"error,omitempty"`
+	Ms     int64  `json:"ms"`
+}
+
+// Probe asks every enabled mirror (not the official site, which needs the
+// browser) for the first bytes of setID and checks that a ZIP comes back.
+// Nothing is stored; it is the pre-stream check's "can we download?".
+func (d *Downloader) Probe(ctx context.Context, setID int) []ProbeResult {
+	var srcs []config.Source
+	for _, src := range d.Cfg().Download.Sources {
+		if src.Enabled && !src.Official {
+			srcs = append(srcs, src)
+		}
+	}
+	out := make([]ProbeResult, len(srcs))
+	var wg sync.WaitGroup
+	for i, src := range srcs { // side by side: a hanging mirror must not add up
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start := time.Now()
+			err := d.probe(ctx, src, setID)
+			out[i] = ProbeResult{Source: src.Name, OK: err == nil, Ms: time.Since(start).Milliseconds()}
+			if err != nil {
+				out[i].Error = err.Error()
+			}
+		}()
+	}
+	wg.Wait()
+	return out
+}
+
+func (d *Downloader) probe(ctx context.Context, src config.Source, setID int) error {
+	u := srcURL(src, setID, d.Cfg().Download.NoVideo)
+	if !d.Allow(u) {
+		return fmt.Errorf("host not whitelisted: %s", u)
+	}
+	timeout := time.Duration(min(src.TimeoutSec, 20)) * time.Second
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "osureq/1.0 (TikTok LIVE request helper)")
+	req.Header.Set("Range", "bytes=0-1023")
+	if src.Referer != "" {
+		req.Header.Set("Referer", src.Referer)
+	}
+	resp, err := d.HTTP.Do(req)
+	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf("timed out after %s", timeout)
+		}
+		return err
+	}
+	defer resp.Body.Close()
+	if !d.Allow(resp.Request.URL.String()) {
+		return fmt.Errorf("redirected to a host that is not whitelisted: %s", resp.Request.URL.Host)
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 1024)) // mirrors that ignore Range are cut off here
+	if err != nil && len(b) < 4 {
+		return err
+	}
+	if !verifier.LooksLikeZip(b) {
+		return notZip(b)
+	}
+	return nil
 }

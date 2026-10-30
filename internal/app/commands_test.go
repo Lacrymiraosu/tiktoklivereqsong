@@ -128,3 +128,105 @@ func TestUserFacingErrorsHaveCodes(t *testing.T) {
 		}
 	}
 }
+
+func TestPosAndNowPlaying(t *testing.T) {
+	a := newTestApp(t, nil)
+	t0 := time.Now()
+	add(a, "x-1", "other", 1, t0)
+	add(a, "fan-1", "fan", 2, t0.Add(time.Second))
+	add(a, "fan-2", "fan", 3, t0.Add(2*time.Second))
+
+	if a.command(tikfinity.Chat{User: "Fan", Comment: "!pos"}, false) != cmdDone {
+		t.Fatal("!pos should be handled")
+	}
+	if f := a.Feed()[0]; f.Code != "pos" || f.Pos != 2 || f.Title != "fan-1" || f.Short != "#2, #3" {
+		t.Errorf("!pos answer: %+v", f)
+	}
+	if got := a.command(tikfinity.Chat{User: "fan", Comment: "!pos"}, false); got != cmdNothing {
+		t.Errorf("asking again right away = %q, want it ignored", got)
+	}
+	a.command(tikfinity.Chat{User: "nobody", Comment: "!pos"}, false)
+	if f := a.Feed()[0]; f.Code != "pos_none" || f.User != "nobody" {
+		t.Errorf("!pos without requests: %+v", f)
+	}
+
+	a.command(tikfinity.Chat{User: "fan", Comment: "!np"}, false)
+	if f := a.Feed()[0]; f.Code != "np_none" {
+		t.Errorf("!np with nothing playing: %+v", f)
+	}
+	a.Queue.Promote("x-1", "played")
+	a.command(tikfinity.Chat{User: "other", Comment: "!np"}, false)
+	if f := a.Feed()[0]; f.Code != "np" || f.Title != "x-1" || f.Target != "other" {
+		t.Errorf("!np answer: %+v", f)
+	}
+	if n := len(a.Notices()); n != 0 {
+		t.Errorf("info commands must stay out of Activity, got %d notice(s)", n)
+	}
+}
+
+func TestVoteSkip(t *testing.T) {
+	a := newTestApp(t, nil)
+	add(a, "song", "fan", 1, time.Now())
+	a.Queue.Promote("song", "played")
+	if got := a.command(tikfinity.Chat{User: "v1", Comment: "!voteskip"}, false); got != cmdNone {
+		t.Fatalf("vote skip is off by default: got %q, want it to fall through", got)
+	}
+
+	c := a.Cfg.Get()
+	c.Command.VoteSkipVotes = 2
+	c.Test.DryRun = true // the next song "opens" without osu!
+	a.Cfg.Set(c)
+	if a.command(tikfinity.Chat{User: "v1", Comment: "!voteskip"}, false) != cmdDone {
+		t.Fatal("first vote should count")
+	}
+	if got := a.command(tikfinity.Chat{User: "V1", Comment: "!voteskip"}, false); got != cmdNothing {
+		t.Errorf("a second vote from the same viewer = %q, want nothing", got)
+	}
+	if v := a.Votes(); v.Votes != 1 || v.Needed != 2 {
+		t.Errorf("votes = %+v", v)
+	}
+	if f := a.Feed()[0]; f.Code != "vote" || f.Short != "1/2" {
+		t.Errorf("vote event: %+v", f)
+	}
+	a.Queue.Add(&queue.Item{ID: "next", User: "other", SetID: 2, AddedAt: time.Now()})
+	a.Queue.Update("next", func(it *queue.Item) { it.State = queue.Ready })
+	a.command(tikfinity.Chat{User: "v2", Comment: "!voteskip"}, false)
+	if f := a.Feed()[0]; f.Code != "voteskip" {
+		t.Errorf("enough votes should skip: %+v", f)
+	}
+	if got := a.command(tikfinity.Chat{User: "v3", Comment: "!voteskip"}, false); got != cmdNothing {
+		t.Errorf("a vote after it passed = %q, want nothing (it must not skip a second song)", got)
+	}
+	for i := 0; i < 100; i++ {
+		if cur, _ := a.Queue.Now(); cur.ID != "song" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if cur, _ := a.Queue.Now(); cur.ID != "next" {
+		t.Fatalf("the voted song should be skipped and the next one playing, now %q", cur.ID)
+	}
+	if h := a.Queue.Snapshot().History; len(h) == 0 || h[0].Result != "skipped" {
+		t.Errorf("history should record the skip: %+v", h)
+	}
+	if v := a.Votes(); v.Votes != 0 {
+		t.Errorf("votes must reset with the song: %+v", v)
+	}
+}
+
+func TestAvatarsReachFeedAndQueue(t *testing.T) {
+	a := newTestApp(t, func(c *config.Config) { c.Gifts.RequestCoins = 10 })
+	const pic = "https://p16-sign-va.tiktokcdn.com/a.jpeg"
+	a.HandleGift(tikfinity.Gift{User: "Fan", Coins: 10, Avatar: pic})
+	if f := a.Feed()[0]; f.Avatar != pic {
+		t.Errorf("gift pop-up should carry the picture: %+v", f)
+	}
+	a.command(tikfinity.Chat{User: "fan", Comment: "!pos"}, false)
+	if f := a.Feed()[0]; f.Code != "pos_none" || f.Avatar != pic {
+		t.Errorf("later pop-ups for the same viewer reuse it: %+v", f)
+	}
+	a.command(tikfinity.Chat{User: "stranger", Comment: "!pos"}, false)
+	if f := a.Feed()[0]; f.Avatar != "" {
+		t.Errorf("unknown viewers have no picture: %+v", f)
+	}
+}

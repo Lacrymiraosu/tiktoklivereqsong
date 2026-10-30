@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
@@ -35,13 +36,16 @@ func ref() verifier.Reference {
 }
 
 // Two fake mirrors: the first serves an outdated copy, the second the right one.
-func setup(t *testing.T, mutate func(*config.Config)) (*Downloader, *int) {
-	hits := 0
+func setup(t *testing.T, mutate func(*config.Config)) (*Downloader, *atomic.Int32) {
+	var hits atomic.Int32 // mirrors are probed side by side
 	mux := http.NewServeMux()
-	mux.HandleFunc("/stale/", func(w http.ResponseWriter, r *http.Request) { hits++; w.Write(osz(stale)) })
-	mux.HandleFunc("/good/", func(w http.ResponseWriter, r *http.Request) { hits++; w.Write(osz(good)) })
-	mux.HandleFunc("/html/", func(w http.ResponseWriter, r *http.Request) { hits++; w.Write([]byte("<html>rate limited</html>")) })
-	mux.HandleFunc("/404/", func(w http.ResponseWriter, r *http.Request) { hits++; http.NotFound(w, r) })
+	mux.HandleFunc("/stale/", func(w http.ResponseWriter, r *http.Request) { hits.Add(1); w.Write(osz(stale)) })
+	mux.HandleFunc("/good/", func(w http.ResponseWriter, r *http.Request) { hits.Add(1); w.Write(osz(good)) })
+	mux.HandleFunc("/html/", func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.Write([]byte("<html>rate limited</html>"))
+	})
+	mux.HandleFunc("/404/", func(w http.ResponseWriter, r *http.Request) { hits.Add(1); http.NotFound(w, r) })
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -83,10 +87,10 @@ func TestCacheHitSkipsNetwork(t *testing.T) {
 	if _, err := d.Get(context.Background(), Job{SetID: 9, Ref: ref()}, nil); err != nil {
 		t.Fatal(err)
 	}
-	before := *hits
+	before := hits.Load()
 	out, err := d.Get(context.Background(), Job{SetID: 9, Ref: ref()}, nil)
-	if err != nil || out.Source != "cache" || *hits != before {
-		t.Fatalf("expected cache hit, got %+v err=%v hits %d->%d", out, err, before, *hits)
+	if err != nil || out.Source != "cache" || hits.Load() != before {
+		t.Fatalf("expected cache hit, got %+v err=%v hits %d->%d", out, err, before, hits.Load())
 	}
 }
 
@@ -130,5 +134,66 @@ func TestCleanupKeepsReferencedFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(keep); err != nil {
 		t.Error("referenced file was deleted")
+	}
+}
+
+func TestProbe(t *testing.T) {
+	d, _ := setup(t, func(c *config.Config) {
+		c.Download.Sources = append(c.Download.Sources,
+			config.Source{Name: "off", Enabled: false, URL: c.Download.Sources[0].URL, TimeoutSec: 5},
+			config.Source{Name: "official", Enabled: true, Official: true, URL: c.Download.Sources[0].URL, TimeoutSec: 5})
+	})
+	got := d.Probe(context.Background(), 9)
+	want := map[string]bool{"html": false, "404": false, "stale": true, "good": true}
+	if len(got) != len(want) {
+		t.Fatalf("disabled and official sources must be skipped: %+v", got)
+	}
+	for _, r := range got {
+		if r.OK != want[r.Source] {
+			t.Errorf("%s: ok=%v (%s)", r.Source, r.OK, r.Error)
+		}
+	}
+	if entries, _ := os.ReadDir(d.CacheDir); len(entries) != 0 {
+		t.Errorf("a probe must not store anything: %v", entries)
+	}
+}
+
+func TestRedirects(t *testing.T) {
+	foreign := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("a non-whitelisted host must never be requested")
+	}))
+	t.Cleanup(foreign.Close)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/d/", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/storage/9.osz", http.StatusFound) })
+	mux.HandleFunc("/storage/", func(w http.ResponseWriter, r *http.Request) { w.Write(osz(good)) })
+	mux.HandleFunc("/evil/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, foreign.URL+"/x.osz", http.StatusFound)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	cfg := config.Default()
+	cfg.Download.Sources = []config.Source{
+		{Name: "evil", Enabled: true, URL: srv.URL + "/evil/{id}", TimeoutSec: 5},
+		{Name: "mirror", Enabled: true, URL: srv.URL + "/api/d/{id}", TimeoutSec: 5},
+	}
+	d := New(func() config.Config { return cfg }, t.TempDir(), func(string) error { return nil })
+	d.Allow = func(u string) bool { return strings.HasPrefix(u, srv.URL) }
+	var last []queue.Attempt
+	out, err := d.Get(context.Background(), Job{SetID: 9, Ref: ref()}, func(a []queue.Attempt) { last = a })
+	if err != nil || out.Source != "mirror" {
+		t.Fatalf("a redirect on the whitelist should work: %+v %v", out, err)
+	}
+	if last[0].Status != "failed" || !strings.Contains(last[0].Message, "not whitelisted") {
+		t.Errorf("redirect off the whitelist: %+v", last[0])
+	}
+}
+
+func TestOsuDirectStorageAllowed(t *testing.T) {
+	if !config.HostAllowed("https://storage.osu.direct/osudirect/osz/1.osz?X-Amz-Expires=15") {
+		t.Error("osu.direct serves its downloads from storage.osu.direct")
+	}
+	if config.HostAllowed("https://storage.osu.direct.evil.example/x") {
+		t.Error("only the exact host is allowed")
 	}
 }

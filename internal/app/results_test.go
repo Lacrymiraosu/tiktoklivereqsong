@@ -71,3 +71,27 @@ func TestQuitBeforeScoringLeavesNoResult(t *testing.T) {
 		t.Errorf("an instant quit should end the map without a result: %+v", now)
 	}
 }
+
+func TestDetectGameFromTosu(t *testing.T) {
+	a := newTestApp(t, nil)
+	a.OnGame(tosu.Game{Client: "lazer", State: "menu"})
+	if g := a.Cfg.Get().Osu.Game; g != "lazer" {
+		t.Fatalf("game = %s, want lazer", g)
+	}
+	if n := a.Notices(); len(n) != 1 || n[0].Key != "gameDetected" {
+		t.Errorf("the switch should be noted once: %+v", n)
+	}
+	a.OnGame(tosu.Game{Client: "lazer", State: "play"})
+	a.OnGame(tosu.Game{Client: "", State: "menu"})
+	if len(a.Notices()) != 1 || a.Cfg.Get().Osu.Game != "lazer" {
+		t.Error("same or unknown client must not switch again")
+	}
+
+	c := a.Cfg.Get()
+	c.Osu.DetectGame = false
+	a.Cfg.Set(c)
+	a.OnGame(tosu.Game{Client: "stable"})
+	if a.Cfg.Get().Osu.Game != "lazer" {
+		t.Error("detection turned off must leave the setting alone")
+	}
+}

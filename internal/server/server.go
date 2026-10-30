@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,8 +20,10 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/app"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/support"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/update"
 	"github.com/coder/websocket"
 )
 
@@ -32,10 +35,12 @@ type Server struct {
 	Version string
 	Extra   func() map[string]any // platform info (hotkey errors, paths)
 	Quit    func()                // stops the helper (dashboard's Quit button)
+	LogPath string                // osureq.log, for the support file
 
-	mu      sync.Mutex
-	clients map[chan []byte]bool
-	pushT   *time.Timer
+	mu       sync.Mutex
+	clients  map[chan []byte]bool
+	overlays int // connected OBS overlays (the overlay connects with ?client=overlay)
+	pushT    *time.Timer
 }
 
 func New(a *app.App, version string) *Server {
@@ -55,12 +60,20 @@ type State struct {
 	CacheMB        float64                       `json:"cacheMb"`
 	Overlay        config.Overlay                `json:"overlay"`
 	Command        string                        `json:"command"`
+	Search         bool                          `json:"search"`       // song names are requests too
+	RequestCoins   int                           `json:"requestCoins"` // gift coins per request; 0 = free
 	Lang           string                        `json:"lang"`
 	PlayMode       string                        `json:"playMode"`
 	ViewerURL      string                        `json:"viewerUrl"`
 	Volume         int                           `json:"masterVolume"`
 	BlacklistUsers []string                      `json:"blacklistUsers"`
 	DryRun         bool                          `json:"dryRun"`
+	VoteSkip       app.VoteSkip                  `json:"voteSkip"`
+	Update         *update.Release               `json:"update,omitempty"`
+	Summary        queue.Summary                 `json:"summary"`
+	TTS            config.TTS                    `json:"tts"`
+	Speech         []app.Speech                  `json:"speech"`
+	SummaryShown   int64                         `json:"summaryShown"`
 	Raw            []tikfinity.RawEvent          `json:"raw,omitempty"`
 	FirstRaw       map[string]tikfinity.RawEvent `json:"firstRaw,omitempty"`
 	Extra          map[string]any                `json:"extra,omitempty"`
@@ -72,8 +85,9 @@ func (s *Server) state() State {
 	st := State{
 		Version: s.Version, TikFinity: s.App.TF.Status(), Tosu: s.App.Tosu.Status(), AutoGap: cfg.Queue.AutoGapSec, Queue: s.App.Queue.Snapshot(),
 		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(), Feed: s.App.Feed(),
-		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name,
+		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name, Search: cfg.Command.Search && s.App.Search != nil, RequestCoins: cfg.Gifts.RequestCoins,
 		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, Volume: cfg.MasterVolume, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
+		VoteSkip: s.App.Votes(), Update: s.App.Update(), Summary: s.App.Queue.Summary(), SummaryShown: s.App.SummaryShown(), TTS: cfg.TTS, Speech: s.App.Speech(),
 	}
 	if s.Extra != nil {
 		st.Extra = s.Extra()
@@ -114,7 +128,8 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, s.state()) })
 	mux.HandleFunc("GET /ws", s.ws)
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{"config": s.App.Cfg.Get(), "defaults": config.Default()})
+		writeJSON(w, map[string]any{"config": s.App.Cfg.Get(), "defaults": config.Default(),
+			"announcements": map[string]any{"th": config.ThaiAnnouncements(), "en": config.EnglishAnnouncements()}})
 	})
 	mux.HandleFunc("PUT /api/config", s.putConfig)
 	mux.HandleFunc("POST /api/action/{name}", s.action)
@@ -124,6 +139,8 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/simulateGift", s.simulateGift)
 	mux.HandleFunc("POST /api/ban", s.ban)
 	mux.HandleFunc("POST /api/volume", s.volume)
+	mux.HandleFunc("POST /api/preflight", s.preflight)
+	mux.HandleFunc("POST /api/support", s.supportFile)
 	return guard(port, mux)
 }
 
@@ -167,12 +184,19 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.CloseNow()
 	ch := make(chan []byte, 4)
+	overlay := r.URL.Query().Get("client") == "overlay"
 	s.mu.Lock()
 	s.clients[ch] = true
+	if overlay {
+		s.overlays++
+	}
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
 		delete(s.clients, ch)
+		if overlay {
+			s.overlays--
+		}
 		s.mu.Unlock()
 	}()
 	ctx := c.CloseRead(r.Context())
@@ -266,6 +290,10 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 			a.Say("info", "quit", nil, "quit from the dashboard")
 			go func() { time.Sleep(300 * time.Millisecond); s.Quit() }()
 		}
+	case "showSummary":
+		a.ShowSummary()
+	case "newSession":
+		a.NewSession()
 	case "toggleDryRun":
 		a.ToggleDryRun()
 	case "clearTest":
@@ -368,6 +396,38 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// preflight runs the pre-stream check (a few seconds: it asks osu! and the mirrors).
+func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
+	env := app.PreflightEnv{}
+	s.mu.Lock()
+	env.OverlayClients = s.overlays
+	s.mu.Unlock()
+	if s.Extra != nil {
+		env.HotkeyErrors, _ = s.Extra()["hotkeyErrors"].(map[string]string)
+	}
+	writeJSON(w, map[string]any{"ok": true, "checks": s.App.Preflight(r.Context(), env)})
+}
+
+// supportFile sends the support zip (POST, so other sites cannot trigger it).
+func (s *Server) supportFile(w http.ResponseWriter, r *http.Request) {
+	now := time.Now()
+	raw, first := s.App.TF.Raw()
+	home, _ := os.UserHomeDir()
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="osureq-support-`+now.Format("20060102-1504")+`.zip"`)
+	w.Header().Set("Cache-Control", "no-store")
+	cfg := s.App.Cfg.Get()
+	if cfg.Remote.PIN != "" {
+		cfg.Remote.PIN = "(hidden)" // the file is meant to be shared
+	}
+	err := support.Write(w, support.Input{Version: s.Version, LogPath: s.LogPath, Home: home, Now: now,
+		Config: cfg, State: s.state(), Raw: map[string]any{"first": first, "recent": raw}})
+	if err != nil {
+		log.Printf("support file: %v", err)
+	}
+	s.App.Say("info", "supportFile", nil, "support file saved from the dashboard")
+}
+
 // volume sets the master volume: {"volume": 0-100}.
 func (s *Server) volume(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -411,13 +471,13 @@ func (s *Server) simulateGift(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadRequest, "send {user, coins > 0}")
 		return
 	}
-	n, err := s.App.SimulateGift(body.User, body.Coins)
+	n, reqs, err := s.App.SimulateGift(body.User, body.Coins)
 	s.Push()
 	if err != nil {
 		result(w, err)
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "earned": n})
+	writeJSON(w, map[string]any{"ok": true, "earned": n, "requests": reqs})
 }
 
 func result(w http.ResponseWriter, err error) {
