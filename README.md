@@ -10,7 +10,7 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 
 ## Features
 
-* Takes requests from TikTok chat through TikFinity, as IDs, any common osu! link or a **song name** (`!req freedom dive`)
+* Takes requests from TikTok chat through TikFinity, as IDs, any common osu! link or a **song name** (`!req freedom dive`), optionally **with mods** (`!req 2096297 HDHR`)
 * Rules: star range (per mode if you like), length, mode, ranked status, requests per viewer, cooldown, duplicates, bans, followers only
 * Downloads from mirrors (catboy.best → osu.direct → the official site) and checks the MD5 against the current version on osu!
 * Opens the map in osu! (stable and lazer) when you press **Next**, or automatically once the previous song has ended (seen through tosu)
@@ -52,6 +52,7 @@ Use the **Test** panel on the dashboard to try the whole chain before you go liv
 !req https://osu.ppy.sh/beatmapsets/962870#mania/2096297
 !req https://osu.ppy.sh/beatmapsets/962870        ← whole set: the hardest difficulty that passes the rules
 !req freedom dive                                 ← song name: the most played title match that passes the rules
+!req 2096297 HDHR                                 ← with mods (a song name takes them as +HDHR at the end)
 !remove                                           ← removes your own latest request
 !pos                                              ← where are my requests in the queue
 !np                                               ← what is playing and who asked for it
