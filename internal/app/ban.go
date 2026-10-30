@@ -6,10 +6,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/validator"
 )
 
-// Ban adds a user, beatmapset or mapper to the blacklist and drops the
+// Ban adds a user, beatmapset, mapper or song ("Artist - Title") to the blacklist and drops the
 // matching waiting requests (never the one being played). It returns how
 // many requests were removed.
 func (a *App) Ban(kind, value string) (int, error) {
@@ -34,6 +36,22 @@ func (a *App) Ban(kind, value string) (int, error) {
 			cfg.Rules.BlacklistSets = append(cfg.Rules.BlacklistSets, id)
 		}
 		match = func(it queue.Item) bool { return it.SetID == id }
+	case "song", "artist":
+		// a song rule (artist="…", title="…", "Artist - Title"), or an artist from a queue card
+		if kind == "artist" {
+			value = config.SongRule{Artist: value}.String()
+		}
+		if _, ok := config.ParseSongRule(value); !ok {
+			return 0, uerr("song_rule", fmt.Sprintf("not a song rule: %q", value), map[string]string{"rule": value})
+		}
+		if !slices.ContainsFunc(cfg.Rules.BlacklistSongs, func(e string) bool { return validator.RuleKey(e) == validator.RuleKey(value) }) {
+			cfg.Rules.BlacklistSongs = append(cfg.Rules.BlacklistSongs, value)
+		}
+		rule := []string{value}
+		match = func(it queue.Item) bool {
+			_, hit := validator.SongBanned(rule, validator.Song{Artist: it.Artist, Title: it.Title, ArtistUnicode: it.ArtistUnicode, TitleUnicode: it.TitleUnicode})
+			return hit
+		}
 	case "mapper":
 		if !containsFold(cfg.Rules.BlacklistMapper, value) {
 			cfg.Rules.BlacklistMapper = append(cfg.Rules.BlacklistMapper, value)

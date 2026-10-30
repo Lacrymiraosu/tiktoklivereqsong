@@ -5,6 +5,7 @@ package tikfinity
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -40,6 +41,7 @@ type Chat struct {
 	User    string // TikTok @uniqueId
 	Nick    string
 	Comment string
+	Avatar  string // profile picture URL on TikTok's CDN, "" when not sent (see Avatar)
 	// Viewer roles, when TikFinity forwards them. Unknown is the zero value,
 	// so rules never block a viewer because a field is missing.
 	Moderator  Tri
@@ -323,15 +325,33 @@ func (c *Client) handle(b []byte, logRaw bool) {
 		return
 	}
 	c.set(func(st *Status) { st.Handshake, st.Live, st.LastEvent = true, true, time.Now() })
-	if e.Event == "gift" && c.OnGift != nil {
+	if e.Event == "gift" {
 		if g, ok := ParseGift(e.Data); ok {
-			c.OnGift(g)
+			c.keepFirst("gift (counted)", ev)
+			if c.OnGift != nil {
+				c.OnGift(g)
+			}
 		}
 	}
-	if e.Event == "chat" && c.OnChat != nil {
+	if e.Event == "chat" {
 		if ch, ok := ParseChat(e.Data); ok {
-			c.OnChat(ch)
+			if strings.HasPrefix(ch.Comment, "!") {
+				c.keepFirst("chat (command)", ev) // the event a request arrives in, with its role and picture fields
+			}
+			if c.OnChat != nil {
+				c.OnChat(ch)
+			}
 		}
+	}
+}
+
+// keepFirst stores ev under kind if nothing is stored there yet.
+func (c *Client) keepFirst(kind string, ev RawEvent) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.firstOfKind[kind]; !ok {
+		ev.Event = kind
+		c.firstOfKind[kind] = ev
 	}
 }
 
@@ -369,6 +389,7 @@ func ParseChat(data json.RawMessage) (Chat, bool) {
 	if ch.Comment == "" || ch.User == "" {
 		return Chat{}, false
 	}
+	ch.Avatar = Avatar(m)
 	// Role fields as TikTok sends them through TikFinity: isModerator,
 	// isSubscriber, followRole (0 none, 1 follower, 2 friend), or the
 	// userIdentity block. Not verified on a live stream yet.
@@ -396,10 +417,11 @@ func ParseChat(data json.RawMessage) (Chat, bool) {
 
 // Gift is a finished gift (a whole streak for streakable gifts).
 type Gift struct {
-	User  string
-	Nick  string
-	Name  string
-	Coins int // diamondCount × repeatCount
+	User   string
+	Nick   string
+	Name   string
+	Coins  int // diamondCount × repeatCount
+	Avatar string
 }
 
 // ParseGift reads a TikFinity gift event. Streakable gifts (giftType 1) send
@@ -440,11 +462,69 @@ func ParseGift(data json.RawMessage) (Gift, bool) {
 	if !ok || count < 1 {
 		count = 1
 	}
-	g := Gift{User: str("uniqueId", "username"), Nick: str("nickname"), Name: str("giftName", "name"), Coins: int(each * count)}
+	g := Gift{User: str("uniqueId", "username"), Nick: str("nickname"), Name: str("giftName", "name"), Coins: int(each * count), Avatar: Avatar(m)}
 	if g.Nick == "" {
 		g.Nick = g.User
 	}
 	return g, g.User != "" && g.Coins > 0
+}
+
+// Avatar finds the viewer's profile picture in a chat or gift event. Not
+// verified on a live stream yet: data.profilePictureUrl is what TikTok-Live-
+// Connector (same author as TikFinity) sends next to uniqueId and nickname;
+// the other shapes are TikTok's own (userDetails.profilePictureUrls,
+// user.profilePicture.url / avatarThumb.urlList). Check the raw chat event.
+func Avatar(m map[string]any) string {
+	user, _ := m["user"].(map[string]any)
+	details, _ := m["userDetails"].(map[string]any)
+	cands := []any{m["profilePictureUrl"], dig(user, "profilePictureUrl"), dig(details, "profilePictureUrls"),
+		dig(user, "profilePicture", "url"), dig(user, "profilePicture", "urls"), dig(user, "avatarThumb", "urlList"), dig(user, "avatarThumb", "url_list")}
+	for _, c := range cands {
+		switch v := c.(type) {
+		case string:
+			if u := safeAvatar(v); u != "" {
+				return u
+			}
+		case []any:
+			for _, x := range v {
+				if s, ok := x.(string); ok {
+					if u := safeAvatar(s); u != "" {
+						return u
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func dig(m map[string]any, keys ...string) any {
+	var cur any = m
+	for _, k := range keys {
+		mm, ok := cur.(map[string]any)
+		if !ok {
+			return nil
+		}
+		cur = mm[k]
+	}
+	return cur
+}
+
+// avatarHosts are TikTok's image CDNs; pictures from anywhere else are dropped.
+var avatarHosts = []string{".tiktokcdn.com", ".tiktokcdn-us.com", ".tiktokcdn-eu.com", ".ibyteimg.com"}
+
+func safeAvatar(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme != "https" || u.User != nil {
+		return ""
+	}
+	host := strings.ToLower(u.Hostname())
+	for _, h := range avatarHosts {
+		if strings.HasSuffix(host, h) {
+			return u.String()
+		}
+	}
+	return ""
 }
 
 func shortErr(err error) string {

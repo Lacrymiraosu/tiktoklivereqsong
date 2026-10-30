@@ -47,13 +47,13 @@ const T = {
   modeChat: ["Simulate chat", "จำลองแชท"],
   modeQuick: ["Quick add", "เพิ่มด่วน"],
   modeGift: ["Gift", "ของขวัญ"],
-  hintGift: ["Pretends @user sent a gift worth this many coins (gift priority must be on in Settings → Queue).", "จำลองว่า @ผู้ใช้ ส่งของขวัญมูลค่าเท่านี้เหรียญ (ต้องเปิดคิวพิเศษจากของขวัญใน ตั้งค่า → คิว)"],
+  hintGift: ["Pretends @user sent a gift worth this many coins (gift priority or gift-only requests must be on in Settings → Queue).", "จำลองว่า @ผู้ใช้ ส่งของขวัญมูลค่าเท่านี้เหรียญ (ต้องเปิดคิวพิเศษจากของขวัญ หรือขอเพลงด้วยของขวัญ ใน ตั้งค่า → คิว)"],
   giftPh: ["coins, e.g. 30", "จำนวนเหรียญ เช่น 30"],
-  giftDone: ["Gift sent: {n} priority earned", "ส่งของขวัญแล้ว: ได้คิวพิเศษ {n} ครั้ง"],
+  giftDone: ["Gift sent: {n} priority and {r} request(s) earned", "ส่งของขวัญแล้ว: ได้คิวพิเศษ {n} ครั้ง และขอเพลงได้ {r} เพลง"],
   priority: ["priority", "คิวพิเศษ"],
   dryRun: ["Dry run", "ทดลองไม่เปิดเกม"],
   clearTest: ["Clear test data", "ล้างข้อมูลทดสอบ"],
-  testPh: ["!req 2096297 or a link", "!req 2096297 หรือลิงก์"],
+  testPh: ["!req 2096297, a link or a song name", "!req 2096297, ลิงก์ หรือชื่อเพลง"],
   testUserPh: ["@user", "@ผู้ใช้"],
   testBtn: ["Send", "ส่ง"],
   hintChat: ["Sends the message as if @user typed it in TikTok chat: command, requests on/off, per-user limit, cooldown and every map rule apply. Works offline. A bare ID or link gets {cmd} added.", "ส่งข้อความเหมือน @ผู้ใช้ พิมพ์ในแชท TikTok ใช้กฎทั้งหมด (คำสั่ง เปิด/ปิดรับ จำนวนต่อคน คูลดาวน์ กฎแมพ) ใช้ได้แม้ไม่ได้ไลฟ์ ถ้าพิมพ์แค่ ID หรือลิงก์จะเติม {cmd} ให้"],
@@ -74,6 +74,13 @@ const T = {
   setupTitle: ["Before you go live", "ก่อนเริ่มไลฟ์"], hideDetails: ["hide details", "ซ่อนรายละเอียด"], showDetails: ["show details", "แสดงรายละเอียด"], banUser: ["Ban @{u}", "แบน @{u}"], banMap: ["Ban this map", "แบนแมพนี้"], banMapper: ["Ban mapper {m}", "แบนแมพเปอร์ {m}"],
   confirmBan_user: ["Ban @{v}? Their waiting requests are removed and new ones are rejected.", "แบน @{v}? คำขอที่รออยู่จะถูกลบ และคำขอใหม่จะถูกปฏิเสธ"],
   confirmBan_set: ["Ban beatmapset {v}? Waiting requests for it are removed.", "แบนเซ็ต {v}? คำขอที่รออยู่ของแมพนี้จะถูกลบ"],
+  confirmBan_song: ["Ban the song {v}? Every version of it (other sets, TV size, cut…) is rejected and waiting requests for it are removed.", "แบนเพลง {v}? ทุกเวอร์ชันของเพลงนี้ (เซ็ตอื่น TV size ตัดสั้น ฯลฯ) จะถูกปฏิเสธ และคำขอที่รออยู่จะถูกลบ"],
+  banSong: ["Ban this song (every version)", "แบนเพลงนี้ (ทุกเวอร์ชัน)"], banArtist: ["Ban every song by {a}", "แบนทุกเพลงของ {a}"],
+  confirmBan_artist: ["Ban every song by {v}? Waiting requests for them are removed. Undo in Settings → Map rules.", "แบนทุกเพลงของ {v}? คำขอที่รออยู่จะถูกลบ ยกเลิกได้ใน ตั้งค่า → กฎแมพ"],
+  n_banned_artist: ["Banned songs by {v} (removed {n})", "แบนเพลงของ {v} แล้ว (ลบ {n} รายการ)"],
+  e_song_rule: ["Song rule {rule}: write artist=\"…\", title=\"…\", Artist - Title, or a title", "กฎเพลง {rule}: เขียนเป็น artist=\"…\", title=\"…\", ศิลปิน - ชื่อเพลง หรือชื่อเพลง"],
+  n_banned_song: ["Banned the song {v} (removed {n})", "แบนเพลง {v} แล้ว (ลบ {n} รายการ)"],
+  r_song_blacklisted: ["song blacklisted", "เพลงถูกแบน"], r_artist_blacklisted: ["artist blacklisted", "ศิลปินถูกแบน"],
   confirmBan_mapper: ["Ban maps by {v}? Waiting requests for their maps are removed.", "แบนแมพของ {v}? คำขอที่รออยู่ของแมพเหล่านี้จะถูกลบ"],
   banned: ["Banned {v} · removed {n}. Undo in Settings → Map rules.", "แบน {v} แล้ว · ลบ {n} คำขอ ยกเลิกได้ใน ตั้งค่า → กฎแมพ"],
   pvPlay: ["preview", "ฟังตัวอย่าง"], pvStop: ["stop", "หยุด"], pvFail: ["Could not play the preview", "เล่นตัวอย่างเพลงไม่ได้"],
@@ -81,16 +88,16 @@ const T = {
   confirmQuit: ["Stop osureq? Requests will not be taken until you start it again.", "ปิด osureq? จะไม่รับคำขอจนกว่าจะเปิดใหม่"],
   quitDone: ["osureq stopped. You can close this tab.", "ปิด osureq แล้ว ปิดแท็บนี้ได้เลย"],
   trayHint: ["osureq runs in its CMD window, which shows the log. Closing that window also stops osureq.", "osureq ทำงานอยู่ในหน้าต่าง CMD ซึ่งแสดง log ด้วย ปิดหน้าต่างนั้นก็เป็นการปิด osureq"],
-  cmd_cmd_done: ["Command done (see Activity)", "ทำตามคำสั่งแล้ว (ดูที่ กิจกรรม)"],
+  cmd_cmd_done: ["Command done (shown on the overlay)", "ทำตามคำสั่งแล้ว (แสดงบน overlay)"],
   cmd_cmd_not_mod: ["@{u} is not a mod, so the command was ignored (as in real chat). Add mods in Settings → Command.", "@{u} ไม่ใช่ม็อด คำสั่งจึงไม่ทำงาน (เหมือนในแชทจริง) เพิ่มม็อดได้ใน ตั้งค่า → คำสั่ง"],
-  cmd_cmd_nothing: ["Nothing to do: no matching request, or nothing is playing", "ไม่มีอะไรให้ทำ: ไม่มีคำขอที่ตรงกัน หรือไม่มีเพลงที่กำลังเล่น"],
+  cmd_cmd_nothing: ["Nothing to do: no matching request, nothing is playing, already voted, or asked again too soon (20 s)", "ไม่มีอะไรให้ทำ: ไม่มีคำขอที่ตรงกัน ไม่มีเพลงที่กำลังเล่น โหวตไปแล้ว หรือถามซ้ำเร็วเกินไป (20 วินาที)"],
   giftNum: ["Enter the number of coins, e.g. 30", "ใส่จำนวนเหรียญเป็นตัวเลข เช่น 30"],
   e_busy: ["Already opening a map, try again in a moment", "กำลังเปิดแมพอยู่ ลองใหม่อีกครู่"],
   e_queue_empty: ["The queue is empty", "คิวว่างอยู่"],
   e_not_found: ["That request is no longer in the queue", "คำขอนี้ไม่อยู่ในคิวแล้ว"],
   e_get_failed: ["Could not get {title}: {msg}", "โหลด {title} ไม่ได้: {msg}"],
   e_ban_empty: ["Nothing to ban", "ไม่มีอะไรให้แบน"], e_ban_set_id: ["{v} is not a beatmapset ID", "{v} ไม่ใช่ ID เซ็ต"], e_ban_kind: ["Unknown ban type", "ไม่รู้จักประเภทการแบน"],
-  e_gifts_off: ["Gift priority is off (Settings → Queue)", "ปิดคิวพิเศษจากของขวัญอยู่ (ตั้งค่า → คิว)"],
+  e_gifts_off: ["Gift priority and gift-only requests are both off (Settings → Queue)", "ปิดทั้งคิวพิเศษและการขอเพลงด้วยของขวัญอยู่ (ตั้งค่า → คิว)"],
   e_tikfinity_missing: ["TikFinity is not installed", "ยังไม่ได้ติดตั้ง TikFinity"],
   e_tosu_no_path: ["Where tosu.exe is is not known yet: set it in Settings → Connection, or start tosu once", "ยังไม่รู้ที่อยู่ tosu.exe: ใส่ใน ตั้งค่า → การเชื่อมต่อ หรือเปิด tosu สักครั้ง"],
   e_vol_range: ["Master volume must be 0-100", "ระดับเสียงต้องอยู่ระหว่าง 0-100"],
@@ -120,6 +127,9 @@ const T = {
   mappedBy: ["mapped by", "แมพโดย"],
   reqBy: ["requested by", "ขอโดย"],
   emptyQueue: ["The queue is empty. Viewers type {cmd} <ID or link> in TikTok chat.", "คิวว่าง ผู้ชมพิมพ์ {cmd} <ID หรือลิงก์> ในแชท TikTok"],
+  emptyQueueName: ["The queue is empty. Viewers type {cmd} <song name, ID or link> in TikTok chat.", "คิวว่าง ผู้ชมพิมพ์ {cmd} <ชื่อเพลง, ID หรือลิงก์> ในแชท TikTok"],
+  r_search_none: ["no map with that name", "ไม่พบแมพชื่อนี้"], r_needs_gift: ["no gift sent", "ยังไม่ได้ส่งของขวัญ"],
+  e_request_coins: ["Coins per request cannot be negative", "เหรียญต่อคำขอติดลบไม่ได้"], r_search_error: ["song search failed", "ค้นหาเพลงไม่ได้"],
   resolving: ["looking up {n} request(s)…", "กำลังค้นหา {n} คำขอ…"],
   st_queued: ["waiting", "รอดาวน์โหลด"],
   st_downloading: ["downloading", "กำลังดาวน์โหลด"],
@@ -178,6 +188,89 @@ const T = {
   n_banned_mapper: ["Banned mapper {v} (removed {n})", "แบนแมพเปอร์ {v} แล้ว (ลบ {n} รายการ)"],
   n_skipErr: ["!skip by @{u}: {msg}", "!skip โดย @{u}: {msg}"],
   n_usedCmd: ["@{u} used {cmd}", "@{u} ใช้คำสั่ง {cmd}"],
+  updAvail: ["Update {v} ↗", "อัปเดต {v} ↗"], updTitle: ["osureq {v} is out. Opens the release page; download the zip there and replace osureq.exe.", "osureq {v} ออกแล้ว กดเพื่อเปิดหน้าดาวน์โหลด โหลด zip แล้วแทนที่ osureq.exe"],
+  n_update: ["osureq {v} is available (button at the top)", "มี osureq {v} แล้ว (ปุ่มด้านบน)"],
+  session: ["This stream", "ไลฟ์นี้"], sumShow: ["Show on overlay", "แสดงบน overlay"], sumNew: ["New session", "เริ่มรอบใหม่"],
+  sumStarted: ["Started", "เริ่ม"], sumPlayed: ["Played", "เล่นแล้ว"], sumPassed: ["{n} cleared", "ผ่าน {n}"], sumSkipped: ["Skipped", "ข้าม"],
+  sumRejected: ["Rejected", "ถูกปฏิเสธ"], sumViewers: ["Viewers who asked", "ผู้ชมที่ขอเพลง"], sumBest: ["Best play", "ผลดีที่สุด"], sumTop: ["Most requests", "ขอมากที่สุด"],
+  sumShown: ["The summary is on the overlay for 20 s", "แสดงสรุปบน overlay 20 วินาที"],
+  confirmNewSession: ["Start a new session? The summary starts counting from zero (history is kept).", "เริ่มรอบใหม่? สรุปจะเริ่มนับจากศูนย์ (ประวัติยังอยู่)"],
+  n_newSession: ["Started a new stream session", "เริ่มรอบไลฟ์ใหม่แล้ว"],
+  pfRun: ["Pre-stream check", "เช็กก่อนไลฟ์"], pfRunning: ["Checking…", "กำลังเช็ก…"], pfAllOk: ["All set. Have a good stream!", "พร้อมแล้ว ไลฟ์ให้สนุกนะ!"],
+  pfIssues: ["{n} thing(s) to look at", "มี {n} เรื่องที่ควรดู"], pfFailed: ["The check could not run", "เช็กไม่สำเร็จ"],
+  pf_tf_live: ["TikFinity: connected and live", "TikFinity: เชื่อมต่อแล้วและกำลังไลฟ์"],
+  pf_tf_ready: ["TikFinity: connected, waiting for the stream to start", "TikFinity: เชื่อมต่อแล้ว รอเริ่มไลฟ์"],
+  pf_tf_not_installed: ["TikFinity is not installed", "ยังไม่ได้ติดตั้ง TikFinity"], pf_tf_not_running: ["TikFinity is not running", "TikFinity ไม่ได้เปิดอยู่"],
+  pf_tf_connecting: ["TikFinity is running but its WebSocket does not answer (Settings → Connection)", "TikFinity เปิดอยู่แต่ WebSocket ไม่ตอบ (ตั้งค่า → การเชื่อมต่อ)"],
+  pf_tosu_ok: ["tosu: sees osu! {client}", "tosu: เห็น osu! {client}"], pf_tosu_no_game: ["tosu is running, but osu! is not open", "tosu เปิดอยู่ แต่ยังไม่ได้เปิด osu!"],
+  pf_tosu_not_running: ["tosu is not running: auto mode and results need it", "tosu ไม่ได้เปิดอยู่: โหมดอัตโนมัติและผลการเล่นต้องใช้"],
+  pf_tosu_connecting: ["tosu is running but its WebSocket does not answer (Settings → Connection)", "tosu เปิดอยู่แต่ WebSocket ไม่ตอบ (ตั้งค่า → การเชื่อมต่อ)"],
+  pf_game_lazer: ["osu! lazer: maps are opened directly, no Songs folder needed", "osu! lazer: เปิดแมพโดยตรง ไม่ต้องใช้โฟลเดอร์ Songs"],
+  pf_songs_ok: ["Songs folder: {dir}", "โฟลเดอร์ Songs: {dir}"],
+  pf_songs_fail: ["No Songs folder in {dir}: set Settings → osu! → osu! folder", "ไม่พบโฟลเดอร์ Songs ใน {dir}: ตั้งที่ ตั้งค่า → osu! → โฟลเดอร์ osu!"],
+  pf_hotkeys_off: ["Global hotkeys are off", "ปิดปุ่มลัดทั้งระบบอยู่"], pf_hotkeys_ok: ["Global hotkeys are registered", "ลงทะเบียนปุ่มลัดแล้ว"],
+  pf_hotkeys_fail: ["Hotkeys could not be registered: {keys} (another app may use them)", "ลงทะเบียนปุ่มลัดไม่ได้: {keys} (อาจมีโปรแกรมอื่นใช้อยู่)"],
+  pf_overlay_ok: ["Overlay is open ({n})", "เปิด overlay อยู่ ({n})"],
+  pf_overlay_none: ["No overlay connected: add the Browser Source in OBS or LIVE Studio", "ยังไม่มี overlay เชื่อมต่อ: เพิ่ม Browser Source ใน OBS หรือ LIVE Studio"],
+  pf_requests_off: ["Requests are off", "ปิดรับคำขออยู่"], pf_dryrun_on: ["Dry run is on: Next will not open osu!", "เปิดโหมดทดลองอยู่: กด ถัดไป จะไม่เปิด osu!"],
+  pf_testdata: ["{n} test request(s) still in the queue: Clear test data", "ยังมีคำขอทดสอบ {n} รายการในคิว: กด ล้างข้อมูลทดสอบ"],
+  pf_update: ["osureq {v} is available", "มี osureq {v} แล้ว"],
+  pf_osuweb_ok: ["osu! website answers (map info and MD5)", "เว็บ osu! ตอบปกติ (ข้อมูลแมพและ MD5)"],
+  pf_osuweb_fail: ["osu! website did not answer: requests cannot be checked", "เว็บ osu! ไม่ตอบ: ตรวจคำขอไม่ได้"],
+  pf_mirror_ok: ["Mirror {src} answers ({ms} ms)", "mirror {src} ตอบปกติ ({ms} ms)"], pf_mirror_fail: ["Mirror {src} failed", "mirror {src} ใช้ไม่ได้"],
+  pf_mirror_none: ["No download mirror is enabled (Settings → Download)", "ไม่ได้เปิด mirror สำหรับดาวน์โหลดเลย (ตั้งค่า → ดาวน์โหลด)"],
+  supportFile: ["Save support file", "บันทึกไฟล์ช่วยแก้ปัญหา"],
+  supportHint: ["After a stream with a problem, save this file (log, raw TikFinity events, settings) and send it to whoever helps you. It has viewers' names from chat.", "ถ้าไลฟ์มีปัญหา กดบันทึกไฟล์นี้ (log, อีเวนต์ดิบจาก TikFinity, การตั้งค่า) แล้วส่งให้คนที่ช่วยแก้ ในไฟล์มีชื่อผู้ชมจากแชทด้วย"],
+  supportSaved: ["Support file saved (see your Downloads)", "บันทึกไฟล์แล้ว (ดูในโฟลเดอร์ดาวน์โหลด)"],
+  n_supportFile: ["Support file saved", "บันทึกไฟล์ช่วยแก้ปัญหาแล้ว"],
+  n_autoClosed: ["Requests closed by themselves: {n} waiting", "ปิดรับคำขออัตโนมัติ: รออยู่ {n} เพลง"],
+  n_autoReopened: ["Requests open again: {n} waiting", "เปิดรับคำขออีกครั้ง: รออยู่ {n} เพลง"],
+  n_timeClosed: ["Requests closed: it is {t}", "ปิดรับคำขอแล้ว: ถึงเวลา {t}"],
+  e_auto_close: ["Auto-close: reopen must be below the close size", "ปิดอัตโนมัติ: จำนวนที่เปิดใหม่ต้องน้อยกว่าจำนวนที่ปิด"],
+  e_close_at: ["Close time must be HH:MM, e.g. 23:30", "เวลาปิดต้องเป็น HH:MM เช่น 23:30"],
+  modPanel: ["Mod panel", "แผงม็อด"], modOff: ["off", "ปิด"], modSessions: ["{n} signed in", "เข้าใช้อยู่ {n}"],
+  modUrls: ["Open on a phone on the same Wi-Fi", "เปิดบนมือถือที่ใช้ Wi-Fi เดียวกัน"], modNoUrl: ["Turn it on and save to see the address.", "เปิดแล้วกดบันทึกเพื่อดูที่อยู่"],
+  modNoLan: ["No home network address found on this PC.", "ไม่พบที่อยู่วงแลนของเครื่องนี้"],
+  genPin: ["New PIN", "สุ่ม PIN ใหม่"],
+  e_remote_port: ["Mod panel port must be 1024-65535 and not the dashboard port", "พอร์ตแผงม็อดต้องอยู่ระหว่าง 1024-65535 และไม่ซ้ำกับพอร์ตแดชบอร์ด"],
+  e_remote_pin: ["Mod panel PIN must be 6-12 digits, not all the same and not 123456-style", "PIN แผงม็อดต้องเป็นตัวเลข 6-12 หลัก ไม่ซ้ำกันทั้งหมด และไม่ใช่แบบ 123456"],
+  n_modLogin: ["Mod panel: signed in from {ip}", "แผงม็อด: มีคนเข้าใช้จาก {ip}"],
+  n_modAction: ["Mod panel ({ip}): {action}", "แผงม็อด ({ip}): {action}"],
+  modsTitle: ["Mods the viewer asked for. Select them in osu! yourself; the stars shown are without mods.", "mod ที่ผู้ชมขอ เลือกใน osu! เอง ดาวที่แสดงเป็นแบบไม่มี mod"],
+  ph_missing: ["played without {m}", "เล่นโดยไม่ได้ใส่ {m}"],
+  n_modsMissing: ["{title} was played without {missing} (asked +{mods})", "{title} เล่นโดยไม่ได้ใส่ {missing} (ขอ +{mods})"],
+  r_bad_mods: ["unknown or clashing mods", "mod ไม่ถูกต้องหรือใช้ด้วยกันไม่ได้"], r_mods_off: ["mods not allowed", "ไม่รับคำขอที่มี mod"],
+  r_mod_not_allowed: ["mod not allowed", "mod นี้ไม่อนุญาต"], r_mod_stars: ["too hard with that mod", "ยากเกินไปเมื่อใส่ mod นี้"],
+  e_hard_mod_stars: ["The star limit for DT/HR cannot be negative", "ดาวสูงสุดสำหรับ DT/HR ติดลบไม่ได้"], e_banned_mod: ["{mod} is not a mod", "{mod} ไม่ใช่ mod"],
+  tab_tts: ["TTS", "เสียงอ่าน"],
+  tplHelp: ["Placeholders: {user} {title} {artist} {mapper} {diff} {mods} {stars} {pos} {setid} ({setid_digits} reads it digit by digit); !np also {requester}; rejections also {reason} {max} {min} {length} {wait}; results {acc} {rank} {combo} {misses} {pp}; gifts {coins} {gift}. Empty or - = say nothing. A rejection without its own line uses \"Rejected (any other reason)\". Try them with Simulate chat in the Test panel.", "ตัวแปร: {user} {title} {artist} {mapper} {diff} {mods} {stars} {pos} {setid} ({setid_digits} อ่านทีละตัวเลข) !np มี {requester} การปฏิเสธมี {reason} {max} {min} {length} {wait} ผลการเล่นมี {acc} {rank} {combo} {misses} {pp} ของขวัญมี {coins} {gift} เว้นว่างหรือใส่ - = ไม่พูด การปฏิเสธที่ไม่มีบรรทัดของตัวเองจะใช้ \"ถูกปฏิเสธ (เหตุผลอื่น)\" ลองได้ด้วย จำลองแชท ในแผงทดสอบ"],
+  tplThai: ["Thai examples", "ตัวอย่างภาษาไทย"], tplEnglish: ["English examples", "ตัวอย่างภาษาอังกฤษ"], tplSilent: ["(say nothing)", "(ไม่พูด)"],
+  tpl_added: ["Request added", "ขอเพลงสำเร็จ"], tpl_rejected: ["Rejected (any other reason)", "ถูกปฏิเสธ (เหตุผลอื่น)"],
+  tpl_rejected_stars_high: ["Rejected: too hard", "ถูกปฏิเสธ: ยากเกินไป"], tpl_rejected_stars_low: ["Rejected: too easy", "ถูกปฏิเสธ: ง่ายเกินไป"],
+  tpl_rejected_mod_stars: ["Rejected: too hard with DT/HR", "ถูกปฏิเสธ: ยากเกินไปเมื่อใส่ DT/HR"], tpl_rejected_too_long: ["Rejected: too long", "ถูกปฏิเสธ: ยาวเกินไป"],
+  tpl_rejected_duplicate: ["Rejected: already in the queue", "ถูกปฏิเสธ: อยู่ในคิวแล้ว"], tpl_rejected_recently_played: ["Rejected: played recently", "ถูกปฏิเสธ: เพิ่งเล่นไป"],
+  tpl_rejected_cooldown: ["Rejected: cooldown", "ถูกปฏิเสธ: ติดคูลดาวน์"], tpl_rejected_user_limit: ["Rejected: too many requests", "ถูกปฏิเสธ: ขอเกินจำนวน"],
+  tpl_rejected_search_none: ["Rejected: no map with that name", "ถูกปฏิเสธ: ไม่พบแมพชื่อนี้"],
+  tpl_nowplaying: ["Next map opens", "เปิดเพลงถัดไป"], tpl_np: ["!np (what is playing)", "!np (เพลงที่กำลังเล่น)"], tpl_np_none: ["!np with nothing playing", "!np ตอนยังไม่มีเพลง"], tpl_pos: ["!pos (queue position)", "!pos (ลำดับคิว)"], tpl_result_passed: ["Result: cleared", "ผลการเล่น: ผ่าน"], tpl_result_failed: ["Result: failed", "ผลการเล่น: ไม่ผ่าน"],
+  tpl_gift: ["Gift", "ของขวัญ"], tpl_voteskip: ["Vote skip passed", "โหวตข้ามเพลงสำเร็จ"], tpl_auto_off: ["Requests closed (queue full or time)", "ปิดรับคำขอ (คิวเต็มหรือถึงเวลา)"], tpl_auto_on: ["Requests open again", "เปิดรับคำขออีกครั้ง"],
+  ttsStart: ["Start TTS", "เริ่มเสียงอ่าน"], ttsOn: ["TTS on", "เสียงอ่านเปิดอยู่"],
+  ttsTitleOff: ["Browsers only speak after a click: click to start TTS (chat and announcements) in this tab.", "เบราว์เซอร์จะพูดได้หลังคลิกเท่านั้น: คลิกเพื่อเริ่มเสียงอ่าน (แชทและประกาศ) ในแท็บนี้"],
+  ttsTitleOn: ["TTS is speaking in this tab (commands in chat are skipped). Click to stop.", "กำลังใช้เสียงอ่านในแท็บนี้ (ไม่อ่านคำสั่งในแชท) คลิกเพื่อหยุด"],
+  sg_chat: ["Reading chat", "อ่านแชท"], sg_voice: ["Voice", "เสียง"], sg_announce: ["Announcements", "ประกาศเหตุการณ์"],
+  modOn: ["on", "เปิดอยู่"], ttsSkip: ["Skip this message", "ข้ามข้อความนี้"],
+  ttsNoVoice: ["This browser has no voice for {lang}. In Windows: Settings → Time & language → Speech → add a voice.", "เบราว์เซอร์นี้ไม่มีเสียงภาษา {lang} ใน Windows: การตั้งค่า → เวลาและภาษา → คำพูด → เพิ่มเสียง"],
+  ttsSays_en: ["{name} says {text}", "{name} says {text}"], ttsSays_th: ["{name} บอกว่า {text}", "{name} บอกว่า {text}"],
+  ttsSample: ["This is how chat will sound.", "เสียงอ่านแชทจะเป็นแบบนี้"], ttsAuto: ["best for the language", "เลือกให้ตามภาษา"],
+  e_tts_lang: ["TTS language must be auto, Thai or English", "ภาษาอ่านแชทต้องเป็น auto ไทย หรืออังกฤษ"],
+  e_tts_range: ["TTS: speed 0.5-2, volume 0-100, max length 10-500", "อ่านแชท: ความเร็ว 0.5-2 ระดับเสียง 0-100 ความยาว 10-500"],
+  n_ttsSubUnknown: ["TTS: TikFinity did not say whether viewers are subscribers (ใจส้ม), so only your other groups are read", "TTS: TikFinity ไม่ได้บอกว่าผู้ชมเป็นสมาชิก (ใจส้ม) หรือไม่ จึงอ่านเฉพาะกลุ่มอื่นที่เลือกไว้"],
+  n_ttsFollowUnknown: ["TTS: TikFinity did not say whether viewers follow, so only your other groups are read", "TTS: TikFinity ไม่ได้บอกว่าผู้ชมกดติดตามหรือไม่ จึงอ่านเฉพาะกลุ่มอื่นที่เลือกไว้"],
+  e_tts_template: ["Unknown announcement {event}", "ไม่รู้จักประกาศ {event}"], e_tts_template_long: ["Announcement {event} is longer than 300 letters", "ประกาศ {event} ยาวเกิน 300 ตัวอักษร"],
+  e_tts_allow: ["Unknown TTS group {who}", "ไม่รู้จักกลุ่ม {who} ของเสียงอ่าน"],
+  n_gameDetected: ["tosu sees osu! {game} running, so Settings → osu! → Game is now {game}", "tosu เห็นว่าเปิด osu! {game} อยู่ จึงเปลี่ยน ตั้งค่า → osu! → เกม เป็น {game} ให้"],
+  n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
+  e_vote_skip: ["Votes to skip cannot be negative", "จำนวนโหวตข้ามเพลงติดลบไม่ได้"],
+  ph_votes: ["skip votes {v}/{n}", "โหวตข้าม {v}/{n}"],
   n_giftMoved: ["@{u}'s gift moved {title} up the queue", "ของขวัญจาก @{u} ทำให้ {title} ขึ้นคิวก่อน"],
   n_cacheCleanup: ["Cache cleanup removed {n} file(s)", "ล้างแคชแล้ว ลบ {n} ไฟล์"],
   n_quit: ["Quit from the dashboard", "สั่งปิดจากแดชบอร์ด"],
@@ -209,7 +302,7 @@ const T = {
   r_too_long: ["too long", "ยาวเกิน"], r_meta_error: ["osu! lookup failed", "ดึงข้อมูล osu! ไม่ได้"], r_bad_input: ["invalid input", "รูปแบบไม่ถูกต้อง"], r_requests_off: ["requests off", "ปิดรับคำขอ"], r_followers_only: ["not a follower", "ไม่ได้ติดตาม"],
   // settings tabs
   tab_connection: ["Connection", "การเชื่อมต่อ"], tab_osu: ["osu!", "osu!"], tab_command: ["Command", "คำสั่ง"], tab_rules: ["Map rules", "กฎแมพ"],
-  tab_queue: ["Queue", "คิว"], tab_download: ["Download", "ดาวน์โหลด"], tab_md5: ["MD5", "MD5"], tab_import: ["Import", "นำเข้า"], tab_overlay: ["Overlay", "โอเวอร์เลย์"], tab_hotkeys: ["Hotkeys", "ปุ่มลัด"],
+  tab_remote: ["Mod panel", "แผงม็อด"], tab_queue: ["Queue", "คิว"], tab_download: ["Download", "ดาวน์โหลด"], tab_md5: ["MD5", "MD5"], tab_import: ["Import", "นำเข้า"], tab_overlay: ["Overlay", "โอเวอร์เลย์"], tab_hotkeys: ["Hotkeys", "ปุ่มลัด"],
 };
 let LANG = (navigator.language || "").startsWith("th") ? "th" : "en", langPicked = false;
 try { const l = localStorage.getItem("osureq.lang"); if (l) { LANG = l; langPicked = true; } } catch {}
@@ -286,6 +379,10 @@ function render() {
   if (!volEditing) showVolume(S.masterVolume ?? 10);
   $("#dryRunSw").checked = S.dryRun;
   $("#dryPill").hidden = !S.dryRun;
+  renderTTS();
+  const up = $("#updPill");
+  up.hidden = !S.update;
+  if (S.update) { up.href = S.update.url; up.textContent = t("updAvail", { v: S.update.version }); up.title = t("updTitle", { v: S.update.version }); }
   renderTestHint();
   const ts = S.tosu;
   $("#tosuDot").className = "dot " + ts.level;
@@ -359,6 +456,7 @@ function tagsFor(it) {
   return h("div", { class: "tags" },
     h("em", { class: "star", style: `background:${starColor(it.stars)};color:${it.stars >= 6.7 ? "#fff" : "#1c1726"}` }, it.stars >= 0 ? it.stars.toFixed(2) + "★" : "?★"),
     h("em", { class: "mode mode-" + it.mode }, modeText(it)),
+    it.mods ? h("em", { class: "mods", title: t("modsTitle") }, "+" + it.mods) : null,
     h("em", {}, clock(it.length)),
     it.status ? h("em", { class: "st-" + it.status }, it.status) : null,
     it.md5 ? h("em", { class: "md5-" + it.md5 }, "MD5 " + it.md5) : null,
@@ -447,6 +545,9 @@ function updatePhase() {
     text += " · " + (!auto ? t("ph_pressNext") : !hasNext ? t("ph_queueEmpty") : t("ph_nextIn", { n: Math.max(0, left) }));
   }
   if (n.result) text += " · " + t("res_" + n.result.outcome) + " " + resultShort(n.result);
+  if (n.result && n.result.missing) text += " · ⚠ " + t("ph_missing", { m: n.result.missing });
+  const vs = S.voteSkip || {};
+  if (vs.needed > 0 && vs.votes > 0) text += " · " + t("ph_votes", { v: vs.votes, n: vs.needed });
   el.className = "phase " + cls;
   el.lastChild.textContent = text;
 }
@@ -493,7 +594,7 @@ function renderQueue(items) {
   res.textContent = S.resolving > 0 ? t("resolving", { n: S.resolving }) : "";
   if (!items.length) {
     cards.clear();
-    if (!same(list, "empty" + LANG + S.command)) list.replaceChildren(h("div", { class: "empty" }, t("emptyQueue", { cmd: S.command })));
+    if (!same(list, "empty" + LANG + S.command + S.search)) list.replaceChildren(h("div", { class: "empty" }, t(S.search ? "emptyQueueName" : "emptyQueue", { cmd: S.command })));
     return;
   }
   list.dataset.key = "";
@@ -586,6 +687,8 @@ function cardMenu(it) {
     h("hr"),
     h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("user", it.user) }, "⛔ " + t("banUser", { u: it.user })),
     h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("set", String(it.setId)) }, "⛔ " + t("banMap")),
+    h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("song", it.artist + " - " + it.title) }, "⛔ " + t("banSong")),
+    it.artist ? h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("artist", it.artist) }, "⛔ " + t("banArtist", { a: it.artist })) : null,
     it.creator ? h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("mapper", it.creator) }, "⛔ " + t("banMapper", { m: it.creator })) : null);
   const b = h("button", { class: "cbtn more", type: "button", title: t("more"), "aria-label": t("more"), "aria-haspopup": "menu",
     onclick: e => {
@@ -654,9 +757,10 @@ function renderSide() {
   }), [rej.slice(0, 40), [...banned]]);
   fill("#noteLog", notes.map(n => logItem({ error: "err", warn: "warn" }[n.kind] || "info", t("k_" + n.kind), "", n.at,
     n.key && T["n_" + n.key] ? t("n_" + n.key, n.vars || {}) : n.text)), notes);
-  fill("#histLog", hist.map(p => logItem(p.result === "played" ? "ok" : "warn", p.title, "@" + p.user, p.at,
+  fill("#histLog", hist.map(p => logItem(p.result === "played" ? "ok" : "warn", p.title + (p.mods ? " +" + p.mods : ""), "@" + p.user, p.at,
     t(p.result) + (p.play ? " · " + t("res_" + p.play.outcome) + " " + resultShort(p.play) : ""))), hist);
   fill("#rawLog", raw.map(r => logItem("info", r.event, "", r.at, "", r.raw)), raw.map(r => [r.at, r.event]));
+  renderSummary(S.summary);
   const ov = location.origin + "/overlay";
   const kv = $("#infoKv");
   kv.replaceChildren(
@@ -664,7 +768,45 @@ function renderSide() {
     h("dt", {}, t("mode")), h("dd", {}, S.playMode),
     h("dt", {}, t("cache")), h("dd", {}, S.cacheMb.toFixed(1) + " MB"),
     h("dt", {}, t("overlayUrl")), h("dd", {}, h("button", { class: "mlink", onclick: () => copy(ov) }, ov)),
+    ...modPanelRow(S.extra && S.extra.remote),
     ...(S.extra ? [h("dt", {}, t("folder")), h("dd", {}, S.extra.baseDir)] : []));
+}
+
+// renderSummary fills the "This stream" box (see queue.Summary).
+function renderSummary(s) {
+  const kv = $("#sumKv");
+  if (!s || same(kv, JSON.stringify([s, LANG]))) return;
+  const row = (k, ...v) => [h("dt", {}, t(k)), h("dd", {}, ...v)];
+  kv.replaceChildren(
+    ...row("sumStarted", timeOf(s.start)),
+    ...row("sumPlayed", String(s.played), s.passed ? " · " + t("sumPassed", { n: s.passed }) : ""),
+    ...row("sumSkipped", String(s.skipped)),
+    ...row("sumRejected", String(s.rejected)),
+    ...row("sumViewers", String(s.viewers)),
+    ...(s.best ? row("sumBest", h("span", { title: s.best.title }, s.best.title), h("br"), resultShort(s.best.play) + " · @" + s.best.user) : []),
+    ...(s.top && s.top.length ? row("sumTop", s.top.map(u => "@" + u.user + " ×" + u.count).join(", ")) : []));
+}
+$("#sumShowBtn").addEventListener("click", async () => { const j = await act("/api/action/showSummary"); if (j.ok) toast(t("sumShown")); });
+$("#sumNewBtn").addEventListener("click", () => { if (confirm(t("confirmNewSession"))) act("/api/action/newSession"); });
+
+// The support zip comes from a POST (a plain link would let other sites trigger it), saved through a blob.
+$("#supportBtn").addEventListener("click", e => busy(e.currentTarget, async () => {
+  const r = await fetch("/api/support", { method: "POST", headers: { "X-Osureq": "1" } });
+  if (!r.ok) { toast("HTTP " + r.status, true); return; }
+  const name = (/filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "") || [])[1] || "osureq-support.zip";
+  const a = h("a", { href: URL.createObjectURL(await r.blob()), download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  toast(t("supportSaved"));
+}));
+
+// modPanelRow: the mod panel's addresses in the Info box, or why there are none.
+function modPanelRow(r) {
+  if (!r || (!r.enabled && !r.error)) return [];
+  const body = r.error ? [h("span", { class: "serr", title: r.error }, r.error)]
+    : r.urls && r.urls.length ? r.urls.map(u => h("div", {}, h("button", { class: "mlink", onclick: () => copy(u) }, u)))
+    : [t("modOn"), h("small", { class: "hint", style: "display:block;white-space:normal" }, t("modNoLan"))];
+  return [h("dt", {}, t("modPanel")), h("dd", {}, ...body, r.sessions ? h("small", { class: "hint", style: "display:block" }, t("modSessions", { n: r.sessions })) : null)];
 }
 
 function copy(text) {
@@ -679,6 +821,7 @@ function connect() {
   ws.onmessage = e => {
     const prev = S;
     S = JSON.parse(e.data);
+    handleSpeech();
     // Chat rejections are easy to miss in the side panel; flash the newest one.
     const r = (S.queue.rejected || [])[0], p = prev && (prev.queue.rejected || [])[0];
     if (prev && r && !r.test && (!p || r.at !== p.at)) toast(`@${r.user} ${t("rejectedToast")}: ${t("r_" + r.code)}${r.short ? " (" + r.short + ")" : ""}`, true);
@@ -717,6 +860,69 @@ $("#quitAllBtn").addEventListener("click", async () => {
 });
 $("#rmLastBtn").addEventListener("click", () => act("/api/action/removeLast"));
 $("#clearBtn").addEventListener("click", () => { if (confirm(t("confirmClear"))) act("/api/action/clear"); });
+/* ---------- chat TTS ---------- */
+// The helper sends chat to read (S.speech, newest first, commands already
+// left out, see app.speakChat). Browsers only speak after a click, so the
+// streamer starts it once per tab with the top-bar button.
+let ttsOn = false, ttsSeen = -1, ttsBusy = false;
+const ttsQueue = [], ttsWarned = {};
+const hasThai = s => /[\u0E00-\u0E7F]/.test(s);
+function ttsVoice(lang, voiceName) {
+  const voices = speechSynthesis.getVoices();
+  if (voiceName) { const v = voices.find(v => v.name === voiceName); if (v) return v; }
+  const m = voices.filter(v => v.lang.toLowerCase().startsWith(lang));
+  return m.find(v => /natural|online/i.test(v.name)) || m.find(v => v.localService) || m[0] || null;
+}
+function ttsUtter(text, name, cfg) {
+  const lang = cfg.lang !== "auto" ? cfg.lang : hasThai(text + " " + (name || "")) ? "th" : "en";
+  const line = cfg.readName && name ? (T["ttsSays_" + lang][0]).replace("{name}", name).replace("{text}", text) : text;
+  const u = new SpeechSynthesisUtterance(line);
+  const v = ttsVoice(lang, cfg.voice);
+  if (v) u.voice = v;
+  else if (!ttsWarned[lang]) { ttsWarned[lang] = true; toast(t("ttsNoVoice", { lang: lang === "th" ? "ไทย" : "English" }), true); }
+  u.lang = v ? v.lang : lang === "th" ? "th-TH" : "en-US";
+  u.rate = cfg.rate || 1;
+  u.volume = Math.max(0, Math.min(1, (cfg.volume ?? 80) / 100));
+  return u;
+}
+function ttsNext() {
+  if (ttsBusy || !ttsOn || !ttsQueue.length) return;
+  const s = ttsQueue.shift(), u = ttsUtter(s.text, s.name, S.tts);
+  ttsBusy = true;
+  u.onend = u.onerror = () => { ttsBusy = false; renderTTS(); ttsNext(); };
+  speechSynthesis.speak(u);
+  renderTTS();
+}
+function handleSpeech() {
+  const list = S.speech || [];
+  if (ttsSeen < 0 || (list.length && list[0].id < ttsSeen)) { ttsSeen = list.length ? list[0].id : 0; return; } // first load or restart: no backlog
+  const fresh = list.filter(s => s.id > ttsSeen).reverse();
+  if (fresh.length) ttsSeen = fresh[fresh.length - 1].id;
+  if (!S.tts || !(S.tts.enabled || S.tts.announce) || !ttsOn) return;
+  ttsQueue.push(...fresh);
+  while (ttsQueue.length > 5) ttsQueue.shift(); // a busy chat: keep up instead of falling behind
+  ttsNext();
+}
+function renderTTS() {
+  const on = !!(S && S.tts && (S.tts.enabled || S.tts.announce));
+  $("#ttsWrap").hidden = !on || !("speechSynthesis" in window);
+  if (!on && ttsOn) { ttsOn = false; ttsQueue.length = 0; speechSynthesis.cancel(); }
+  const p = $("#ttsPill");
+  p.textContent = ttsOn ? "🔊 " + t("ttsOn") : "🔈 " + t("ttsStart");
+  p.title = t(ttsOn ? "ttsTitleOn" : "ttsTitleOff");
+  p.classList.toggle("off", !ttsOn);
+  $("#ttsSkip").hidden = !ttsOn || !ttsBusy;
+  $("#ttsSkip").title = t("ttsSkip");
+}
+$("#ttsPill").addEventListener("click", () => {
+  ttsOn = !ttsOn;
+  if (!ttsOn) { ttsQueue.length = 0; speechSynthesis.cancel(); ttsBusy = false; }
+  else speechSynthesis.speak(new SpeechSynthesisUtterance("")); // the click unlocks speech in this tab
+  renderTTS();
+});
+$("#ttsSkip").addEventListener("click", () => speechSynthesis.cancel());
+if ("speechSynthesis" in window) speechSynthesis.addEventListener("voiceschanged", () => { if (!$("#settings").hidden && tab === "tts") renderSettings(); });
+
 /* ---------- master volume ---------- */
 // One volume (0-100, default 10%) for every sound the dashboard plays. It is
 // stored in config.json; the slider applies it at once and saves shortly after.
@@ -776,6 +982,34 @@ $("#testMode").addEventListener("click", e => {
   renderTestHint();
 });
 $("#dryRunSw").addEventListener("change", () => act("/api/action/toggleDryRun"));
+/* ---------- pre-stream check ---------- */
+// Runs app.Preflight and lists the result; problems first. Stays until closed.
+let pfChecks = null;
+function renderPreflight() {
+  const out = $("#pfOut");
+  out.hidden = !pfChecks;
+  if (!pfChecks) return;
+  const rank = { fail: 0, warn: 1, ok: 2, off: 3 };
+  const list = [...pfChecks].sort((a, b) => rank[a.status] - rank[b.status]);
+  const bad = list.filter(c => c.status === "fail" || c.status === "warn").length;
+  const worst = list.some(c => c.status === "fail") ? "fail" : bad ? "warn" : "ok";
+  out.replaceChildren(
+    h("div", { class: "pfh " + worst }, bad ? t("pfIssues", { n: bad }) : t("pfAllOk"), h("span", { class: "sp" }),
+      h("button", { class: "icon", type: "button", "aria-label": "Close", style: "width:32px;height:32px", onclick: () => { pfChecks = null; renderPreflight(); } }, svg(ICON.x))),
+    ...list.map(c => h("div", { class: "pfr " + c.status, title: c.detail || "" },
+      h("i", {}, { ok: "✓", warn: "!", fail: "✕", off: "–" }[c.status]),
+      h("span", {}, T["pf_" + c.key] ? t("pf_" + c.key, c.vars || {}) : c.key),
+      c.detail && c.status !== "ok" ? h("small", {}, c.detail) : null)));
+}
+$("#pfBtn").addEventListener("click", async e => {
+  const btn = e.currentTarget;
+  btn.disabled = true; btn.textContent = t("pfRunning");
+  try {
+    const j = await api("POST", "/api/preflight");
+    if (j.ok) { pfChecks = j.checks; renderPreflight(); } else toast(t("pfFailed") + ": " + errText(j), true);
+  } finally { btn.disabled = false; btn.textContent = t("pfRun"); }
+});
+$("#langSel").addEventListener("change", () => renderPreflight());
 // The test panel is folded away by default: it is rarely needed during a stream.
 function setTestOpen(open) {
   $("#testBody").hidden = !open;
@@ -797,7 +1031,7 @@ $("#testForm").addEventListener("submit", async e => {
       const coins = Number(input);
       if (!Number.isInteger(coins) || coins <= 0) { toast(t("giftNum"), true); return; }
       j = await api("POST", "/api/simulateGift", { user, coins });
-      if (j.ok) { toast(t("giftDone", { n: j.earned })); $("#testIn").value = ""; } else toast(errText(j), true);
+      if (j.ok) { toast(t("giftDone", { n: j.earned, r: j.requests })); $("#testIn").value = ""; } else toast(errText(j), true);
       return;
     }
     if (testMode === "chat") {
@@ -829,10 +1063,12 @@ const SCHEMA = {
     F("connection.tosuUrl", "text", "tosu WebSocket URL (required)", "URL WebSocket ของ tosu (จำเป็น)", "Default ws://127.0.0.1:24050/websocket/v2. Auto mode uses it to see when a song has ended.", "ค่าเริ่มต้น ws://127.0.0.1:24050/websocket/v2 โหมดอัตโนมัติใช้ดูว่าเพลงจบแล้ว"),
     F("connection.tosuPath", "text", "tosu.exe path", "ที่อยู่ tosu.exe", "Filled in automatically the first time tosu is seen running.", "จะถูกกรอกให้อัตโนมัติเมื่อเห็น tosu เปิดอยู่ครั้งแรก"),
     F("connection.autoLaunchTosu", "switch", "Auto-launch tosu", "เปิด tosu อัตโนมัติ", "Starts tosu if it is not running (needs the path above).", "เปิด tosu ให้ถ้ายังไม่ได้เปิด (ต้องมีที่อยู่ด้านบน)"),
+    F("connection.checkUpdates", "switch", "Check for updates", "ตรวจหาอัปเดต", "Asks GitHub twice a day whether a newer osureq exists and shows a button at the top. Nothing is downloaded by itself.", "ถาม GitHub วันละ 2 ครั้งว่ามี osureq ใหม่หรือไม่ แล้วแสดงปุ่มด้านบน ไม่ดาวน์โหลดอะไรเอง"),
     F("connection.logRawEvents", "switch", "Log raw events", "บันทึกอีเวนต์ดิบ", "Shows every TikFinity message in the side panel. Use it to check field names.", "แสดงทุกข้อความจาก TikFinity ที่แผงข้าง ใช้ตรวจชื่อฟิลด์"),
   ],
   osu: [
     F("osu.game", "seg", "Game", "เกม", "lazer has no Songs folder, so maps are always opened.", "lazer ไม่มีโฟลเดอร์ Songs จะใช้วิธีเปิดไฟล์เสมอ", { options: [["stable", "stable"], ["lazer", "lazer"]] }),
+    F("osu.detectGameTosu", "switch", "Detect the game with tosu", "ให้ tosu ตรวจว่าเป็นเกมไหน", "Switches between stable and lazer to match the osu! that tosu sees running.", "สลับ stable / lazer ให้ตรงกับ osu! ที่ tosu เห็นว่าเปิดอยู่"),
     F("osu.folder", "text", "osu! folder", "โฟลเดอร์ osu!", "stable: the folder with osu!.exe and Songs.", "stable: โฟลเดอร์ที่มี osu!.exe และ Songs"),
     F("osu.cacheFolder", "text", "Cache folder", "โฟลเดอร์แคช", "Relative paths are next to the exe.", "ถ้าเป็นพาธสัมพัทธ์จะอยู่ข้าง exe"),
     F("osu.downloadsFolder", "text", "Browser Downloads folder", "โฟลเดอร์ดาวน์โหลดของเบราว์เซอร์", "Watched for official osu! downloads.", "ใช้รอไฟล์ที่ดาวน์โหลดจาก osu! โดยตรง"),
@@ -850,6 +1086,11 @@ const SCHEMA = {
     F("command.removeCmd", "text", "Remove command", "คำสั่งลบคำขอ", "Anyone removes their own latest request; mods can add @user. Empty = off.", "ทุกคนลบคำขอล่าสุดของตัวเองได้ ม็อดเติม @ชื่อ เพื่อลบของคนอื่น เว้นว่าง = ปิด"),
     F("command.openCmd", "text", "Open requests (mods)", "เปิดรับคำขอ (ม็อด)", null, null),
     F("command.closeCmd", "text", "Close requests (mods)", "ปิดรับคำขอ (ม็อด)", null, null),
+    F("command.posCmd", "text", "Queue position command", "คำสั่งดูลำดับคิว", "Anyone: the overlay shows where their requests are in the queue. Empty = off.", "ทุกคน: overlay จะบอกว่าคำขอของคนนั้นอยู่คิวที่เท่าไร เว้นว่าง = ปิด"),
+    F("command.nowCmd", "text", "Now playing command", "คำสั่งดูเพลงที่กำลังเล่น", "Anyone: the overlay shows the song being played and who asked for it. Each viewer can ask once every 20 s. Empty = off.", "ทุกคน: overlay จะแสดงเพลงที่กำลังเล่นและคนที่ขอ แต่ละคนถามได้ทุก 20 วินาที เว้นว่าง = ปิด"),
+    F("command.voteSkipCmd", "text", "Vote skip command", "คำสั่งโหวตข้ามเพลง", null, null),
+    F("command.voteSkipVotes", "number", "Votes needed to skip", "จำนวนโหวตที่ต้องใช้ข้ามเพลง", "Different viewers who must vote to skip the song being played. 0 = vote skip off.", "จำนวนผู้ชม (ไม่ซ้ำคน) ที่ต้องโหวตเพื่อข้ามเพลงที่กำลังเล่น 0 = ปิดการโหวต", { min: 0 }),
+    F("command.searchByName", "switch", "Requests by song name", "ขอเพลงด้วยชื่อ", "\"!req freedom dive\" searches catboy.best and takes the best title match (most played first) that passes your map rules. IDs and links work as before.", "\"!req freedom dive\" จะค้นใน catboy.best แล้วเลือกแมพที่ชื่อตรงที่สุด (เล่นเยอะสุดก่อน) ที่ผ่านกฎแมพ ID และลิงก์ใช้ได้เหมือนเดิม"),
     F("command.bareNumberAs", "seg", "A bare number is a…", "ตัวเลขเปล่าๆ หมายถึง…", null, null, { options: [["beatmap", ["beatmap (difficulty) ID", "ID บีทแมพ (ระดับ)"]], ["set", ["beatmapset ID", "ID เซ็ต"]]] }),
   ],
   rules: [
@@ -859,9 +1100,13 @@ const SCHEMA = {
     F("rules.maxLengthSec", "number", "Max length (s)", "ความยาวสูงสุด (วินาที)", "0 = no limit", "0 = ไม่จำกัด", { min: 0 }),
     F("rules.modes", "multi", "Allowed modes", "โหมดที่อนุญาต", null, null, { options: MODES }),
     F("rules.statuses", "multi", "Allowed statuses", "สถานะที่อนุญาต", null, null, { options: STATUSES.map(s => [s, s]) }),
+    F("rules.allowMods", "switch", "Requests with mods", "ขอเพลงพร้อม mod", "Viewers can add mods: !req 2096297 HDHR, or a song name ending in +HDHR. osu! cannot be told to use them: the mods show on the dashboard and overlay and you select them yourself (Activity warns if a result lacks one).", "ผู้ชมใส่ mod ได้ เช่น !req 2096297 HDHR หรือชื่อเพลงตามด้วย +HDHR โปรแกรมสั่ง osu! ให้ใส่ mod ไม่ได้ mod จะแสดงบนแดชบอร์ดและ overlay ให้คุณเลือกเอง (ถ้าเล่นไม่ครบ กิจกรรม จะแจ้งเตือน)"),
+    F("rules.bannedMods", "multi", "Mods not allowed", "mod ที่ไม่อนุญาต", null, null, { bad: true, options: ["NF", "EZ", "HD", "HR", "SD", "DT", "HT", "NC", "FL", "SO", "PF", "FI", "MR"].map(m => [m, m]) }),
+    F("rules.hardModMaxStars", "number", "Max stars with DT/NC/HR", "ดาวสูงสุดเมื่อใส่ DT/NC/HR", "Stars are always the no-mod rating (osu! gives modded ratings only through its login API). Use this to stop, say, DT on maps above 5★. 0 = only the normal limit. Length counts DT/HT speed.", "ดาวที่ใช้เป็นแบบไม่มี mod เสมอ (osu! ให้ดาวพร้อม mod ผ่าน API ที่ต้องล็อกอินเท่านั้น) ใช้ค่านี้กัน เช่น DT บนแมพเกิน 5★ 0 = ใช้แค่ขีดจำกัดปกติ ความยาวคิดตามความเร็วของ DT/HT"),
     F("rules.followersOnly", "switch", "Followers only", "เฉพาะผู้ติดตาม", "Rejects viewers TikTok reports as not following. If TikFinity does not send follow status, requests are let through and Activity shows a warning.", "ปฏิเสธผู้ชมที่ TikTok แจ้งว่ายังไม่ได้ติดตาม ถ้า TikFinity ไม่ส่งสถานะการติดตามมา จะปล่อยผ่านและแจ้งเตือนใน กิจกรรม"),
     F("rules.subscriberPerUserLimit", "number", "Requests per subscriber", "คำขอต่อคนสำหรับสมาชิก", "Waiting requests allowed for TikTok subscribers. 0 = same as everyone.", "จำนวนคำขอที่รอได้ของสมาชิก TikTok 0 = เท่ากับคนอื่น", { min: 0 }),
     F("rules.blacklistSets", "numlist", "Blacklisted set IDs", "ID เซ็ตที่แบน", "Comma separated", "คั่นด้วยจุลภาค"),
+    F("rules.blacklistSongs", "lines", "Blacklisted songs and artists", "เพลงและศิลปินที่แบน", "One rule per line. artist=\"a_hisa\" bans every song by that artist; title=\"Ghost\" bans that song by anyone; artist=\"xi\" title=\"Blue Zenith\" (or xi - Blue Zenith) bans one song. Every version is caught (other sets, TV size, cut…), artists match as whole words (\"xi\" also catches \"xi remixed by…\"), and Japanese/Thai names work too. Also from the ⋯ menu on a queue card.", "บรรทัดละกฎ artist=\"a_hisa\" แบนทุกเพลงของศิลปินนั้น title=\"Ghost\" แบนเพลงนั้นไม่ว่าใครทำ artist=\"xi\" title=\"Blue Zenith\" (หรือ xi - Blue Zenith) แบนเพลงเดียว จับได้ทุกเวอร์ชัน (เซ็ตอื่น TV size ตัดสั้น ฯลฯ) ชื่อศิลปินเทียบเป็นคำเต็ม (\"xi\" จับ \"xi remixed by…\" ด้วย) และใช้ชื่อภาษาญี่ปุ่น/ไทยได้ แบนจากเมนู ⋯ บนการ์ดในคิวได้ด้วย"),
     F("rules.blacklistMappers", "list", "Blacklisted mappers", "แมพเปอร์ที่แบน", "Comma separated osu! usernames", "ชื่อผู้ใช้ osu! คั่นด้วยจุลภาค"),
     F("rules.blacklistUsers", "list", "Blacklisted TikTok users", "ผู้ใช้ TikTok ที่แบน", "Comma separated @uniqueId", "@uniqueId คั่นด้วยจุลภาค"),
   ],
@@ -870,7 +1115,12 @@ const SCHEMA = {
     F("queue.perUserLimit", "number", "Requests per user", "คำขอต่อคน", "Maps waiting in the queue (the one playing does not count). 0 = no limit", "แมพที่รออยู่ในคิว (ไม่นับเพลงที่กำลังเล่น) 0 = ไม่จำกัด", { min: 0 }),
     F("queue.cooldownSec", "number", "Per-user cooldown (s)", "คูลดาวน์ต่อคน (วินาที)", null, null, { min: 0 }),
     F("rules.exemptUsers", "list", "No-limit users", "ผู้ใช้ที่ไม่จำกัด", "Comma separated @uniqueId (you, your mods). They skip the per-user limit and cooldown.", "@uniqueId คั่นด้วยจุลภาค (คุณ หรือม็อด) ไม่ติดจำนวนคำขอต่อคนและคูลดาวน์"),
+    F("queue.autoCloseAt", "number", "Close requests at (waiting)", "ปิดรับคำขอเมื่อคิวถึง", "Requests close by themselves when this many are waiting, and the overlay says so. 0 = off.", "ปิดรับคำขอเองเมื่อมีคำขอรออยู่เท่านี้ และแจ้งบน overlay 0 = ปิดฟีเจอร์นี้", { min: 0 }),
+    F("queue.autoReopenAt", "number", "Open again at (waiting)", "เปิดรับอีกครั้งเมื่อเหลือ", "Requests closed by the line above open again at this many or fewer. Closing by hand is never undone.", "คำขอที่ปิดเองจากบรรทัดบนจะเปิดอีกครั้งเมื่อเหลือเท่านี้หรือน้อยกว่า ถ้าปิดเองด้วยมือจะไม่เปิดให้", { min: 0 }),
+    F("queue.closeAt", "time", "Close requests at (time)", "ปิดรับคำขอตอน (เวลา)", "E.g. 23:30, so the last requests fit before you end the stream. Once a day; ✕ = off.", "เช่น 23:30 เพื่อให้เล่นคำขอสุดท้ายทันก่อนจบไลฟ์ ทำวันละครั้ง ✕ = ปิด"),
+    F("queue.fair", "switch", "Fair queue (take turns)", "คิวแบบผลัดกัน", "A viewer's second request waits until everyone else's first one, the third until everyone's second, and so on. Priority requests stay on top; moving cards by hand still works.", "คำขอที่ 2 ของผู้ชมคนหนึ่งจะรอจนทุกคนได้คำขอแรกก่อน คำขอที่ 3 รอทุกคนได้คำขอที่ 2 ไปเรื่อย ๆ คิวพิเศษยังอยู่บนสุด และยังลากการ์ดจัดเองได้"),
     F("queue.noRepeatMin", "number", "No repeat within (min)", "ห้ามซ้ำภายใน (นาที)", null, null, { min: 0 }),
+    F("gifts.requestCoins", "number", "Gift-only requests: coins per request", "ขอเพลงด้วยของขวัญ: เหรียญต่อคำขอ", "Viewers must send gifts worth this many coins (added up) for each request; a rejected map costs nothing. No-limit users are free. Paid requests last as long as \"Unused priority lasts\". 0 = requests are free.", "ผู้ชมต้องส่งของขวัญรวมเท่านี้เหรียญต่อ 1 คำขอ ถ้าแมพถูกปฏิเสธจะไม่เสียสิทธิ์ ผู้ใช้ที่ไม่จำกัดขอได้ฟรี สิทธิ์อยู่ได้นานเท่ากับ \"สิทธิ์ที่ยังไม่ใช้อยู่ได้\" 0 = ขอฟรี", { min: 0 }),
     F("gifts.enabled", "switch", "Gifts buy priority", "ของขวัญได้คิวพิเศษ", "A viewer's gift coins add up; every full amount below moves their oldest waiting request to the top (after other priority requests), or is kept for their next request.", "เหรียญของขวัญของแต่ละคนจะสะสม ครบตามจำนวนด้านล่างเมื่อไหร่ คำขอที่รออยู่เก่าที่สุดของคนนั้นจะขึ้นหน้าคิว (ต่อจากคำขอพิเศษอื่น) หรือเก็บไว้ใช้กับคำขอถัดไป"),
     F("gifts.coinsPerPriority", "number", "Coins per priority", "เหรียญต่อคิวพิเศษ 1 ครั้ง", null, null, { min: 1 }),
     F("gifts.creditMinutes", "number", "Unused priority lasts (min)", "สิทธิ์ที่ยังไม่ใช้อยู่ได้ (นาที)", null, null, { min: 1 }),
@@ -904,9 +1154,56 @@ const SCHEMA = {
     F("overlay.lang", "seg", "Overlay language", "ภาษาของ overlay", "auto follows the browser of OBS, which is usually English.", "auto จะตามภาษาของเบราว์เซอร์ใน OBS ซึ่งมักเป็นอังกฤษ", { options: [["auto", "auto"], ["en", "English"], ["th", "ไทย"]] }),
     F("overlay.visible", "number", "Upcoming maps shown", "จำนวนแมพถัดไปที่แสดง", null, null, { min: 0, max: 20 }),
     F("overlay.showRequester", "switch", "Show requester", "แสดงผู้ขอ"),
+    F("overlay.avatars", "switch", "Viewers' pictures", "รูปโปรไฟล์ผู้ชม", "Shows the TikTok profile picture next to the name in pop-ups and now playing, when TikFinity sends it.", "แสดงรูปโปรไฟล์ TikTok ข้างชื่อในป๊อปอัปและเพลงที่กำลังเล่น ถ้า TikFinity ส่งมา"),
     F("overlay.theme", "seg", "Theme", "ธีม", null, null, { options: [["pink", "pink"], ["sky", "sky"], ["mono", "mono"]] }),
     F("overlay.scale", "number", "Size (%)", "ขนาด (%)", null, null, { min: 50, max: 250 }),
     F("overlay.position", "select", "Position", "ตำแหน่ง", null, null, { options: [["top-left", "top left"], ["top-right", "top right"], ["bottom-left", "bottom left"], ["bottom-right", "bottom right"]] }),
+  ],
+  remote: [
+    F("remote.enabled", "switch", "Mod panel on a phone", "แผงม็อดบนมือถือ", "A small page for a phone on the same Wi-Fi: Next, Skip, remove and move requests, requests on/off. Nothing else (no settings, bans or quit). Only devices on your home network can open it, and only with the PIN. Windows may ask to allow osureq through the firewall: allow it for private networks only.", "หน้าเล็ก ๆ สำหรับมือถือที่ใช้ Wi-Fi เดียวกัน: ถัดไป ข้าม ลบ/เลื่อนคำขอ และเปิด/ปิดรับคำขอ ไม่มีอย่างอื่น (ไม่มีการตั้งค่า แบน หรือปิดโปรแกรม) เปิดได้เฉพาะอุปกรณ์ในวงแลนบ้านและต้องใช้ PIN Windows อาจถามให้อนุญาต osureq ผ่านไฟร์วอลล์: อนุญาตเฉพาะเครือข่ายส่วนตัว (Private)"),
+    F("remote.pin", "pin", "PIN", "PIN", "6-12 digits. Changing it signs everyone out. Share it only with your mods.", "ตัวเลข 6-12 หลัก เปลี่ยนแล้วทุกคนจะถูกออกจากระบบ ให้เฉพาะม็อดของคุณ"),
+    F("remote.port", "number", "Port", "พอร์ต", null, null, { min: 1024, max: 65535 }),
+    F("", "remoteinfo", "Address", "ที่อยู่"),
+  ],
+  tts: [
+    F("", "group", "sg_chat"),
+    F("tts.enabled", "switch", "Read chat aloud (without commands)", "อ่านแชทออกเสียง (ไม่อ่านคำสั่ง)", "Reads TikTok chat in this dashboard with the voices of Windows, and never reads messages starting with ! (!req, !np…), links or emoji. Turn off TikFinity's own TTS so chat is not read twice. Browsers only speak after a click: press \"🔈 Start TTS\" at the top once per tab. OBS picks it up as desktop audio.", "อ่านแชท TikTok ในแดชบอร์ดนี้ด้วยเสียงของ Windows และไม่อ่านข้อความที่ขึ้นต้นด้วย ! (!req, !np…) ลิงก์ หรืออีโมจิ ให้ปิด TTS ของ TikFinity เพื่อไม่ให้อ่านซ้ำ เบราว์เซอร์จะพูดได้หลังคลิกเท่านั้น: กดปุ่ม \"🔈 เริ่มเสียงอ่าน\" ด้านบนหนึ่งครั้งต่อแท็บ OBS จับเสียงได้ผ่าน Desktop Audio"),
+    F("tts.readName", "switch", "Say who wrote it", "บอกชื่อคนพิมพ์", "\"name says …\"", "\"ชื่อ บอกว่า …\""),
+    F("tts.maxLength", "number", "Max letters per message", "ความยาวสูงสุดต่อข้อความ", "Longer messages are cut.", "ข้อความที่ยาวกว่านี้จะถูกตัด", { min: 10, max: 500 }),
+    F("tts.cooldownSec", "number", "Per-viewer cooldown (s)", "คูลดาวน์ต่อคน (วินาที)", "A viewer's next message within this time is not read.", "ข้อความถัดไปของคนเดิมภายในเวลานี้จะไม่ถูกอ่าน", { min: 0 }),
+    F("tts.allow", "multi", "Whose chat is read", "อ่านแชทของใคร", "None selected = everyone. Otherwise a viewer needs any one: a subscription (ใจส้ม), following, a gift during this stream, or being a mod. No-limit users are always read. Subscriber and follower come from TikFinity; when it does not send them, they count as no (Activity says so once).", "ไม่เลือกเลย = อ่านทุกคน ถ้าเลือก ผู้ชมต้องตรงอย่างน้อยหนึ่งข้อ: สมัครสมาชิก (ใจส้ม), กดติดตาม, ส่งของขวัญในไลฟ์นี้ หรือเป็นม็อด ผู้ใช้ที่ไม่จำกัดจะถูกอ่านเสมอ สถานะสมาชิกและผู้ติดตามมาจาก TikFinity ถ้าไม่ส่งมาจะถือว่าไม่ใช่ (แจ้งใน กิจกรรม ครั้งเดียว)",
+      { options: [["subscriber", ["ใจส้ม (subscriber)", "ใจส้ม (สมาชิก)"]], ["follower", ["follower", "ผู้ติดตาม"]], ["gifter", ["sent a gift", "ส่งของขวัญแล้ว"]], ["mod", ["mod", "ม็อด"]]] }),
+    F("tts.blockedWords", "list", "Blocked words", "คำต้องห้าม", "Comma separated. Messages containing one are not read.", "คั่นด้วยจุลภาค ข้อความที่มีคำเหล่านี้จะไม่ถูกอ่าน"),
+    F("", "group", "sg_voice"),
+    F("tts.lang", "seg", "Language", "ภาษา", "auto picks Thai or English for each message by its letters.", "auto เลือกไทยหรืออังกฤษตามตัวอักษรของแต่ละข้อความ", { options: [["auto", "auto"], ["th", "ไทย"], ["en", "English"]] }),
+    F("tts.voice", "voice", "Voice", "เสียง", "Voices come from Windows and the browser (Edge has natural ones). Add Thai in Windows: Settings → Time & language → Speech.", "เสียงมาจาก Windows และเบราว์เซอร์ (Edge มีเสียงแบบธรรมชาติ) เพิ่มเสียงไทยใน Windows: การตั้งค่า → เวลาและภาษา → คำพูด"),
+    F("tts.rate", "number", "Speed", "ความเร็ว", null, null, { min: 0.5, max: 2, step: 0.1 }),
+    F("tts.volume", "number", "Volume (%)", "ระดับเสียง (%)", null, null, { min: 0, max: 100 }),
+    F("", "ttstest", "Test the voice", "ทดลองเสียง"),
+    F("", "group", "sg_announce"),
+    F("tts.announce", "switch", "Announce requests", "ประกาศคำขอด้วยเสียง", "Says what happens to requests with the lines below, e.g. \"test1 ขอเพลง …\" or \"เพลง … ยากเกินไป 7.25 ดาว\". Uses the same voice settings and the same TTS button at the top; works with chat reading on or off.", "พูดว่าเกิดอะไรกับคำขอตามข้อความด้านล่าง เช่น \"test1 ขอเพลง …\" หรือ \"เพลง … ยากเกินไป 7.25 ดาว\" ใช้การตั้งค่าเสียงและปุ่มเสียงด้านบนเดียวกัน ใช้ได้ทั้งตอนเปิดหรือปิดการอ่านแชท", { rerender: true }),
+    F("", "tplpreset", "Announcement lines", "ข้อความที่ประกาศ", "tplHelp", null, { when: "tts.announce" }),
+    F("tts.templates.added", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_stars_high", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_stars_low", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_mod_stars", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_too_long", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_duplicate", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_recently_played", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_cooldown", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_user_limit", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.rejected_search_none", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.nowplaying", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.np", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.np_none", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.pos", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.result_passed", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.result_failed", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.gift", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.voteskip", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.auto_off", "template", "", "", null, null, { when: "tts.announce" }),
+    F("tts.templates.auto_on", "template", "", "", null, null, { when: "tts.announce" }),
   ],
   hotkeys: [
     F("hotkeys.enabled", "switch", "Global hotkeys", "ปุ่มลัดทั้งระบบ", "Work while osu! is focused. Format: Ctrl+Alt+N, Shift+F5, F9…", "ใช้ได้แม้กำลังอยู่ใน osu! รูปแบบ: Ctrl+Alt+N, Shift+F5, F9…"),
@@ -934,7 +1231,10 @@ function renderSettings() {
   tabs.replaceChildren(...Object.keys(SCHEMA).map(k => h("button", { class: "tab" + (k === tab ? " on" : ""), role: "tab", "aria-selected": k === tab ? "true" : "false", onclick: () => { tab = k; renderSettings(); } }, t("tab_" + k))));
   const body = $("#setBody");
   const box = h("div", { class: "card2" });
-  for (const f of SCHEMA[tab]) box.append(field(f));
+  for (const f of SCHEMA[tab]) {
+    if (f.when && !getP(draft, f.when)) continue; // e.g. announcement lines only while announcements are on
+    box.append(field(f));
+  }
   body.replaceChildren(box);
 }
 
@@ -943,9 +1243,17 @@ function field(f) {
   const text = h("div", { class: "swt" }, h("b", {}, lbl(f.label)), f.hint ? h("small", {}, lbl(f.hint)) : null);
   const set = x => setP(draft, f.path, x);
   switch (f.type) {
+    case "group":
+      return h("div", { class: "sgroup" }, t(f.label[0]));
+    case "time": {
+      const i = h("input", { type: "time", value: v || "", "aria-label": lbl(f.label) });
+      const clear = h("button", { class: "btn sm ghost", type: "button", onclick: () => { i.value = ""; set(""); } }, "✕");
+      i.addEventListener("input", () => set(i.value));
+      return h("div", { class: "row" }, text, h("div", { class: "ovlink" }, i, clear));
+    }
     case "switch": {
       const i = h("input", { type: "checkbox", class: "switch", "aria-label": lbl(f.label) }); i.checked = !!v;
-      i.addEventListener("change", () => set(i.checked));
+      i.addEventListener("change", () => { set(i.checked); if (f.rerender) renderSettings(); });
       return h("label", { class: "row", style: "cursor:pointer" }, text, i);
     }
     case "text": case "hotkey": {
@@ -968,6 +1276,12 @@ function field(f) {
       });
       return h("div", { class: "row stack" }, text, i);
     }
+    case "lines": { // one entry per line, for values that may contain commas
+      const i = h("textarea", { rows: 3, "aria-label": lbl(f.label), spellcheck: "false" });
+      i.value = (v || []).join("\n");
+      i.addEventListener("input", () => set(i.value.split("\n").map(s => s.trim()).filter(Boolean)));
+      return h("div", { class: "row stack" }, text, i);
+    }
     case "seg": {
       const seg = h("div", { class: "seg" });
       const draw = () => seg.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: getP(draft, f.path) === val ? "on" : "", onclick: () => { set(val); draw(); } }, lbl(name))));
@@ -980,12 +1294,12 @@ function field(f) {
       return h("div", { class: "row" }, text, s);
     }
     case "multi": {
-      const c = h("div", { class: "chips" });
+      const c = h("div", { class: "chips" + (f.bad ? " bad" : "") });
       const draw = () => {
         const cur = getP(draft, f.path) || [];
         c.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: "chip" + (cur.includes(val) ? " on" : ""), onclick: () => {
           set(cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val]); draw();
-        } }, name)));
+        } }, lbl(name))));
       };
       draw();
       return h("div", { class: "row stack" }, text, c);
@@ -999,6 +1313,44 @@ function field(f) {
         h("a", { class: "btn sm", href: "/overlay", target: "_blank" }, L("Preview", "ดูตัวอย่าง"))));
     }
     case "sources": return sourcesField(f, text);
+    case "pin": {
+      const i = h("input", { type: "text", inputmode: "numeric", value: v ?? "", maxlength: 12, "aria-label": lbl(f.label), spellcheck: "false", autocomplete: "off" });
+      i.addEventListener("input", () => set(i.value.replace(/\D/g, "")));
+      const gen = h("button", { class: "btn sm", type: "button", onclick: () => { i.value = newPin(); set(i.value); } }, t("genPin"));
+      return h("div", { class: "row" }, text, h("div", { class: "ovlink" }, i, gen));
+    }
+    case "voice": {
+      const voices = "speechSynthesis" in window ? speechSynthesis.getVoices() : [];
+      const s = h("select", { "aria-label": lbl(f.label) }, h("option", { value: "" }, t("ttsAuto")),
+        ...voices.filter(x => /^(th|en)/i.test(x.lang)).map(x => h("option", { value: x.name }, `${x.name} (${x.lang})`)));
+      s.value = v || ""; s.addEventListener("change", () => set(s.value));
+      return h("div", { class: "row stack" }, text, s);
+    }
+    case "tplpreset": {
+      const preset = which => api("GET", "/api/config").then(j => { draft.tts.templates = structuredClone(j.announcements[which]); renderSettings(); });
+      return h("div", { class: "row stack" }, h("div", { class: "swt" }, h("b", {}, lbl(f.label)), h("small", {}, t(f.hint[0]))),
+        h("div", { class: "ovlink" }, h("button", { class: "btn sm", type: "button", onclick: () => preset("th") }, t("tplThai")),
+          h("button", { class: "btn sm", type: "button", onclick: () => preset("en") }, t("tplEnglish"))));
+    }
+    case "template": {
+      const ev = f.path.split(".").pop();
+      draft.tts.templates = draft.tts.templates || {};
+      const i = h("input", { type: "text", value: draft.tts.templates[ev] ?? "", placeholder: t("tplSilent"), "aria-label": t("tpl_" + ev), spellcheck: "false" });
+      i.addEventListener("input", () => { draft.tts.templates[ev] = i.value; });
+      return h("div", { class: "row stack" }, h("div", { class: "swt" }, h("b", {}, t("tpl_" + ev))), i);
+    }
+    case "ttstest":
+      return h("div", { class: "row" }, text, h("button", { class: "btn sm", type: "button", onclick: () => {
+        speechSynthesis.cancel();
+        speechSynthesis.speak(ttsUtter(t("ttsSample"), "osureq", draft.tts));
+      } }, "▶ " + lbl(f.label)));
+    case "remoteinfo": {
+      const r = S && S.extra && S.extra.remote;
+      const body = !r || !r.enabled ? h("small", { class: "hint" }, r && r.error ? r.error : t("modNoUrl"))
+        : r.urls && r.urls.length ? h("div", {}, h("small", { class: "hint" }, t("modUrls")), ...r.urls.map(u => h("div", {}, h("button", { class: "mlink", type: "button", onclick: () => copy(u) }, u))))
+        : h("small", { class: "hint" }, t("modNoLan"));
+      return h("div", { class: "row stack" }, text, body);
+    }
     case "modestars": {
       const grid = h("div", { class: "modestars" }, h("span"), h("small", {}, t("min")), h("small", {}, t("max")));
       for (const [mode, name] of MODES) {
@@ -1047,12 +1399,20 @@ $("#setClose").addEventListener("click", closeSettings);
 $("#scrim").addEventListener("click", closeSettings);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#settings").hidden) closeSettings(); });
 $("#setReset").addEventListener("click", () => {
-  const key = { connection: "connection", osu: "osu", command: "command", rules: "rules", queue: "queue", download: "download", md5: "md5", import: "import", overlay: "overlay", hotkeys: "hotkeys" }[tab];
+  const key = { connection: "connection", osu: "osu", command: "command", rules: "rules", queue: "queue", download: "download", md5: "md5", import: "import", overlay: "overlay", remote: "remote", tts: "tts", hotkeys: "hotkeys" }[tab];
   draft[key] = structuredClone(defaults[key]);
   renderSettings();
 });
+// newPin makes an 8-digit PIN that passes config.GoodPIN.
+function newPin() {
+  for (;;) {
+    const p = Array.from(crypto.getRandomValues(new Uint32Array(8)), n => n % 10).join("");
+    if (!/^(\d)\1+$/.test(p) && !"0123456789".includes(p) && !"9876543210".includes(p)) return p;
+  }
+}
 $("#setSave").addEventListener("click", async e => {
   draft.language = LANG;
+  if (draft.remote && draft.remote.enabled && !draft.remote.pin) draft.remote.pin = newPin();
   const btn = e.currentTarget; btn.disabled = true;
   try {
     const j = await api("PUT", "/api/config", draft);
