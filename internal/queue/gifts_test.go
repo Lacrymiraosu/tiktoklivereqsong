@@ -120,3 +120,18 @@ func TestRequestCoins(t *testing.T) {
 		t.Errorf("paid request lost when priority expired: %d", r)
 	}
 }
+
+func TestClearTestKeepsRealCredit(t *testing.T) {
+	q := openQ(t)
+	now := time.Now()
+	q.AddRequestCoins("fan", 60, 30, time.Hour, false, now) // real: 2 paid requests
+	q.AddRequestCoins("fan", 30, 30, time.Hour, true, now)  // the streamer tests with the same name
+	q.AddCoins("tester", 30, 30, time.Hour, true, now)      // only test coins
+	q.ClearTest()
+	if r, _ := q.Requests("fan", now); r != 3 {
+		t.Errorf("a real viewer's paid requests must survive Clear test data, got %d", r)
+	}
+	if tok, coins := q.Tokens("tester", now); tok != 0 || coins != 0 {
+		t.Errorf("test-only credit should be cleared: %d %d", tok, coins)
+	}
+}

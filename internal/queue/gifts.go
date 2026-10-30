@@ -31,11 +31,11 @@ func (q *Queue) AddCoins(user string, coins, need int, ttl time.Duration, test b
 	if c.Tokens > 0 && now.After(c.Expires) {
 		c.Coins, c.Tokens = 0, 0 // expired priority starts over (paid requests are kept)
 	}
+	c.markTest(test)
 	c.Coins += coins
 	earned := c.Coins / need
 	c.Coins %= need
 	c.Tokens += earned
-	c.Test = c.Test || test
 	if earned > 0 {
 		c.Expires = now.Add(ttl)
 	}
@@ -55,11 +55,11 @@ func (q *Queue) AddRequestCoins(user string, coins, need int, ttl time.Duration,
 	if c.Requests > 0 && now.After(c.ReqExpires) {
 		c.Requests = 0
 	}
+	c.markTest(test)
 	c.ReqCoins += coins
 	earned := c.ReqCoins / need
 	c.ReqCoins %= need
 	c.Requests += earned
-	c.Test = c.Test || test
 	if earned > 0 {
 		c.ReqExpires = now.Add(ttl)
 	}
@@ -100,6 +100,18 @@ func (q *Queue) Requests(user string, now time.Time) (requests, coins int) {
 		return 0, c.ReqCoins
 	}
 	return c.Requests, c.ReqCoins
+}
+
+// markTest keeps Test true only while everything in the credit came from
+// the test panel, so "Clear test data" never takes a viewer's real coins.
+func (c *Credit) markTest(test bool) {
+	empty := c.Coins == 0 && c.Tokens == 0 && c.ReqCoins == 0 && c.Requests == 0
+	switch {
+	case !test:
+		c.Test = false
+	case empty:
+		c.Test = true
+	}
 }
 
 // credit returns user's credit, creating it; q.mu must be held.
