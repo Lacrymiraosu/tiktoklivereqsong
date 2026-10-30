@@ -1373,11 +1373,13 @@ function field(f) {
       i.addEventListener("input", () => { draft.tts.templates[ev] = i.value; });
       return h("div", { class: "row stack" }, h("div", { class: "swt" }, h("b", {}, t("tpl_" + ev))), i);
     }
-    case "ttstest":
-      return h("div", { class: "row" }, text, h("button", { class: "btn sm", type: "button", onclick: () => {
-        ttsStop();
-        ttsSay(t("ttsSample"), "osureq", draft.tts, () => {});
-      } }, "▶ " + lbl(f.label)));
+    case "ttstest": {
+      // reads what is typed (Thai or English, picked like chat), or the sample when empty
+      const i = h("input", { type: "text", placeholder: t("ttsSample"), maxlength: "500", "aria-label": lbl(f.label) });
+      const say = () => { ttsStop(); ttsSay(i.value.trim() || t("ttsSample"), "osureq", draft.tts, () => {}); };
+      i.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); say(); } });
+      return h("div", { class: "row stack" }, text, h("div", { class: "ovlink" }, i, h("button", { class: "btn sm", type: "button", onclick: say }, "▶ " + lbl(f.label))));
+    }
     case "remoteinfo": {
       const r = S && S.extra && S.extra.remote;
       const body = !r || !r.enabled ? h("small", { class: "hint" }, r && r.error ? r.error : t("modNoUrl"))
