@@ -212,6 +212,10 @@ const T = {
   pf_osuweb_fail: ["osu! website did not answer: requests cannot be checked", "เว็บ osu! ไม่ตอบ: ตรวจคำขอไม่ได้"],
   pf_mirror_ok: ["Mirror {src} answers ({ms} ms)", "mirror {src} ตอบปกติ ({ms} ms)"], pf_mirror_fail: ["Mirror {src} failed", "mirror {src} ใช้ไม่ได้"],
   pf_mirror_none: ["No download mirror is enabled (Settings → Download)", "ไม่ได้เปิด mirror สำหรับดาวน์โหลดเลย (ตั้งค่า → ดาวน์โหลด)"],
+  supportFile: ["Save support file", "บันทึกไฟล์ช่วยแก้ปัญหา"],
+  supportHint: ["After a stream with a problem, save this file (log, raw TikFinity events, settings) and send it to whoever helps you. It has viewers' names from chat.", "ถ้าไลฟ์มีปัญหา กดบันทึกไฟล์นี้ (log, อีเวนต์ดิบจาก TikFinity, การตั้งค่า) แล้วส่งให้คนที่ช่วยแก้ ในไฟล์มีชื่อผู้ชมจากแชทด้วย"],
+  supportSaved: ["Support file saved (see your Downloads)", "บันทึกไฟล์แล้ว (ดูในโฟลเดอร์ดาวน์โหลด)"],
+  n_supportFile: ["Support file saved", "บันทึกไฟล์ช่วยแก้ปัญหาแล้ว"],
   n_gameDetected: ["tosu sees osu! {game} running, so Settings → osu! → Game is now {game}", "tosu เห็นว่าเปิด osu! {game} อยู่ จึงเปลี่ยน ตั้งค่า → osu! → เกม เป็น {game} ให้"],
   n_voteSkipped: ["{n} viewers voted to skip {title}", "ผู้ชม {n} คนโหวตข้าม {title}"],
   e_vote_skip: ["Votes to skip cannot be negative", "จำนวนโหวตข้ามเพลงติดลบไม่ได้"],
@@ -727,6 +731,17 @@ function renderSummary(s) {
 }
 $("#sumShowBtn").addEventListener("click", async () => { const j = await act("/api/action/showSummary"); if (j.ok) toast(t("sumShown")); });
 $("#sumNewBtn").addEventListener("click", () => { if (confirm(t("confirmNewSession"))) act("/api/action/newSession"); });
+
+// The support zip comes from a POST (a plain link would let other sites trigger it), saved through a blob.
+$("#supportBtn").addEventListener("click", e => busy(e.currentTarget, async () => {
+  const r = await fetch("/api/support", { method: "POST", headers: { "X-Osureq": "1" } });
+  if (!r.ok) { toast("HTTP " + r.status, true); return; }
+  const name = (/filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "") || [])[1] || "osureq-support.zip";
+  const a = h("a", { href: URL.createObjectURL(await r.blob()), download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  toast(t("supportSaved"));
+}));
 
 function copy(text) {
   navigator.clipboard.writeText(text).then(() => toast(t("copied")), () => toast(text));

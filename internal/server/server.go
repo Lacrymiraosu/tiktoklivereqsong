@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/app"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/support"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/update"
@@ -33,6 +35,7 @@ type Server struct {
 	Version string
 	Extra   func() map[string]any // platform info (hotkey errors, paths)
 	Quit    func()                // stops the helper (dashboard's Quit button)
+	LogPath string                // osureq.log, for the support file
 
 	mu       sync.Mutex
 	clients  map[chan []byte]bool
@@ -134,6 +137,7 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/ban", s.ban)
 	mux.HandleFunc("POST /api/volume", s.volume)
 	mux.HandleFunc("POST /api/preflight", s.preflight)
+	mux.HandleFunc("POST /api/support", s.supportFile)
 	return guard(port, mux)
 }
 
@@ -399,6 +403,22 @@ func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 		env.HotkeyErrors, _ = s.Extra()["hotkeyErrors"].(map[string]string)
 	}
 	writeJSON(w, map[string]any{"ok": true, "checks": s.App.Preflight(r.Context(), env)})
+}
+
+// supportFile sends the support zip (POST, so other sites cannot trigger it).
+func (s *Server) supportFile(w http.ResponseWriter, r *http.Request) {
+	now := time.Now()
+	raw, first := s.App.TF.Raw()
+	home, _ := os.UserHomeDir()
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="osureq-support-`+now.Format("20060102-1504")+`.zip"`)
+	w.Header().Set("Cache-Control", "no-store")
+	err := support.Write(w, support.Input{Version: s.Version, LogPath: s.LogPath, Home: home, Now: now,
+		Config: s.App.Cfg.Get(), State: s.state(), Raw: map[string]any{"first": first, "recent": raw}})
+	if err != nil {
+		log.Printf("support file: %v", err)
+	}
+	s.App.Say("info", "supportFile", nil, "support file saved from the dashboard")
 }
 
 // volume sets the master volume: {"volume": 0-100}.

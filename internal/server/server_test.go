@@ -265,3 +265,15 @@ func TestPreflightEndpoint(t *testing.T) {
 		t.Errorf("checks: %v", ids)
 	}
 }
+
+func TestSupportFile(t *testing.T) {
+	s, h := newTestServer(t)
+	s.LogPath = filepath.Join(t.TempDir(), "osureq.log")
+	if w := do(h, http.MethodPost, "/api/support", "", func(r *http.Request) { r.Header.Del("X-Osureq") }); w.Code != http.StatusForbidden {
+		t.Errorf("without X-Osureq: %d", w.Code)
+	}
+	w := do(h, http.MethodPost, "/api/support", "")
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "application/zip" || !strings.HasPrefix(w.Body.String(), "PK") {
+		t.Fatalf("got %d %s", w.Code, w.Header())
+	}
+}
