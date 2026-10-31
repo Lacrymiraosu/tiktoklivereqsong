@@ -23,7 +23,7 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 
 ## Features
 
-* Takes requests from TikTok chat through TikFinity, as IDs, any common osu! link or a **song name** (`!req freedom dive`), optionally **with mods** (`!req 2096297 HDHR`)
+* Takes requests from TikTok chat through TikFinity, or **straight from TikTok** without any other program (see [Chat without TikFinity](#chat-without-tikfinity)), as IDs, any common osu! link or a **song name** (`!req freedom dive`), optionally **with mods** (`!req 2096297 HDHR`)
 * Rules: star range (per mode if you like), length, mode, ranked status, requests per viewer, cooldown, duplicates, bans, followers only
 * Downloads from mirrors (hinai → Nekoha → beatconnect → osu.direct → catboy.best → Sayobot → the official site; a mirror that fails hands over to the next) and checks the MD5 against the current version on osu!
 * Opens the map in osu! (stable and lazer) when you press **Next**, or automatically once the previous song has ended (seen through tosu)
@@ -44,7 +44,8 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 
 * Windows 10/11, 64-bit
 * osu! **stable** or **lazer**
-* [**TikFinity Desktop**](https://tikfinity.zerody.one/), connected to the TikTok account and running while you are live (osureq reads chat through it)
+* [**TikFinity Desktop**](https://tikfinity.zerody.one/), connected to the TikTok account and running while you are live (osureq reads chat through it),
+  **or** nothing at all with **TikTok direct** (Settings → Connection, see [Chat without TikFinity](#chat-without-tikfinity))
 * [**tosu**](https://github.com/tosuapp/tosu/releases/latest), running while you are live (tells when a song has ended and records results)
 * OBS or TikTok LIVE Studio, for the overlay
 
@@ -58,6 +59,17 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 5. For the overlay, add a **Browser Source** in OBS with `http://127.0.0.1:21280/overlay` (transparent background).
 
 Use the **Test** panel on the dashboard to try the whole chain before you go live.
+
+### Chat without TikFinity
+
+In **Settings → Connection → Chat comes from**, pick **TikTok direct** and type your TikTok @name. osureq then reads the LIVE
+itself: chat, gifts and viewer roles, with nothing else to install or keep open. When you are not live it checks every 30 seconds
+and connects as soon as the LIVE starts.
+
+TikTok only lets a connection in when its address is signed. [Euler Stream](https://www.eulerstream.com) signs it (the sign
+server TikTok-Live-Connector uses). Only connecting counts, chat does not: without an API key that is 30 connections an hour and
+100 a day, plenty for one stream. A free key from eulerstream.com allows more; put it in **Euler Stream API key**. It stays on
+your PC and is hidden in the support file. TikFinity stays available with the same switch.
 
 ### What viewers type
 
@@ -86,7 +98,8 @@ TikTok chat ──► TikFinity ──WebSocket──► osureq ──► osu.pp
                                            └──► dashboard + overlay (http://127.0.0.1:21280)
 ```
 
-1. **Chat in**: TikFinity sends chat messages and gifts over WebSocket (`ws://127.0.0.1:21213/`).
+1. **Chat in**: TikFinity sends chat messages and gifts over WebSocket (`ws://127.0.0.1:21213/`), or with TikTok direct osureq
+   reads them from TikTok's own LIVE WebSocket (the connection signed by Euler Stream).
    osureq only looks at messages that start with a command such as `!req`.
 2. **Requester checks**: ban list, full queue, requests per viewer and cooldown, all without network access.
 3. **Map info**: the map's page on osu.ppy.sh is read (no API key needed) for title, stars, length, mode, status and the MD5 of every difficulty.
@@ -112,7 +125,7 @@ You need [Go](https://go.dev/dl/) 1.23 or newer on Windows (`winget install GoLa
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
 cd tiktoklivereqsong
-.\build.ps1 -Version 1.4.7
+.\build.ps1 -Version 1.4.8
 ```
 
 `build.ps1` runs `go vet` and `go test`, generates the Windows resources (icon, name, version) and builds `dist\osureq.exe`.
@@ -120,19 +133,19 @@ If PowerShell refuses to run scripts, build by hand:
 
 ```powershell
 $env:CGO_ENABLED = "0"
-go run ./tools/winres -version 1.4.7
-go build -trimpath -ldflags "-X main.version=1.4.7" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.8
+go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
 ```
 
 ### Automatic builds and releases (GitHub Actions)
 
 * Every push to `main` and every pull request is vetted, tested and built; the exe stays on the Actions page for 14 days.
 * To release a new version, update the version number in `build.ps1` (and the changelog) and merge it into `main`. Then either
-  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.4.7`) and press **Run workflow**, or push a tag:
+  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.4.8`) and press **Run workflow**, or push a tag:
 
   ```powershell
-  git tag v1.4.7
-  git push origin v1.4.7
+  git tag v1.4.8
+  git push origin v1.4.8
   ```
 
   GitHub builds with the tag's version and publishes a release with `osureq-<version>-windows-x64.zip` (the exe, `LICENSE` and `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
@@ -144,16 +157,18 @@ Beatmap data, covers and audio previews come from osu! (ppy Pty Ltd). Beatmaps b
 * Idea: [chaiwat2183](https://osu.ppy.sh/users/21039251)
 * [osu!](https://osu.ppy.sh) by ppy Pty Ltd: the game
 * [TikFinity](https://tikfinity.zerody.one/) by zerody: chat and gifts from TikTok LIVE
+* [Euler Stream](https://www.eulerstream.com): signs the TikTok direct connection; [gotiktoklive](https://github.com/steampoweredtaco/gotiktoklive)
+  for the TikTok LIVE message types, and [TikTok-Live-Connector](https://github.com/zerodytrash/TikTok-Live-Connector) for showing how the connection works
 * [tosu](https://github.com/tosuapp/tosu): live osu! game state
 * Beatmap mirrors, where the `.osz` files are downloaded from: [hinai](https://mirror.hinamizawa.ai), [Nekoha](https://mirror.nekoha.moe), [beatconnect](https://beatconnect.io), [osu.direct](https://osu.direct), [catboy.best](https://catboy.best) and [Sayobot](https://osu.sayobot.cn) (hinai, Nekoha, osu.direct and catboy.best also power the song search)
-* Go libraries: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys),
+* Go libraries: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys), [protobuf-go](https://github.com/protocolbuffers/protobuf-go),
   [tc-hib/winres](https://github.com/tc-hib/winres), [nfnt/resize](https://github.com/nfnt/resize), [golang.org/x/image](https://pkg.go.dev/golang.org/x/image)
 * Fonts: [Varela Round](https://fonts.google.com/specimen/Varela+Round) and [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) from Google Fonts
 
-osureq is a fan project and is not affiliated with or endorsed by ppy Pty Ltd, TikTok, TikFinity or tosu.
+osureq is a fan project and is not affiliated with or endorsed by ppy Pty Ltd, TikTok, TikFinity, Euler Stream or tosu.
 osu! is a trademark of ppy Pty Ltd. TikTok is a trademark of its respective owner.
 
 ## License
 
 [MIT](LICENSE) © 2026 kikinomae. The licenses of the third-party code built into `osureq.exe` (the Go standard library,
-`golang.org/x/sys` and `coder/websocket`) are in [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt).
+`golang.org/x/sys`, `coder/websocket`, `protobuf-go` and gotiktoklive's message types) are in [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt).

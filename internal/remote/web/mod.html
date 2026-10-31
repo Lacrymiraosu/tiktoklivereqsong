@@ -78,7 +78,7 @@ h2{font-size:14px;color:var(--pink);margin:6px 0 0}
   </form>
 
   <div id="main" hidden>
-    <div class="card req"><div><b id="reqLabel"></b><div class="pills"><span><i class="dot" id="tfDot"></i> TikFinity</span><span><i class="dot" id="tosuDot"></i> tosu</span></div></div>
+    <div class="card req"><div><b id="reqLabel"></b><div class="pills"><span><i class="dot" id="tfDot"></i> <span id="tfName">TikFinity</span></span><span><i class="dot" id="tosuDot"></i> tosu</span></div></div>
       <input type="checkbox" class="switch" id="reqSw" aria-labelledby="reqLabel"></div>
     <div class="card np" id="np"></div>
     <h2 id="queueTitle"></h2>
@@ -182,6 +182,7 @@ function render(s) {
   $("#loginForm").hidden = true; $("#main").hidden = false; $("#logout").hidden = false;
   $("#reqSw").checked = s.requests;
   $("#tfDot").className = "dot " + s.tikfinity;
+  $("#tfName").textContent = s.chatSource === "tiktok" ? "TikTok" : "TikFinity";
   $("#tosuDot").className = "dot " + s.tosu;
   const key = JSON.stringify([s.now, s.items, s.voteSkip, s.previewing, s.prev, LANG]);
   if (key === lastKey) return; // nothing changed: keep the page still under the thumb

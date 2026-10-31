@@ -32,7 +32,7 @@ const ICON = {
 /* ---------- i18n (en / th) ---------- */
 const T = {
   title: ["osu! requests", "ขอเพลง osu!"],
-  subtitle: ["TikTok LIVE → TikFinity → osu!", "TikTok LIVE → TikFinity → osu!"],
+  subtitle: ["TikTok LIVE → TikFinity → osu!", "TikTok LIVE → TikFinity → osu!"], subtitleDirect: ["TikTok LIVE → osu!", "TikTok LIVE → osu!"],
   requests: ["Requests", "รับคำขอ"],
   queue: ["Queue", "คิว"],
   removeLast: ["Remove last", "ลบอันล่าสุด"],
@@ -40,7 +40,7 @@ const T = {
   rejections: ["Rejected", "ถูกปฏิเสธ"],
   activity: ["Activity", "กิจกรรม"],
   history: ["History", "ประวัติ"],
-  tfEvents: ["TikFinity events", "อีเวนต์จาก TikFinity"],
+  tfEvents: ["LIVE events", "อีเวนต์จากไลฟ์"],
   rawHint: ["The first event of each type is kept so you can check field names. Turn on “Log raw events” in Settings → Connection to see every event.", "เก็บอีเวนต์แรกของแต่ละประเภทไว้ให้ตรวจชื่อฟิลด์ เปิด “บันทึกอีเวนต์ดิบ” ใน ตั้งค่า → การเชื่อมต่อ เพื่อดูทุกอีเวนต์"],
   info: ["Info", "ข้อมูล"],
   settings: ["Settings", "ตั้งค่า"],
@@ -112,6 +112,9 @@ const T = {
   e_port_range: ["Dashboard port must be 1024-65535", "พอร์ตแดชบอร์ดต้องอยู่ระหว่าง 1024-65535"],
   e_tikfinity_url: ["TikFinity URL must be ws://127.0.0.1:<port>", "URL ของ TikFinity ต้องเป็น ws://127.0.0.1:<พอร์ต>"],
   e_tosu_url: ["tosu URL must be ws://127.0.0.1:<port>/websocket/v2", "URL ของ tosu ต้องเป็น ws://127.0.0.1:<พอร์ต>/websocket/v2"],
+  e_source: ["Chat source must be TikFinity or TikTok direct", "แหล่งแชทต้องเป็น TikFinity หรือ TikTok โดยตรง"],
+  e_tiktok_user: ["The TikTok name may only have letters, digits, . and _ (2-24 characters)", "ชื่อ TikTok ใช้ได้แค่ตัวอักษร ตัวเลข . และ _ (2-24 ตัว)"],
+  e_euler_key: ["The Euler Stream API key has spaces or characters a key does not have", "API key ของ Euler Stream มีช่องว่างหรือตัวอักษรที่ไม่ควรมี"],
   e_viewer_url: ["Viewer URL must start with https://", "URL ของ viewer ต้องขึ้นต้นด้วย https://"],
   e_game: ["Game must be stable or lazer", "เกมต้องเป็น stable หรือ lazer"],
   e_command_name: ["The command must start with ! and have no spaces", "คำสั่งต้องขึ้นต้นด้วย ! และไม่มีช่องว่าง"],
@@ -153,6 +156,16 @@ const T = {
   tf_connecting: ["Connecting to TikFinity…", "กำลังเชื่อมต่อ TikFinity…"],
   tf_waiting_stream: ["Waiting for stream", "รอเริ่มไลฟ์"],
   tf_live: ["Live, taking requests", "ไลฟ์อยู่ รับคำขอ"],
+  tt_no_user: ["TikTok name not set", "ยังไม่ได้ใส่ชื่อ TikTok"],
+  tt_no_account: ["TikTok account not found", "ไม่พบบัญชี TikTok นี้"],
+  tt_connecting: ["Connecting to TikTok…", "กำลังเชื่อมต่อ TikTok…"],
+  tt_waiting_stream: ["Waiting for stream", "รอเริ่มไลฟ์"],
+  tt_live: ["Live, taking requests", "ไลฟ์อยู่ รับคำขอ"],
+  ttb_no_user: ["Chat comes straight from TikTok. Type your TikTok @name in Settings → Connection.", "แชทมาจาก TikTok โดยตรง ใส่ชื่อ @ TikTok ของคุณใน ตั้งค่า → การเชื่อมต่อ"],
+  ttb_no_account: ["TikTok has no account with this name. Check it in Settings → Connection.", "TikTok ไม่มีบัญชีชื่อนี้ ตรวจชื่อใน ตั้งค่า → การเชื่อมต่อ"],
+  ttb_connecting: ["@{u} is live, but the connection did not work yet. osureq tries again by itself; without an API key, Euler Stream allows 30 connections an hour.", "@{u} ไลฟ์อยู่ แต่ยังเชื่อมต่อไม่สำเร็จ osureq จะลองใหม่เอง ถ้าไม่มี API key Euler Stream ให้เชื่อมต่อได้ 30 ครั้งต่อชั่วโมง"],
+  ttb_waiting_stream: ["@{u} is not live. osureq checks every 30 seconds and connects when the LIVE starts.", "@{u} ยังไม่ได้ไลฟ์ osureq เช็กทุก 30 วินาที แล้วเชื่อมต่อเองเมื่อเริ่มไลฟ์"],
+  chk_user: ["TikTok name", "ชื่อ TikTok"], chk_room: ["in the LIVE", "อยู่ในไลฟ์"],
   b_not_installed: ["TikFinity Desktop is required. Install it, log in, and connect it to your TikTok account.", "ต้องใช้ TikFinity Desktop ติดตั้ง ล็อกอิน แล้วเชื่อมกับบัญชี TikTok"],
   b_not_running: ["Start TikFinity Desktop and keep it running while you stream.", "เปิด TikFinity Desktop ไว้ตลอดระหว่างไลฟ์"],
   b_connecting: ["TikFinity is running but its WebSocket API did not answer. Check the URL in Settings → Connection.", "TikFinity เปิดอยู่แต่ WebSocket ไม่ตอบ ตรวจ URL ใน ตั้งค่า → การเชื่อมต่อ"],
@@ -218,6 +231,11 @@ const T = {
   pf_tf_ready: ["TikFinity: connected, waiting for the stream to start", "TikFinity: เชื่อมต่อแล้ว รอเริ่มไลฟ์"],
   pf_tf_not_installed: ["TikFinity is not installed", "ยังไม่ได้ติดตั้ง TikFinity"], pf_tf_not_running: ["TikFinity is not running", "TikFinity ไม่ได้เปิดอยู่"],
   pf_tf_connecting: ["TikFinity is running but its WebSocket does not answer (Settings → Connection)", "TikFinity เปิดอยู่แต่ WebSocket ไม่ตอบ (ตั้งค่า → การเชื่อมต่อ)"],
+  pf_tt_live: ["TikTok @{u}: connected and live", "TikTok @{u}: เชื่อมต่อแล้วและกำลังไลฟ์"],
+  pf_tt_ready: ["TikTok @{u}: not live yet, connects when the LIVE starts", "TikTok @{u}: ยังไม่ได้ไลฟ์ จะเชื่อมต่อเองเมื่อเริ่มไลฟ์"],
+  pf_tt_no_user: ["TikTok direct: type your TikTok @name in Settings → Connection", "TikTok โดยตรง: ใส่ชื่อ @ TikTok ใน ตั้งค่า → การเชื่อมต่อ"],
+  pf_tt_no_account: ["TikTok has no account @{u}", "TikTok ไม่มีบัญชี @{u}"],
+  pf_tt_connecting: ["TikTok @{u} is live, but the connection did not work yet", "TikTok @{u} ไลฟ์อยู่ แต่ยังเชื่อมต่อไม่สำเร็จ"],
   pf_tosu_ok: ["tosu: sees osu! {client}", "tosu: เห็น osu! {client}"], pf_tosu_no_game: ["tosu is running, but osu! is not open", "tosu เปิดอยู่ แต่ยังไม่ได้เปิด osu!"],
   pf_tosu_not_running: ["tosu is not running: auto mode and results need it", "tosu ไม่ได้เปิดอยู่: โหมดอัตโนมัติและผลการเล่นต้องใช้"],
   pf_tosu_connecting: ["tosu is running but its WebSocket does not answer (Settings → Connection)", "tosu เปิดอยู่แต่ WebSocket ไม่ตอบ (ตั้งค่า → การเชื่อมต่อ)"],
@@ -273,6 +291,8 @@ const T = {
   ttsTitleOff: ["TTS is off in this tab: click to start it (chat and announcements). It stays off here until you start it again.", "เสียงอ่านปิดอยู่ในแท็บนี้: คลิกเพื่อเริ่ม (แชทและประกาศ) จะปิดอยู่จนกว่าจะกดเริ่มอีกครั้ง"],
   ttsTitleArmed: ["This browser lets a page make sound only after you interact with it: TTS starts on your first click or key press anywhere on the dashboard. In Microsoft Edge you can skip this: Settings → Cookies and site permissions → Media autoplay → Allow this address.", "เบราว์เซอร์ให้หน้าเว็บมีเสียงได้หลังจากมีการกดหน้านั้นก่อน: เสียงอ่านจะเริ่มเมื่อคลิกหรือกดปุ่มใดก็ได้บนแดชบอร์ดครั้งแรก ถ้าใช้ Microsoft Edge ตั้งให้ไม่ต้องคลิกได้ที่ Settings → Cookies and site permissions → Media autoplay → Allow แล้วใส่ที่อยู่นี้"],
   ttsTitleOn: ["TTS is speaking in this tab (commands in chat are skipped). Click to stop.", "กำลังใช้เสียงอ่านในแท็บนี้ (ไม่อ่านคำสั่งในแชท) คลิกเพื่อหยุด"],
+  ttsAway: ["TTS in another window", "เสียงอ่านอยู่อีกหน้าต่าง"],
+  ttsTitleAway: ["Another dashboard window or tab is reading TTS, so this one stays quiet (no double voice). Click to read it here instead.", "แดชบอร์ดอีกหน้าต่างหรือแท็บกำลังอ่านอยู่ หน้านี้จึงเงียบ (ไม่ให้เสียงซ้อน) คลิกเพื่อย้ายเสียงอ่านมาที่หน้านี้"],
   sg_chat: ["Reading chat", "อ่านแชท"], sg_voice: ["Voice", "เสียง"], sg_announce: ["Announcements", "ประกาศเหตุการณ์"],
   modOn: ["on", "เปิดอยู่"], ttsSkip: ["Skip this message", "ข้ามข้อความนี้"],
   ttsNoVoice: ["This browser has no voice for {lang}. Set Settings → TTS → Who speaks to auto or Google, or open the dashboard in Microsoft Edge.", "เบราว์เซอร์นี้ไม่มีเสียงภาษา{lang} ตั้ง การตั้งค่า → TTS → ใครพูด เป็น auto หรือ Google หรือเปิดแดชบอร์ดใน Microsoft Edge"],
@@ -390,9 +410,12 @@ function render() {
   if (!S) return;
   if (!langPicked && S.lang === "th" && LANG !== "th") { LANG = "th"; langPicked = true; applyLang(); }
   const tf = S.tikfinity;
+  const direct = tf.source === "tiktok";
   $("#tfDot").className = "dot " + tf.level;
-  $("#tfText").textContent = t("tf_" + tf.code);
-  $("#tfPill").title = tf.error || "";
+  $("#tfText").textContent = t((direct ? "tt_" : "tf_") + tf.code);
+  $("#tfPill").title = tf.error || (direct && tf.user ? "TikTok @" + tf.user : "");
+  const sub = $("[data-t^=subtitle]"), subKey = direct ? "subtitleDirect" : "subtitle";
+  if (sub.dataset.t !== subKey) { sub.dataset.t = subKey; sub.textContent = t(subKey); }
   $("#logo").classList.toggle("beat", tf.level === "green" && S.requests);
   $("#reqSw").checked = S.requests;
   if (!volEditing) showVolume(S.masterVolume ?? 10);
@@ -418,6 +441,7 @@ function render() {
     $(sel).disabled = !running;
     $(sel).title = running ? "" : t("notRunning", { app });
   }
+  $("#stopTfBtn").hidden = direct && !tf.running;
   renderNow(S.queue.now);
   updatePhase();
   renderQueue(S.queue.items || []);
@@ -449,7 +473,10 @@ function renderStatus(tf, ts) {
       statusOpen ? [h("small", { class: "shint" }, hint), error ? h("small", { class: "serr", title: error }, error) : null, h("div", { class: "steps" }, chips)] : []),
     h("div", { class: "sacts" }, acts));
   const rows = [];
-  if (tf.level !== "green") {
+  if (tf.level !== "green" && tf.source === "tiktok") {
+    rows.push(row(tf.level, t("tt_" + tf.code), t("ttb_" + tf.code, { u: tf.user || "" }) + " " + t("b_note"), tf.error,
+      [chk(!!tf.user, "chk_user"), chk(tf.connected, "chk_room")], tf.user ? [button(false, t("reconnect"), "/api/action/reconnect")] : []));
+  } else if (tf.level !== "green") {
     const acts = [];
     if (!tf.installed) acts.push(button(true, t("getTikfinity"), "/api/action/openTikfinityDownload"));
     else if (!tf.running) acts.push(button(true, t("launch"), "/api/action/launchTikfinity"));
@@ -535,18 +562,20 @@ function togglePreview(setId) {
 function mapLinks(it) {
   const pv = h("button", { class: "mlink pv", type: "button", "data-pv": it.setId, onclick: e => { e.stopPropagation(); togglePreview(it.setId); } });
   const out = [" · ", pv];
-  if (S && S.viewerUrl) {
-    const u = new URL(S.viewerUrl);
-    u.searchParams.set("s", it.setId);
-    if (it.beatmapId) u.searchParams.set("b", it.beatmapId);
-    out.push(" · ", h("a", { class: "mlink", href: u.toString(), target: "_blank", rel: "noopener", title: t("viewerTitle") }, t("viewer") + " ↗"));
-  }
+  const vh = viewerHref(it);
+  if (vh) out.push(" · ", h("a", { class: "mlink", href: vh, target: "_blank", rel: "noopener", title: t("viewerTitle") }, t("viewer") + " ↗"));
   queueMicrotask(syncPreview);
   return out;
 }
 
+// A viewerUrl with {set}, {map} or {file} is a template (the file is the hinai mirror download);
+// without them the old ?s=&b= form is used.
 function viewerHref(it) {
   if (!S || !S.viewerUrl) return "";
+  if (/\{(set|map|file)\}/.test(S.viewerUrl)) {
+    const file = encodeURIComponent(`https://mirror.hinamizawa.ai/api/v1/hinai/d/${it.setId}`);
+    return S.viewerUrl.replace("{set}", it.setId).replace("{map}", it.beatmapId || "").replace("{file}", file);
+  }
   const u = new URL(S.viewerUrl);
   u.searchParams.set("s", it.setId);
   if (it.beatmapId) u.searchParams.set("b", it.beatmapId);
@@ -902,7 +931,7 @@ function copy(text) {
 /* ---------- live connection ---------- */
 let ws, wsRetry = 0, offlineT, quitting = false;
 function connect() {
-  ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+  ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws?page=" + ttsPage);
   ws.onopen = () => { wsRetry = 0; clearTimeout(offlineT); };
   ws.onmessage = e => {
     const prev = S;
@@ -962,6 +991,13 @@ $("#clearBtn").addEventListener("click", () => { if (confirm(t("confirmClear")))
 // after an interaction get it started by the first click or key anywhere
 // (ttsArmed) instead of by the top-bar button.
 let ttsOn = false, ttsSeen = -1, ttsBusy = false, ttsArmed = false;
+// Only one dashboard page speaks: the one that started TTS last (the helper
+// keeps S.ttsSpeaker). Other pages with TTS on stay quiet ("away").
+const ttsPage = Math.random().toString(36).slice(2) + Date.now().toString(36);
+const ttsAway = () => !!(S && S.ttsSpeaker && S.ttsSpeaker !== ttsPage);
+function ttsClaim(on) {
+  fetch("/api/tts/speaker", { method: "POST", headers: { "X-Osureq": "1", "Content-Type": "application/json" }, body: JSON.stringify({ page: ttsPage, on }) }).catch(() => {});
+}
 const ttsQueue = [], ttsWarned = {};
 const hasThai = s => /[\u0E00-\u0E7F]/.test(s);
 let ttsAudio = null; // Google's voice playing, if any
@@ -1013,7 +1049,7 @@ function ttsStop() {
   if (ttsAudio) ttsAudio.pause(); // its onpause ends the line
 }
 function ttsNext() {
-  if (ttsBusy || !ttsOn || !ttsQueue.length) return;
+  if (ttsBusy || !ttsOn || ttsAway() || !ttsQueue.length) return;
   const s = ttsQueue.shift();
   ttsBusy = true;
   ttsSay(s.text, s.name, S.tts, () => { ttsBusy = false; renderTTS(); ttsNext(); });
@@ -1025,6 +1061,8 @@ function handleSpeech() {
   const fresh = list.filter(s => s.id > ttsSeen).reverse();
   if (fresh.length) ttsSeen = fresh[fresh.length - 1].id;
   if (!S.tts || !(S.tts.enabled || S.tts.announce) || !ttsOn) return;
+  if (ttsAway()) { ttsQueue.length = 0; if (ttsBusy) ttsStop(); return; } // another page took the voice
+  if (!S.ttsSpeaker) ttsClaim(true); // the speaking page was closed: this one takes over
   ttsQueue.push(...fresh);
   while (ttsQueue.length > 5) ttsQueue.shift(); // a busy chat: keep up instead of falling behind
   ttsNext();
@@ -1033,11 +1071,12 @@ function renderTTS() {
   const on = !!(S && S.tts && (S.tts.enabled || S.tts.announce));
   $("#ttsWrap").hidden = !on || !("speechSynthesis" in window);
   if (S && !on && ttsOn) { ttsQueue.length = 0; ttsStop(); } // switched off in Settings: silent, starts again with it
-  const p = $("#ttsPill");
-  p.textContent = ttsOn ? "🔊 " + t("ttsOn") : "🔈 " + t(ttsArmed ? "ttsArmed" : "ttsStart");
-  p.title = t(ttsOn ? "ttsTitleOn" : ttsArmed ? "ttsTitleArmed" : "ttsTitleOff");
-  p.classList.toggle("off", !ttsOn);
-  $("#ttsSkip").hidden = !ttsOn || !ttsBusy;
+  const p = $("#ttsPill"), away = ttsOn && ttsAway(), here = ttsOn && !away;
+  // away and the other page switched TTS off: shown as off here too
+  p.textContent = here ? "🔊 " + t("ttsOn") : away && S.ttsSpeakerOn ? "🔈 " + t("ttsAway") : "🔈 " + t(ttsArmed ? "ttsArmed" : "ttsStart");
+  p.title = t(here ? "ttsTitleOn" : away && S.ttsSpeakerOn ? "ttsTitleAway" : ttsArmed ? "ttsTitleArmed" : "ttsTitleOff");
+  p.classList.toggle("off", !here);
+  $("#ttsSkip").hidden = !here || !ttsBusy;
   $("#ttsSkip").title = t("ttsSkip");
 }
 // ttsStart turns TTS on; called from a click or key, it also unlocks speech in this tab.
@@ -1045,13 +1084,15 @@ function ttsStart() {
   ttsOn = true; ttsArmed = false;
   if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));
   try { localStorage.removeItem("osureq.ttsOff"); } catch {}
+  ttsClaim(true);
   renderTTS();
 }
 $("#ttsPill").addEventListener("click", e => {
   e.stopPropagation(); // not the "first click anywhere" as well
-  if (!ttsOn) return ttsStart();
+  if (!ttsOn || ttsAway()) return ttsStart(); // also moves the voice here from another page
   ttsOn = false; ttsArmed = false; ttsQueue.length = 0; ttsStop(); ttsBusy = false;
   try { localStorage.setItem("osureq.ttsOff", "1"); } catch {} // stays off here until started again
+  ttsClaim(false);
   renderTTS();
 });
 // ttsAutoStart: on page load, start TTS unless it was switched off here. A
@@ -1208,10 +1249,19 @@ const STATUSES = ["ranked", "approved", "qualified", "loved", "pending", "wip", 
 const F = (path, type, en, th, hintEn, hintTh, extra) => ({ path, type, label: [en, th], hint: hintEn ? [hintEn, hintTh] : null, ...extra });
 const SCHEMA = {
   connection: [
-    F("connection.tikfinityUrl", "text", "TikFinity WebSocket URL", "URL WebSocket ของ TikFinity", "Default ws://127.0.0.1:21213/", "ค่าเริ่มต้น ws://127.0.0.1:21213/"),
+    F("connection.source", "seg", "Chat comes from", "รับแชทจาก",
+      "TikFinity: TikFinity Desktop runs next to osureq. TikTok direct: osureq reads the LIVE itself, no other program needed. Euler Stream (eulerstream.com) signs the connection; only connecting counts, chat does not.",
+      "TikFinity: เปิด TikFinity Desktop ไว้คู่กับ osureq · TikTok โดยตรง: osureq อ่านไลฟ์เอง ไม่ต้องเปิดโปรแกรมอื่น Euler Stream (eulerstream.com) เป็นผู้เซ็นการเชื่อมต่อ นับเฉพาะตอนเชื่อมต่อ แชทไม่นับ",
+      { options: [["tikfinity", "TikFinity"], ["tiktok", ["TikTok direct", "TikTok โดยตรง"]]], rerender: true }),
+    F("connection.tiktokUser", "text", "Your TikTok @name", "ชื่อ @ TikTok ของคุณ", "The account that goes live, e.g. @kikinomae.", "บัญชีที่ไลฟ์ เช่น @kikinomae", { when: "connection.source=tiktok" }),
+    F("connection.eulerApiKey", "secret", "Euler Stream API key (optional)", "API key ของ Euler Stream (ไม่ใส่ก็ได้)",
+      "Empty works: up to 30 connections an hour and 100 a day, plenty for one stream. A free key from eulerstream.com allows more. Stays on this PC and is hidden in the support file.",
+      "เว้นว่างได้: เชื่อมต่อได้ 30 ครั้งต่อชั่วโมง 100 ครั้งต่อวัน พอสำหรับไลฟ์เดียว ถ้าสมัคร key ฟรีที่ eulerstream.com จะได้มากขึ้น เก็บไว้ในเครื่องนี้เท่านั้น และถูกซ่อนในไฟล์ช่วยเหลือ",
+      { when: "connection.source=tiktok" }),
+    F("connection.tikfinityUrl", "text", "TikFinity WebSocket URL", "URL WebSocket ของ TikFinity", "Default ws://127.0.0.1:21213/", "ค่าเริ่มต้น ws://127.0.0.1:21213/", { when: "connection.source=tikfinity" }),
     F("connection.reconnectSec", "number", "Reconnect every (s)", "เชื่อมต่อใหม่ทุก (วินาที)", null, null, { min: 1, max: 120 }),
-    F("connection.autoLaunchTikfinity", "switch", "Auto-launch TikFinity", "เปิด TikFinity อัตโนมัติ", "Starts TikFinity if it is installed but not running.", "เปิด TikFinity ให้ถ้าติดตั้งแล้วแต่ยังไม่ได้เปิด"),
-    F("connection.tikfinityPath", "text", "TikFinity.exe path", "ที่อยู่ TikFinity.exe", "Leave as is unless TikFinity lives somewhere unusual.", "ปล่อยไว้ได้ ยกเว้นติดตั้งไว้ที่อื่น"),
+    F("connection.autoLaunchTikfinity", "switch", "Auto-launch TikFinity", "เปิด TikFinity อัตโนมัติ", "Starts TikFinity if it is installed but not running.", "เปิด TikFinity ให้ถ้าติดตั้งแล้วแต่ยังไม่ได้เปิด", { when: "connection.source=tikfinity" }),
+    F("connection.tikfinityPath", "text", "TikFinity.exe path", "ที่อยู่ TikFinity.exe", "Leave as is unless TikFinity lives somewhere unusual.", "ปล่อยไว้ได้ ยกเว้นติดตั้งไว้ที่อื่น", { when: "connection.source=tikfinity" }),
     F("connection.dashboardPort", "number", "Dashboard port", "พอร์ตแดชบอร์ด", "Takes effect after a restart.", "มีผลหลังรีสตาร์ทโปรแกรม", { min: 1024, max: 65535 }),
     F("connection.openDashboardOnStart", "switch", "Open dashboard on start", "เปิดแดชบอร์ดตอนเริ่มโปรแกรม"),
     F("connection.tosuUrl", "text", "tosu WebSocket URL (required)", "URL WebSocket ของ tosu (จำเป็น)", "Default ws://127.0.0.1:24050/websocket/v2. Auto mode uses it to see when a song has ended.", "ค่าเริ่มต้น ws://127.0.0.1:24050/websocket/v2 โหมดอัตโนมัติใช้ดูว่าเพลงจบแล้ว"),
@@ -1323,7 +1373,7 @@ const SCHEMA = {
   ],
   tts: [
     F("", "group", "sg_chat"),
-    F("tts.enabled", "switch", "Read chat aloud (without commands)", "อ่านแชทออกเสียง (ไม่อ่านคำสั่ง)", "Reads TikTok chat in this dashboard with the voices of Windows, and never reads messages starting with ! (!req, !np…), links or emoji. Turn off TikFinity's own TTS so chat is not read twice. TTS starts by itself when the dashboard opens (if the browser wants a click first, the first click anywhere starts it); the 🔊 button at the top switches it off. OBS picks it up as desktop audio.", "อ่านแชท TikTok ในแดชบอร์ดนี้ด้วยเสียงของ Windows และไม่อ่านข้อความที่ขึ้นต้นด้วย ! (!req, !np…) ลิงก์ หรืออีโมจิ ให้ปิด TTS ของ TikFinity เพื่อไม่ให้อ่านซ้ำ เสียงอ่านจะเริ่มเองเมื่อเปิดแดชบอร์ด (ถ้าเบราว์เซอร์ต้องการให้คลิกก่อน คลิกตรงไหนก็ได้ครั้งแรกจะเริ่มให้) ปุ่ม 🔊 ด้านบนใช้ปิด OBS จับเสียงได้ผ่าน Desktop Audio"),
+    F("tts.enabled", "switch", "Read chat aloud (without commands)", "อ่านแชทออกเสียง (ไม่อ่านคำสั่ง)", "Reads TikTok chat in this dashboard with the voices of Windows, and never reads messages starting with ! (!req, !np…), links or emoji. Turn off TikFinity's own TTS so chat is not read twice. TTS starts by itself when the dashboard opens (if the browser wants a click first, the first click anywhere starts it); the 🔊 button at the top switches it off. With several dashboard windows open, only the last one started reads. OBS picks it up as desktop audio.", "อ่านแชท TikTok ในแดชบอร์ดนี้ด้วยเสียงของ Windows และไม่อ่านข้อความที่ขึ้นต้นด้วย ! (!req, !np…) ลิงก์ หรืออีโมจิ ให้ปิด TTS ของ TikFinity เพื่อไม่ให้อ่านซ้ำ เสียงอ่านจะเริ่มเองเมื่อเปิดแดชบอร์ด (ถ้าเบราว์เซอร์ต้องการให้คลิกก่อน คลิกตรงไหนก็ได้ครั้งแรกจะเริ่มให้) ปุ่ม 🔊 ด้านบนใช้ปิด ถ้าเปิดแดชบอร์ดไว้หลายหน้าต่าง จะอ่านเฉพาะหน้าที่เริ่มล่าสุด OBS จับเสียงได้ผ่าน Desktop Audio"),
     F("tts.readName", "switch", "Say who wrote it", "บอกชื่อคนพิมพ์", "\"name says …\"", "\"ชื่อ บอกว่า …\""),
     F("tts.maxLength", "number", "Max letters per message", "ความยาวสูงสุดต่อข้อความ", "Longer messages are cut.", "ข้อความที่ยาวกว่านี้จะถูกตัด", { min: 10, max: 500 }),
     F("tts.cooldownSec", "number", "Per-viewer cooldown (s)", "คูลดาวน์ต่อคน (วินาที)", "A viewer's next message within this time is not read.", "ข้อความถัดไปของคนเดิมภายในเวลานี้จะไม่ถูกอ่าน", { min: 0 }),
@@ -1383,13 +1433,19 @@ async function openSettings() {
 }
 function closeSettings() { $("#settings").hidden = true; draft = null; }
 
+// whenOK reads a field's "when": "path" (on) or "path=value".
+function whenOK(when) {
+  const [path, want] = when.split("=");
+  return want === undefined ? !!getP(draft, path) : getP(draft, path) === want;
+}
+
 function renderSettings() {
   const tabs = $("#setTabs");
   tabs.replaceChildren(...Object.keys(SCHEMA).map(k => h("button", { class: "tab" + (k === tab ? " on" : ""), role: "tab", "aria-selected": k === tab ? "true" : "false", onclick: () => { tab = k; renderSettings(); } }, t("tab_" + k))));
   const body = $("#setBody");
   const box = h("div", { class: "card2" });
   for (const f of SCHEMA[tab]) {
-    if (f.when && !getP(draft, f.when)) continue; // e.g. announcement lines only while announcements are on
+    if (f.when && !whenOK(f.when)) continue; // e.g. announcement lines only while announcements are on
     box.append(field(f));
   }
   body.replaceChildren(box);
@@ -1420,6 +1476,12 @@ function field(f) {
       if (err) text.append(h("small", { style: "color:#ff9aa6" }, err));
       return h("div", { class: f.type === "text" && String(v || "").length > 30 ? "row stack" : "row" }, text, i);
     }
+    case "secret": { // an API key: hidden until shown, never autofilled
+      const i = h("input", { type: "password", value: v ?? "", autocomplete: "off", "aria-label": lbl(f.label), spellcheck: "false" });
+      i.addEventListener("input", () => set(i.value.trim()));
+      const show = h("button", { class: "btn sm ghost", type: "button", onclick: () => { i.type = i.type === "password" ? "text" : "password"; } }, "👁");
+      return h("div", { class: "row" }, text, h("div", { class: "ovlink" }, i, show));
+    }
     case "number": {
       const i = h("input", { type: "number", value: v ?? 0, step: f.step || 1, min: f.min, max: f.max, "aria-label": lbl(f.label) });
       i.addEventListener("input", () => set(i.value === "" ? 0 : Number(i.value)));
@@ -1441,7 +1503,7 @@ function field(f) {
     }
     case "seg": {
       const seg = h("div", { class: "seg" });
-      const draw = () => seg.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: getP(draft, f.path) === val ? "on" : "", onclick: () => { set(val); draw(); } }, lbl(name))));
+      const draw = () => seg.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: getP(draft, f.path) === val ? "on" : "", onclick: () => { set(val); f.rerender ? renderSettings() : draw(); } }, lbl(name))));
       draw();
       return h("div", { class: "row stack" }, text, seg);
     }

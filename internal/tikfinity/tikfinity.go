@@ -1,10 +1,13 @@
 // Package tikfinity watches TikFinity Desktop and reads TikTok LIVE events
-// from its local WebSocket API. TikFinity is the only event source.
+// from its local WebSocket API. With Settings.Direct it reads the LIVE
+// straight from TikTok instead (Client.Direct, see package tiktok), with the
+// same events and status.
 package tikfinity
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"strings"
 	"sync"
@@ -26,7 +29,9 @@ const (
 
 type Status struct {
 	Level     Level     `json:"level"`
-	Code      string    `json:"code"` // not_installed | not_running | connecting | waiting_stream | live
+	Code      string    `json:"code"`   // not_installed | not_running | connecting | waiting_stream | live; direct also no_user | no_account
+	Source    string    `json:"source"` // tikfinity | tiktok (direct)
+	User      string    `json:"user,omitempty"`
 	Installed bool      `json:"installed"`
 	Path      string    `json:"path"`
 	Running   bool      `json:"running"`
@@ -35,6 +40,8 @@ type Status struct {
 	Live      bool      `json:"live"`
 	LastEvent time.Time `json:"lastEvent"`
 	Error     string    `json:"error,omitempty"`
+	Offline   bool      `json:"offline,omitempty"`   // direct: the account is not live
+	NoAccount bool      `json:"noAccount,omitempty"` // direct: TikTok has no such account
 }
 
 type Chat struct {
@@ -85,11 +92,34 @@ type Settings struct {
 	Reconnect  time.Duration
 	AutoLaunch bool
 	LogRaw     bool
+	Direct     bool   // read the LIVE straight from TikTok, without TikFinity
+	User       string // direct: the TikTok @name that is live
+	APIKey     string // direct: Euler Stream API key, "" = keyless
 }
+
+// Direct reads a TikTok LIVE without TikFinity. It calls ev.Connected once it
+// is in the room, then the other callbacks, and returns when ctx ends or the
+// connection drops: ErrOffline (also when the LIVE ends), ErrNoAccount,
+// ErrRateLimited, or any other error for a connection problem.
+type Direct func(ctx context.Context, user, apiKey string, ev DirectEvents) error
+
+type DirectEvents struct {
+	Connected func()
+	Chat      func(Chat)
+	Gift      func(Gift)
+	Other     func() // any other message (viewers, likes…): the LIVE is alive
+}
+
+const (
+	ErrOffline     = strErr("not live right now")
+	ErrNoAccount   = strErr("no TikTok account with this name")
+	ErrRateLimited = strErr("sign server limit reached")
+)
 
 type Client struct {
 	Env      Env
 	Settings func() Settings
+	Direct   Direct
 	OnChat   func(Chat)
 	OnGift   func(Gift)
 	OnStatus func(Status)
@@ -101,6 +131,7 @@ type Client struct {
 	lastLaunch  time.Time
 	stopped     bool // closed from the dashboard: no auto-launch until started again
 	kick        chan struct{}
+	fails       int // direct: connection failures in a row, for the back-off
 }
 
 const liveTimeout = 5 * time.Minute
@@ -180,6 +211,19 @@ func (c *Client) set(f func(*Status)) {
 }
 
 func classify(s Status) (Level, string) {
+	if s.Source == "tiktok" {
+		switch {
+		case s.User == "":
+			return Red, "no_user"
+		case s.NoAccount:
+			return Red, "no_account"
+		case s.Connected:
+			return Green, "live"
+		case s.Offline:
+			return Yellow, "waiting_stream"
+		}
+		return Yellow, "connecting"
+	}
 	switch {
 	case !s.Installed:
 		return Red, "not_installed"
@@ -204,9 +248,24 @@ func (c *Client) Accepting() bool {
 func (c *Client) Run(ctx context.Context) {
 	for ctx.Err() == nil {
 		s := c.Settings()
+		if s.Direct {
+			wait := c.direct(ctx, s)
+			select {
+			case <-ctx.Done():
+				return
+			case <-c.kick:
+			case <-time.After(wait):
+			}
+			continue
+		}
 		path, installed := c.Env.Find(s.Path)
 		running := c.Env.Running(ProcessName)
-		c.set(func(st *Status) { st.Installed, st.Path, st.Running = installed, path, running })
+		c.set(func(st *Status) {
+			if st.Source != "tikfinity" {
+				*st = Status{Source: "tikfinity"}
+			}
+			st.Installed, st.Path, st.Running = installed, path, running
+		})
 
 		if running {
 			c.mu.Lock()
@@ -237,6 +296,101 @@ func (c *Client) Run(ctx context.Context) {
 		case <-c.kick:
 		case <-time.After(s.Reconnect):
 		}
+	}
+}
+
+// direct reads the LIVE straight from TikTok until it ends, the connection
+// drops or the settings change, and says how long to wait before trying again.
+// Only connecting uses the sign server (keyless: 5 a minute, 30 an hour), so
+// short connections back off; checking whether the account is live is free.
+func (c *Client) direct(ctx context.Context, s Settings) time.Duration {
+	c.set(func(st *Status) {
+		if st.Source != "tiktok" || st.User != s.User {
+			*st = Status{Source: "tiktok", User: s.User}
+		}
+	})
+	if s.User == "" || c.Direct == nil {
+		return time.Hour // until the settings change
+	}
+	sctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	kicked := make(chan bool, 1)
+	go func() { // a settings change or Reconnect starts over
+		select {
+		case <-sctx.Done():
+			kicked <- false
+		case <-c.kick:
+			cancel()
+			kicked <- true
+		}
+	}()
+	start := time.Now()
+	err := c.Direct(sctx, s.User, s.APIKey, DirectEvents{
+		Connected: func() {
+			c.set(func(st *Status) {
+				st.Connected, st.Handshake, st.Live, st.Offline, st.NoAccount, st.Error = true, true, true, false, false, ""
+				st.LastEvent = time.Now()
+			})
+		},
+		Chat: func(ch Chat) {
+			c.directEvent("chat", ch, s.LogRaw)
+			if strings.HasPrefix(ch.Comment, "!") {
+				c.directEvent("chat (command)", ch, false)
+			}
+			if c.OnChat != nil {
+				c.OnChat(ch)
+			}
+		},
+		Gift: func(g Gift) {
+			c.directEvent("gift (counted)", g, s.LogRaw)
+			if c.OnGift != nil {
+				c.OnGift(g)
+			}
+		},
+		Other: func() { c.set(func(st *Status) { st.LastEvent = time.Now() }) },
+	})
+	cancel()
+	if <-kicked || ctx.Err() != nil {
+		c.set(func(st *Status) { st.Connected, st.Handshake, st.Live = false, false, false })
+		return 0
+	}
+	if time.Since(start) > 2*time.Minute {
+		c.fails = 0
+	}
+	wait := s.Reconnect
+	c.set(func(st *Status) {
+		st.Connected, st.Handshake, st.Live, st.Offline, st.NoAccount = false, false, false, false, false
+		st.Error = shortErr(err)
+		switch {
+		case errors.Is(err, ErrOffline):
+			st.Offline, st.Error, c.fails = true, "", 0
+			wait = max(wait, 30*time.Second)
+		case errors.Is(err, ErrNoAccount):
+			st.NoAccount = true
+			wait = 5 * time.Minute
+		case errors.Is(err, ErrRateLimited):
+			wait = 5 * time.Minute
+		default:
+			c.fails++
+			wait = min(max(wait, 10*time.Second)<<min(c.fails-1, 5), 5*time.Minute)
+		}
+	})
+	return wait
+}
+
+// directEvent keeps a direct chat or gift like a raw TikFinity event, for the
+// side panel and the support file.
+func (c *Client) directEvent(kind string, v any, logRaw bool) {
+	b, _ := json.Marshal(v)
+	ev := RawEvent{At: time.Now(), Event: kind, Raw: string(b)}
+	c.keepFirst(kind, ev)
+	if logRaw {
+		c.mu.Lock()
+		c.raw = append([]RawEvent{ev}, c.raw...)
+		if len(c.raw) > 100 {
+			c.raw = c.raw[:100]
+		}
+		c.mu.Unlock()
 	}
 }
 
@@ -482,13 +636,13 @@ func Avatar(m map[string]any) string {
 	for _, c := range cands {
 		switch v := c.(type) {
 		case string:
-			if u := safeAvatar(v); u != "" {
+			if u := SafeAvatar(v); u != "" {
 				return u
 			}
 		case []any:
 			for _, x := range v {
 				if s, ok := x.(string); ok {
-					if u := safeAvatar(s); u != "" {
+					if u := SafeAvatar(s); u != "" {
 						return u
 					}
 				}
@@ -513,7 +667,8 @@ func dig(m map[string]any, keys ...string) any {
 // avatarHosts are TikTok's image CDNs; pictures from anywhere else are dropped.
 var avatarHosts = []string{".tiktokcdn.com", ".tiktokcdn-us.com", ".tiktokcdn-eu.com", ".ibyteimg.com"}
 
-func safeAvatar(raw string) string {
+// SafeAvatar returns raw if it is an https picture on TikTok's CDN, else "".
+func SafeAvatar(raw string) string {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || u.Scheme != "https" || u.User != nil {
 		return ""
@@ -528,6 +683,9 @@ func safeAvatar(raw string) string {
 }
 
 func shortErr(err error) string {
+	if err == nil {
+		return ""
+	}
 	s := err.Error()
 	if i := strings.LastIndex(s, ": "); i > 0 && len(s) > 120 {
 		s = s[i+2:]

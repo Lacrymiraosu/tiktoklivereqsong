@@ -30,6 +30,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/search"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/server"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tiktok"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/update"
 )
@@ -102,8 +103,10 @@ func main() {
 	tf := tikfinity.New(tikfinity.Env{Find: platform.FindTikFinity, Running: platform.ProcessRunning, Launch: platform.Launch, Close: platform.Close},
 		func() tikfinity.Settings {
 			c := store.Get().Connection
-			return tikfinity.Settings{URL: c.TikFinityURL, Path: c.TikFinityPath, Reconnect: time.Duration(c.ReconnectSec) * time.Second, AutoLaunch: c.AutoLaunch, LogRaw: c.LogRawEvents}
+			return tikfinity.Settings{URL: c.TikFinityURL, Path: c.TikFinityPath, Reconnect: time.Duration(c.ReconnectSec) * time.Second, AutoLaunch: c.AutoLaunch, LogRaw: c.LogRawEvents,
+				Direct: c.Source == "tiktok", User: c.TikTokUser, APIKey: c.EulerAPIKey}
 		})
+	tf.Direct = tiktok.New().Stream
 
 	a := app.New(store, q, osumeta.New(), dl, im, tf, platform.ShellOpen)
 	a.Search = search.New()
@@ -131,6 +134,11 @@ func main() {
 		}
 	}
 	tf.OnStatus = func(st tikfinity.Status) {
+		if st.Source == "tiktok" {
+			log.Printf("TikTok @%s: %s (%s) %s", st.User, st.Level, st.Code, st.Error)
+			srv.Push()
+			return
+		}
 		log.Printf("TikFinity: %s (%s) %s", st.Level, st.Code, st.Error)
 		srv.Push()
 	}
@@ -164,7 +172,8 @@ func main() {
 		if c.Hotkeys != prev.Hotkeys {
 			applyHotkeys(c)
 		}
-		if c.Connection.TikFinityURL != prev.Connection.TikFinityURL || c.Connection.TikFinityPath != prev.Connection.TikFinityPath {
+		if cn, pc := c.Connection, prev.Connection; cn.TikFinityURL != pc.TikFinityURL || cn.TikFinityPath != pc.TikFinityPath ||
+			cn.Source != pc.Source || cn.TikTokUser != pc.TikTokUser || cn.EulerAPIKey != pc.EulerAPIKey {
 			tf.Reconnect()
 		}
 		if c.Connection.TosuURL != prev.Connection.TosuURL {

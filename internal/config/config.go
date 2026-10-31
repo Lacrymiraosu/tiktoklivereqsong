@@ -17,6 +17,9 @@ import (
 )
 
 type Connection struct {
+	Source         string `json:"source"`      // tikfinity | tiktok (straight from TikTok, signed by Euler Stream)
+	TikTokUser     string `json:"tiktokUser"`  // tiktok: the @name that goes live
+	EulerAPIKey    string `json:"eulerApiKey"` // tiktok: optional Euler Stream API key, "" = keyless
 	TikFinityURL   string `json:"tikfinityUrl"`
 	DashboardPort  int    `json:"dashboardPort"`
 	AutoLaunch     bool   `json:"autoLaunchTikfinity"`
@@ -320,6 +323,7 @@ func Default() Config {
 		Language:     "en",
 		MasterVolume: 10,
 		Connection: Connection{
+			Source:        "tikfinity",
 			TikFinityURL:  "ws://127.0.0.1:21213/",
 			DashboardPort: 21280,
 			TikFinityPath: filepath.Join(local, "Programs", "tikfinity", "TikFinity.exe"),
@@ -415,6 +419,18 @@ func (e *ValidationError) ErrCode() (string, map[string]string) {
 	return e.Problems[0].Code, e.Problems[0].Vars
 }
 
+func goodTikTokName(u string) bool {
+	if len(u) < 2 || len(u) > 24 {
+		return false
+	}
+	for _, r := range u {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '.' || r == '_') {
+			return false
+		}
+	}
+	return true
+}
+
 func (c *Config) Validate() error {
 	var probs []Problem
 	add := func(code string, vars map[string]string, f string, a ...any) {
@@ -434,6 +450,21 @@ func (c *Config) Validate() error {
 	}
 	if c.Connection.ReconnectSec < 1 {
 		c.Connection.ReconnectSec = 1
+	}
+	switch c.Connection.Source {
+	case "":
+		c.Connection.Source = "tikfinity"
+	case "tikfinity", "tiktok":
+	default:
+		add("source", nil, "chat source must be tikfinity or tiktok")
+	}
+	c.Connection.TikTokUser = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(c.Connection.TikTokUser), "@"))
+	if u := c.Connection.TikTokUser; u != "" && !goodTikTokName(u) {
+		add("tiktok_user", nil, "TikTok name may only have letters, digits, . and _ (2-24 characters)")
+	}
+	c.Connection.EulerAPIKey = strings.TrimSpace(c.Connection.EulerAPIKey)
+	if k := c.Connection.EulerAPIKey; len(k) > 200 || strings.ContainsFunc(k, func(r rune) bool { return r <= ' ' || r > '~' }) {
+		add("euler_key", nil, "Euler Stream API key has spaces or other characters a key does not have")
 	}
 	if v := c.Osu.ViewerURL; v != "" && !strings.HasPrefix(v, "https://") && !strings.HasPrefix(v, "http://localhost") && !strings.HasPrefix(v, "http://127.0.0.1") {
 		add("viewer_url", nil, "viewer URL must start with https:// (or http://localhost for a local copy)")

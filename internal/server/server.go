@@ -45,10 +45,17 @@ type Server struct {
 	clients  map[chan []byte]bool
 	overlays int // connected OBS overlays (the overlay connects with ?client=overlay)
 	pushT    *time.Timer
+
+	// Only one dashboard page reads TTS aloud: the one that started it last.
+	// Each page connects with ?page=<random id>; the speaker is cleared when
+	// all of its connections are gone, so another page can take over.
+	pages     map[string]int // open dashboard pages -> WebSocket connections
+	speaker   string         // page that has the voice ("" = none)
+	speakerOn bool           // that page has TTS on (false: it switched TTS off)
 }
 
 func New(a *app.App, version string) *Server {
-	return &Server{App: a, Version: version, Voice: gtts.New(), clients: map[chan []byte]bool{}}
+	return &Server{App: a, Version: version, Voice: gtts.New(), clients: map[chan []byte]bool{}, pages: map[string]int{}}
 }
 
 type State struct {
@@ -78,6 +85,8 @@ type State struct {
 	Summary        queue.Summary                 `json:"summary"`
 	TTS            config.TTS                    `json:"tts"`
 	Speech         []app.Speech                  `json:"speech"`
+	TTSSpeaker     string                        `json:"ttsSpeaker"`   // dashboard page that reads TTS ("" = none)
+	TTSSpeakerOn   bool                          `json:"ttsSpeakerOn"` // and it has TTS on
 	SummaryShown   int64                         `json:"summaryShown"`
 	PreviewAsk     app.PreviewAsk                `json:"previewAsk"` // the mod panel wants a preview played here
 	Mirrors        []downloader.SourceStatus     `json:"mirrors"`
@@ -104,7 +113,49 @@ func (s *Server) state() State {
 	if s.Extra != nil {
 		st.Extra = s.Extra()
 	}
+	s.mu.Lock()
+	st.TTSSpeaker, st.TTSSpeakerOn = s.speaker, s.speakerOn
+	s.mu.Unlock()
 	return st
+}
+
+// pageOpen and pageClosed count a dashboard page's WebSocket connections.
+// When the speaking page's last connection closes, nobody has the voice.
+func (s *Server) pageOpen(id string) {
+	s.mu.Lock()
+	s.pages[id]++
+	s.mu.Unlock()
+}
+
+func (s *Server) pageClosed(id string) {
+	s.mu.Lock()
+	s.pages[id]--
+	gone := s.pages[id] <= 0
+	if gone {
+		delete(s.pages, id)
+	}
+	left := gone && s.speaker == id
+	if left {
+		s.speaker, s.speakerOn = "", false
+	}
+	s.mu.Unlock()
+	if left {
+		s.Push()
+	}
+}
+
+// setSpeaker gives the voice to page when it turns TTS on. Turning it off
+// keeps the claim, so the other pages stay quiet instead of starting.
+func (s *Server) setSpeaker(page string, on bool) {
+	s.mu.Lock()
+	switch {
+	case on:
+		s.speaker, s.speakerOn = page, true
+	case s.speaker == page:
+		s.speakerOn = false
+	}
+	s.mu.Unlock()
+	s.Push()
 }
 
 // Push schedules a state broadcast (coalesced).
@@ -156,6 +207,7 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/preflight", s.preflight)
 	mux.HandleFunc("POST /api/support", s.supportFile)
 	mux.HandleFunc("POST /api/tts", s.tts)
+	mux.HandleFunc("POST /api/tts/speaker", s.ttsSpeaker)
 	return guard(port, mux)
 }
 
@@ -200,12 +252,19 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	defer c.CloseNow()
 	ch := make(chan []byte, 4)
 	overlay := r.URL.Query().Get("client") == "overlay"
+	page := r.URL.Query().Get("page") // a dashboard page, for TTS
+	if len(page) > 64 {
+		page = ""
+	}
 	s.mu.Lock()
 	s.clients[ch] = true
 	if overlay {
 		s.overlays++
 	}
 	s.mu.Unlock()
+	if page != "" {
+		s.pageOpen(page)
+	}
 	defer func() {
 		s.mu.Lock()
 		delete(s.clients, ch)
@@ -213,6 +272,9 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 			s.overlays--
 		}
 		s.mu.Unlock()
+		if page != "" {
+			s.pageClosed(page)
+		}
 	}()
 	ctx := c.CloseRead(r.Context())
 	first, _ := json.Marshal(s.state())
@@ -462,6 +524,9 @@ func (s *Server) supportFile(w http.ResponseWriter, r *http.Request) {
 	if cfg.Remote.PIN != "" {
 		cfg.Remote.PIN = "(hidden)" // the file is meant to be shared
 	}
+	if cfg.Connection.EulerAPIKey != "" {
+		cfg.Connection.EulerAPIKey = "(hidden)"
+	}
 	err := support.Write(w, support.Input{Version: s.Version, LogPath: s.LogPath, Home: home, Now: now,
 		Config: cfg, State: s.state(), Raw: map[string]any{"first": first, "recent": raw}})
 	if err != nil {
@@ -503,6 +568,20 @@ func (s *Server) tts(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "audio/mpeg")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Write(b)
+}
+
+// ttsSpeaker records which dashboard page reads TTS: {page, on}.
+func (s *Server) ttsSpeaker(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Page string `json:"page"`
+		On   bool   `json:"on"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&body) != nil || body.Page == "" || len(body.Page) > 64 {
+		httpErr(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	s.setSpeaker(body.Page, body.On)
+	writeJSON(w, map[string]any{"ok": true})
 }
 
 // ban blacklists a user, beatmapset or mapper and drops matching requests.

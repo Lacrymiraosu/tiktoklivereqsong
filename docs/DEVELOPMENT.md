@@ -3,7 +3,7 @@
 A small Windows helper (one `osureq.exe`, ~8 MB, Go, no installer, no runtime) that lets
 TikTok LIVE viewers request osu! beatmaps in chat. The helper:
 
-1. reads chat from **TikFinity Desktop**,
+1. reads chat from **TikFinity Desktop**, or straight from TikTok (**TikTok direct**, the connection signed by Euler Stream),
 2. checks each request against the streamer's rules,
 3. downloads it from a mirror,
 4. confirms the `.osu` files match what osu! currently serves (MD5),
@@ -49,9 +49,9 @@ Thai: see [README.th.md](README.th.md).
 
 | | |
 |---|---|
-| Version | **1.4.7** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.4.8** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
-| Tests | `go test ./...`: 15 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
+| Tests | `go test ./...`: 20 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
 
 **Verified for real on the developer's PC:** TikFinity detection, WebSocket connection and `config` handshake;
@@ -123,7 +123,8 @@ Out of scope for now: sending messages to TikTok chat (TikFinity's own WebSocket
 |---|---|
 | OS | Windows 10/11 x64, internet connection |
 | osu! | osu! **stable** or **lazer** installed, with `.osz` files opening in osu! (double-click a `.osz` once to check) |
-| **TikFinity Desktop** (required) | Installed, logged in, connected to the TikTok account, and **running during the stream**. Default WebSocket `ws://127.0.0.1:21213/`. Download: <https://tikfinity.zerody.one/> |
+| **TikFinity Desktop** (or TikTok direct) | Installed, logged in, connected to the TikTok account, and **running during the stream**. Default WebSocket `ws://127.0.0.1:21213/`. Download: <https://tikfinity.zerody.one/>. Not needed with `connection.source` = `tiktok` |
+| TikTok direct | The streamer's TikTok @name, and HTTPS to `www.tiktok.com`, `tiktok.eulerstream.com` (sign server; keyless or with a free API key) and TikTok's LIVE WebSocket (`webcast-ws*.tiktok.com`) |
 | **tosu** (required) | Running during the stream, WebSocket on the default `127.0.0.1:24050`. Auto mode depends on it; without tosu, auto mode pauses (manual Next still works). Download: <https://github.com/tosuapp/tosu/releases/latest> |
 | Optional | OBS or TikTok LIVE Studio, for the overlay |
 | Optional | Logged in to osu.ppy.sh in the default browser. Only needed for the official-download fallback |
@@ -134,7 +135,7 @@ Out of scope for now: sending messages to TikTok chat (TikFinity's own WebSocket
 |---|---|
 | Go | 1.23 or newer (`winget install GoLang.Go`). Uses `net/http` routing patterns (1.22) and `maps`/`slices` iterators (1.23) |
 | OS | Windows (the `platform` package uses Win32 APIs; everything else is portable Go) |
-| Modules | `github.com/coder/websocket` (WebSocket client and server), `golang.org/x/sys` (Windows APIs, registry) |
+| Modules | `github.com/coder/websocket` (WebSocket client and server), `golang.org/x/sys` (Windows APIs, registry), `google.golang.org/protobuf` and `github.com/steampoweredtaco/gotiktoklive/proto` (TikTok LIVE message types; only the `proto` package is used) |
 | Optional | Node.js, only for `node --check internal/server/web/app.js` as a quick syntax check |
 | Optional | TikFinity and tosu installed locally for manual end-to-end tests |
 
@@ -348,6 +349,13 @@ Nothing from before TTS started is read, and at most five messages wait. With `t
 (natural/online voices first); `tts.voice` picks a browser voice, used only for its own language. OBS records it as desktop audio.
 Streamers should turn TikFinity's TTS off.
 
+Only one dashboard page speaks, so a second window or tab does not double the voice. Each page makes a random id at load and connects
+with `/ws?page=<id>`; starting TTS (by itself, a click, or the pill) sends `POST /api/tts/speaker` `{page, on: true}`, and the last page to do
+so has the voice (`State.ttsSpeaker`). The other pages with TTS on stay quiet and show **TTS in another window**; clicking it moves the voice
+there. Switching TTS off in the speaking page sends `on: false`: it keeps the claim with `ttsSpeakerOn` false, so the others show TTS as off
+instead of starting. When all of the speaking page's WebSocket connections close (tab closed, reloaded), the claim is cleared and the next
+page with TTS on that gets speech takes it.
+
 Windows ships no Thai voice, and Chrome-based browsers (Chrome, Dia) can only use Windows voices, so `tts.engine` decides who speaks:
 `auto` (default) uses the browser's voice when it has one for the language and Google Translate's voice otherwise; `browser` never goes
 online; `google` always does. Google's voice goes through the helper (`POST /api/tts`, `internal/gtts`): it fetches
@@ -391,6 +399,7 @@ TikTok LIVE             │                                                     
    ▼                    │        (status)                    │               (CheckUser)     │
 TikFinity Desktop ─ws──►│                                    ▼                               │
  ws://127.0.0.1:21213   │                             osumeta.Client ─► validator.CheckMap   │──https──► osu.ppy.sh
+ or TikTok direct ─wss─►│  (tiktok.Client = tikfinity.Client.Direct; signed by Euler Stream) │
                         │                                    │                               │
                         │                                    ▼                               │
                         │                              queue.Queue ◄──── queue.json          │
@@ -410,7 +419,8 @@ tosu ─────ws───────────►│                   
 
 **Concurrency model** (all in `main.go`):
 
-* `tikfinity.Client.Run` and `tosu.Client.Run`: one goroutine each; reconnect every `reconnectSec`.
+* `tikfinity.Client.Run` and `tosu.Client.Run`: one goroutine each; reconnect every `reconnectSec`. In TikTok direct mode
+  `tikfinity.Client.Run` calls `tiktok.Client.Stream` instead (checks every 30 s while offline; failed connections back off up to 5 min).
 * `app.Run`: a loop woken by queue changes (`App.Wake`) or a 2 s ticker; starts **one download at a time** and drives auto mode.
 * Every chat request is resolved in its own goroutine (`App.submit`), because metadata lookups take network time.
 * `server`: `net/http` on 127.0.0.1; state pushes are coalesced (120 ms) and sent to every WebSocket client.
@@ -422,6 +432,7 @@ tosu ─────ws───────────►│                   
 (subscribers via `OnChange`). The UI never holds state of its own beyond view preferences in `localStorage`.
 
 **Dependency direction:** `main` → `app` → (`parser`, `osumeta`, `search`, `validator`, `queue`, `downloader`, `verifier`, `importer`, `tikfinity`, `tosu`, `update`) → `config`.
+`tiktok` depends on `tikfinity` (it produces `tikfinity.Chat`/`Gift`); `main` wires `tiktok.New().Stream` into `tikfinity.Client.Direct`.
 `server` depends on `app`. Only `main` imports `platform` (Windows APIs are injected into `tikfinity`, `tosu`, `downloader`, `importer` as functions,
 which keeps those packages testable).
 
@@ -441,7 +452,7 @@ tiktoklivereqsong/
 ├── docs/README.th.md            user guide in Thai
 ├── .github/workflows/build.yml  GitHub Actions: vet, test, build; a v* tag publishes a release
 ├── LICENSE                      MIT, © 2026 kikinomae
-├── THIRD_PARTY_LICENSES.txt     licenses of the Go standard library, x/sys and coder/websocket (shipped in the release zip)
+├── THIRD_PARTY_LICENSES.txt     licenses of the Go standard library, x/sys, coder/websocket, protobuf-go and gotiktoklive (shipped in the release zip)
 ├── .gitignore                   ignores dist/, cache/, config.json, queue.json, logs
 ├── .gitattributes               *.osz binary (keeps test fixtures byte-exact on Windows)
 ├── dist/                        (ignored) built exe; when run from here also holds config/queue/cache/log
@@ -472,7 +483,8 @@ tiktoklivereqsong/
     ├── verifier/     verifier.go (+_test)  in-memory unzip + MD5 compare (strict / requested)
     │   └── testdata/                       .osz fixtures (regenerate with -update)
     ├── importer/     importer.go, osudb.go (+_test)  open / copy / extract, Songs dir, safe paths, osu!.db hash scan
-    ├── tikfinity/    tikfinity.go (+_test) TikFinity detection + WebSocket client + chat parsing
+    ├── tikfinity/    tikfinity.go (+_test, direct_test) TikFinity detection + WebSocket client + chat parsing; direct mode loop
+    ├── tiktok/       tiktok.go (+_test)    TikTok direct: room lookup, Euler Stream signing, LIVE WebSocket, chat/gift mapping
     ├── tosu/         tosu.go (+_test)      tosu WebSocket client + song-end Tracker
     ├── platform/     platform_windows.go, hotkey.go (+_test)  Win32: ShellExecute, processes, registry, hotkeys
     └── server/       server.go (+_test)    HTTP routes, guard, state snapshot, WebSocket push, pre-stream check endpoint
@@ -513,7 +525,8 @@ tiktoklivereqsong/
 | `internal/verifier/verifier.go` | ~140 | ZIP magic check, in-memory unzip (64 MB per `.osu` cap), MD5 per `.osu`, comparison at `strict`/`requested` level | `Verify`, `Compare`, `OsuHashes`, `LooksLikeZip`, `Reference`, `Result` |
 | `internal/importer/importer.go` | ~210 | Refuses untrusted files, `open`/`copy`/`extract`, Songs folder from `osu!.<user>.cfg` `BeatmapDirectory`, Windows-safe names, traversal-safe joins | `Importer.Import`, `SongsDir`, `CopyToSongs`, `ExtractToSongs`, `SafeJoin`, `SafeName` |
 | `internal/importer/osudb.go` | ~70 | Finds beatmap MD5s in `osu!.db` by scanning for `0x0b 0x20 <32 hex>` instead of parsing the versioned format | `OsuDB.Has`, `ScanHashes` |
-| `internal/tikfinity/tikfinity.go` | ~440 | Install/process checks, WebSocket loop, `config` handshake, live detection (any event; times out after 5 min of silence), raw event log (first event of each type kept), chat field extraction with fallbacks, viewer roles (yes/no/unknown), gift parsing (streaks counted once) | `Client`, `Status` (`red`/`yellow`/`green`, codes), `Chat`, `Tri`, `ParseChat`, `Gift`, `ParseGift`, `Accepting` |
+| `internal/tikfinity/tikfinity.go` | ~690 | Install/process checks, WebSocket loop, `config` handshake, live detection (any event; times out after 5 min of silence), raw event log (first event of each type kept), chat field extraction with fallbacks, viewer roles (yes/no/unknown), gift parsing (streaks counted once), TikTok direct loop (`Settings.Direct`: status codes `no_user`/`no_account`, back-off) | `Client`, `Status` (`red`/`yellow`/`green`, codes), `Chat`, `Tri`, `ParseChat`, `Gift`, `ParseGift`, `Accepting` |
+| `internal/tiktok/tiktok.go` | ~450 | TikTok direct: live check, Euler Stream signing, LIVE WebSocket (enter room, heartbeat, ack, gzip), chat/gift/role/picture mapping, stream end | `Client`, `New`, `Stream` (a `tikfinity.Direct`), `RoomID`, `CleanUser` |
 | `internal/tosu/tosu.go` | ~420 | tosu WebSocket loop (`/websocket/v2`), payload parsing (state, beatmap, live `play` numbers, `resultsScreen`), status levels (only the short `Brief` state drives pushes), remembers `tosu.exe` path, song-end state machine | `Client`, `Status`, `Game`, `Brief`, `Score`, `Parse`, `Tracker`, `Phase` (`waiting`/`playing`/`results`/`ended`) |
 | `internal/platform/platform_windows.go` | ~280 | `ShellExecuteW` open, Toolhelp process list, process image path, TikFinity lookup (path + Uninstall registry), osu! stable lookup (`HKCR\osustable.File.osz\shell\open\command`), launch in a new console window, close by exe name (`WM_CLOSE`, then `TerminateProcess` after 3 s), `RegisterHotKey` message loop, console window title | `ShellOpen`, `ProcessRunning`, `ProcessPath`, `FindTikFinity`, `FindOsuStable`, `Launch`, `Close`, `Hotkeys`, `SetConsoleTitle` |
 | `internal/platform/hotkey.go` | ~50 | Parses `Ctrl+Alt+N`, `Shift+F5`, `F9`, `Win+Num5`… into modifier + virtual key | `ParseHotkey` |
@@ -548,6 +561,32 @@ These are the assumptions most likely to break when a third party changes someth
   Coins = `diamondCount × repeatCount`; for `giftType` 1 (streakable) only the event with `repeatEnd: true` counts.
 * The dashboard keeps the first event of every type, and with `logRawEvents` the last 100 events, so field names can be checked without a debugger.
 
+### TikTok direct (`internal/tiktok`)
+
+Used when `connection.source` is `tiktok`. Every request sends osureq's own User-Agent (`osureq/1.0 (TikTok LIVE request helper)`); nothing pretends to be a browser.
+
+* Live check: `GET https://www.tiktok.com/api-live/user/room/?aid=1988&sourceType=54&uniqueId={user}`. `statusCode` 0 and
+  `data.liveRoom.status` (else `data.user.status`) 2 = live with `data.user.roomId`; 4 = ended; `statusCode` 19881007 = no such account
+  (**verified**). Free (no sign server). TikTok's firewall answers 403 for a while after many quick lookups; normal use is one every 30 s.
+* Signing: `GET https://tiktok.eulerstream.com/webcast/fetch/?client=osureq&room_id={room}&uuc=1&client_enter=true` (+ `apiKey` query and
+  `x-api-key` header when a key is set). Answer: protobuf `WebcastResponse` with `pushServer`, `routeParamsMap` (signature parameters),
+  `cursor`, `internalExt`, and header `X-Set-TT-Cookie` (`ttwid`) (**verified keyless**). 429 = limit (`tikfinity.ErrRateLimited`, retried after
+  5 min). Keyless limits from `/webcast/rate_limits`: 5 a minute, 30 an hour, 100 a day. Euler's newer `/webcast/rooms/{id}/connect` refuses
+  non-browser User-Agents, so it is not used. Errors never include the URL (the key could be in it).
+* WebSocket: `pushServer` + fixed web parameters + `routeParamsMap` + `room_id`, `cursor`, `internal_ext`, `compress=gzip`, `client_enter=1`,
+  with the `ttwid` cookie. Right after connecting the client sends a `WebcastPushFrame` `im_enter_room` (payload `WebcastImEnterRoomMessage`:
+  room_id 1, live_id 4 = 12, identity 5 = "audience", enter_unique_id 8 random, filter_welcome_msg 9 = "0"); without it TikTok closes with
+  `payload_handler_im_enter_room`. TikTok answers `im_enter_room_resp`. Heartbeat every 10 s: frame `hb` with `HeartbeatMessage` (room_id 1,
+  send_packet_seq_id 2). Messages: frame `msg`, payload (gzip) `WebcastResponse`; `needsAck` → frame `ack` with `logId` and `internalExt`.
+  No frame for 60 s = dead connection. (**verified** on a real LIVE: connect, enter, member/like/viewer messages.)
+* Chat: `WebcastChatMessage` → `user.displayId` (the @name; **verified** on member messages, `idStr` was empty), `user.nickname`, `content`,
+  `userIdentity.isModeratorOfAnchor`/`isAnchor` → moderator, `isFollowerOfAnchor`, `isSubscriberOfAnchor`; picture from `avatarThumb`/`Medium`/`Large`/`Jpg`
+  `urlList` (same host filter as TikFinity). Chat older than 10 s before connecting and `isHistory` messages are skipped, so a reconnect does
+  not replay requests. (**verified** on a real LIVE: chat with @name, nickname and picture.)
+* Gifts: `WebcastGiftMessage` → coins = `gift.diamondCount × repeatCount`; `gift.type` 1 (streakable) counts only with `repeatEnd` 1.
+* `WebcastControlMessage` action 3/4 (stream ended / ended by ban) → `tikfinity.ErrOffline`, back to checking every 30 s.
+* gotiktoklive's own client is not used: it fills the user name with the numeric ID and reads some fields without nil checks.
+
 ### tosu (`internal/tosu`)
 
 * WebSocket `ws://127.0.0.1:24050/websocket/v2` (configurable); tosu pushes the full state every poll (default 100 ms). Only changes are forwarded to the app.
@@ -573,6 +612,8 @@ These are the assumptions most likely to break when a third party changes someth
 
 **Beatmap viewer link:** `osu.viewerUrl` (default `https://osu-beatmap-viewer.vercel.app/`) + `?s={setId}&b={beatmapId}`. It is only a link opened in the
 browser; the helper sends nothing to the viewer. The viewer loads map files from public mirrors itself.
+If `osu.viewerUrl` contains `{set}`, `{map}` or `{file}` it is used as a template instead: `{file}` becomes the URL-encoded hinai download
+(`https://mirror.hinamizawa.ai/api/v1/hinai/d/{setId}`), e.g. `https://player.kiki-bm.app/s/{set}?file={file}&diff={map}`.
 
 User-Agent `osureq/1.0 (TikTok LIVE request helper)`. Never embed osu! OAuth secrets.
 
@@ -649,7 +690,7 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 | `GET /` | dashboard |
 | `GET /overlay` | OBS overlay |
 | `GET /assets/{file}` | embedded `app.js`, `app.css`, `icon.svg` |
-| `GET /ws` | WebSocket; pushes the full `State` JSON on every change (and every 20 s). The overlay adds `?client=overlay` so the pre-stream check can count it |
+| `GET /ws` | WebSocket; pushes the full `State` JSON on every change (and every 20 s). The overlay adds `?client=overlay` so the pre-stream check can count it; a dashboard page adds `?page=<id>` (who reads TTS) |
 | `GET /api/state` | the same `State` once |
 | `GET /api/config` | `{config, defaults}` |
 | `PUT /api/config` | replace the whole config (validated); `{ok, restartNeeded}` |
@@ -662,13 +703,14 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 | `POST /api/preflight` | runs the pre-stream check (a few seconds) → `{ok, checks: [{id, status, key, vars, detail}]}` |
 | `POST /api/volume` | `{"volume": 0-100}` sets the master volume |
 | `POST /api/tts` | `{"lang": "th"\|"en", "text": "…"}` (at most 600 letters) → `audio/mpeg` from Google's voice; 502 with the reason if Google fails |
+| `POST /api/tts/speaker` | `{"page": "<id>", "on": bool}`: this dashboard page reads TTS (`on`), or switched it off; see [Chat TTS](#chat-tts) |
 | `PUT /api/preview` | `{"setId": n}`: the set the dashboard is playing a preview of (0 = none), shown on the mod panel |
 | `POST /api/jump` | `{"setId": n, "beatmapId": n}`: osu! jumps to a history map (`osu://b/<beatmapId>`; without `beatmapId`, the set's first difficulty from osu!); the queue is not touched |
 | `POST /api/ban` | `{"kind": "user" \| "set" \| "mapper", "value": "…"}` → `{ok, removed}` |
 
-`State` fields: `version`, `tikfinity` (status), `tosu` (status incl. `game`), `autoGap`, `queue` (`items`, `now`, `history`, `rejected`),
+`State` fields: `version`, `tikfinity` (status; `source` `tikfinity`/`tiktok` and `user` say which chat source it describes), `tosu` (status incl. `game`), `autoGap`, `queue` (`items`, `now`, `history`, `rejected`),
 `requests`, `resolving`, `notices`, `feed` (overlay pop-up events), `cacheMb`, `overlay`, `command`, `search`, `requestCoins`, `lang`, `playMode`, `viewerUrl`, `blacklistUsers`, `dryRun`,
-`voteSkip` (`votes`, `needed`), `tts` (settings), `speech` (chat to read), `update` (`version`, `url`, only when newer), `summary`, `summaryShown`, `raw`, `firstRaw`,
+`voteSkip` (`votes`, `needed`), `tts` (settings), `speech` (chat to read), `ttsSpeaker`/`ttsSpeakerOn` (the dashboard page that reads it), `update` (`version`, `url`, only when newer), `summary`, `summaryShown`, `raw`, `firstRaw`,
 `previewAsk` (`setId`, `n`: a mod panel preview press, `n` grows per press), `mirrors` (`name`, `state` ok|failed|resting|unknown, `error`, `ms`, `at`), `mirrorCheck`,
 `extra` (`hotkeyErrors`, `baseDir`, `cacheDir`).
 
@@ -709,7 +751,10 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 |---|---|---|---|
 | (root) | `language` | `en` | saved by the settings sheet; the dashboard language itself is per browser |
 | | `masterVolume` | `10` | Master volume (0-100 %) for every sound the dashboard plays (map previews); also the speaker button in the top bar |
-| connection | `tikfinityUrl` | `ws://127.0.0.1:21213/` | TikFinity WebSocket API (must be on this PC) |
+| connection | `source` | `tikfinity` | Where chat comes from: `tikfinity`, or `tiktok` (straight from TikTok, signed by Euler Stream) |
+| | `tiktokUser` | empty | `tiktok`: the streamer's @name (saved without `@`, lower case) |
+| | `eulerApiKey` | empty | `tiktok`: optional Euler Stream API key; empty = keyless limits. Shown as `(hidden)` in the support file |
+| | `tikfinityUrl` | `ws://127.0.0.1:21213/` | TikFinity WebSocket API (must be on this PC) |
 | | `dashboardPort` | `21280` | Dashboard/overlay port (applies after restart) |
 | | `reconnectSec` | `5` | Retry interval for TikFinity and tosu |
 | | `autoLaunchTikfinity` | `false` | Start TikFinity if it is installed but not running; paused after **Close TikFinity** until it is started again |
@@ -837,15 +882,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.4.7          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.4.8          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.4.7      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.4.7" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.8      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
 ```
 
 ### Releases (GitHub Actions)
@@ -853,15 +898,15 @@ go build -trimpath -ldflags "-X main.version=1.4.7" -o dist\osureq.exe .
 `.github/workflows/build.yml` runs on every push to `main` and every pull request: `go vet`, `go test` and a build on
 `windows-latest`; the exe is kept as a workflow artifact for 14 days (version `0.0.0-dev+<commit>`).
 To publish a release, bump the version (Changelog row, Version row, `build.ps1` default) and merge it into `main`, then
-either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.7`) or tag and push:
+either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.8`) or tag and push:
 
 ```powershell
-git tag v1.4.7
-git push origin v1.4.7
+git tag v1.4.8
+git push origin v1.4.8
 ```
 
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
-creates the tag `v1.4.7` on that commit together with the release (a tag made by the workflow does not start another run).
+creates the tag `v1.4.8` on that commit together with the release (a tag made by the workflow does not start another run).
 The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 The tag build uses the tag's number for `main.version` and the Windows resources, and publishes a GitHub release with
 `osureq-<version>-windows-x64.zip` (`osureq.exe`, `LICENSE`, `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
@@ -908,7 +953,7 @@ Read this before changing anything.
 1. **Run `go vet ./...` and `go test ./...` before and after every change.** Add or update tests for any behaviour you change.
 2. **Never trigger real side effects on the streamer's PC while testing.** Do not press Next/Play, call `/api/action/next`, or enable preload against the real
    osu! folder unless dry run is on. Use the sandbox above. Do not start or stop the streamer's running `osureq.exe`, TikFinity, tosu or osu!.
-3. **Keep the module boundaries.** Only `osumeta` scrapes osu!. Only `tikfinity` knows TikFinity's payload. Only `tosu` knows tosu's payload. Only `platform` calls Win32.
+3. **Keep the module boundaries.** Only `osumeta` scrapes osu!. Only `tikfinity` knows TikFinity's payload. Only `tiktok` knows TikTok's LIVE protocol and the sign server. Only `tosu` knows tosu's payload. Only `platform` calls Win32.
    Only `downloader` performs downloads, and only to whitelisted hosts.
 4. **Do not guess third-party field names silently.** If you change what is read from TikFinity or tosu, verify it against a real message (raw event log, or tosu's `/json/v2`) and say so in the commit.
 5. **Auto mode is tosu-only by the owner's decision.** Do not add a timer or window-title fallback without asking.
@@ -927,6 +972,7 @@ Read this before changing anything.
 | Item | Status / next step |
 |---|---|
 | Live TikTok chat through TikFinity | field names (`comment`, `uniqueId`, `nickname`) not yet seen on a real stream; check the raw event panel during the first stream |
+| TikTok direct chat and gifts | connecting, entering the room, viewer @names and chat verified on a real LIVE; a gift not yet seen. With an API key: not tested (no key) |
 | Auto mode with real tosu + osu! | verified only with a fake tosu server; confirm state names during real play (stable and lazer) |
 | Next → `.osz` opens in osu! | not exercised on the real machine during development; confirm once |
 | Global hotkeys | implemented, not exercised |
@@ -950,6 +996,8 @@ Read this before changing anything.
 | "TikFinity not installed" while it is installed | Set **Settings → Connection → TikFinity.exe path**. |
 | Yellow "Connecting…" (TikFinity) | TikFinity's WebSocket API is off or uses another port. Check the URL in TikFinity and in Settings. |
 | Yellow "Waiting for stream" while live | No TikTok events are reaching TikFinity. Reconnect TikFinity to the account. |
+| TikTok direct: "TikTok account not found" | Check **Settings → Connection → Your TikTok @name**. |
+| TikTok direct: yellow "Connecting…" while live | Hover the pill for the reason. `sign server limit reached`: the keyless hourly/daily limit; it retries after 5 min, or add a free Euler Stream key. `HTTP 403` from TikTok: retried with a back-off. |
 | tosu pill red/yellow | Start tosu. Different port → **Settings → Connection → tosu WebSocket URL**. "osu! not detected" means osu! is not running. |
 | Auto mode does not move on | Needs a green tosu pill, and the opened map must actually be **played** (song select alone does not count). Press **Next** to move on by hand. |
 | My `!req` was not added | Check the **Rejected** panel (a red pop-up also appears). Usually the per-user limit or cooldown: add yourself to **No-limit users**. |
@@ -961,7 +1009,8 @@ Read this before changing anything.
 | Phone cannot open the mod panel | Same Wi-Fi (not a guest network, which isolates devices)? Allowed in the Windows firewall for **private** networks? Windows network profile set to Private? Use an address from Settings → Mod panel. |
 | Windows says the app is unsafe / "Windows protected your PC" | That is SmartScreen warning about an **unsigned** program, usually one that was downloaded or received in a zip. Windows Defender finds nothing in it. Click **More info → Run anyway**, or right-click `osureq.exe` → **Properties** → tick **Unblock**. Only a code-signing certificate removes the warning for everyone. |
 | TikFinity's TTS reads `!req 123…` | Turn TikFinity's TTS off and use **Settings → TTS**, which never reads commands. |
-| Chat TTS is silent | If the top bar says **Click anywhere to start TTS**, click the page once (the browser wants a click before sound), or allow Media autoplay for the dashboard in Edge. If it says **Start TTS**, it was switched off: press it. Thai is silent with **Settings → TTS → Who speaks** on `browser` in Chrome or Dia (no Thai voice there): use `auto` or `Google`, or open the dashboard in Edge. |
+| Chat TTS is read twice | Another program reads chat too (turn TikFinity's TTS off). Two osureq dashboards no longer both speak: only the last one started reads, the other says **TTS in another window**. |
+| Chat TTS is silent | If the top bar says **TTS in another window**, another dashboard window or tab reads it: close that one or press the button here. If it says **Click anywhere to start TTS**, click the page once (the browser wants a click before sound), or allow Media autoplay for the dashboard in Edge. If it says **Start TTS**, it was switched off: press it. Thai is silent with **Settings → TTS → Who speaks** on `browser` in Chrome or Dia (no Thai voice there): use `auto` or `Google`, or open the dashboard in Edge. |
 | Anything else | `osureq.log` next to the exe. |
 
 ---
@@ -970,6 +1019,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
+| 1.4.8 | PR #13 | **TikTok direct**: chat and gifts straight from TikTok without TikFinity (`connection.source` `tiktok`, `tiktokUser`, optional `eulerApiKey`; new package `internal/tiktok`, signed by Euler Stream, keyless or with a key; switch back to TikFinity any time). Status pill, pre-stream check, mod panel and support file (key hidden) know the source. Only one dashboard page reads TTS (`POST /api/tts/speaker`, `State.ttsSpeaker`): the last one started, the others say **TTS in another window**. `osu.viewerUrl` can be a template with `{set}`, `{map}`, `{file}` |
 | 1.4.7 | PR #11 | TTS starts by itself when the dashboard loads (`ttsAutoStart`); when the browser wants an interaction first, the first click or key anywhere starts it. Switching it off is remembered per browser (`osureq.ttsOff`). New `queue.autoNeedsPass` ("Auto: only after a clear", off by default): a fail or quit waits for a retry or Next; the tracker now goes from `ended` back to `playing` when the same map is played again. README credits chaiwat2183 for the idea |
 | 1.4.6 | PR #10 | Auto mode no longer stalls: a failed first request is passed over (as Next does), and the tracker also matches by artist and title when tosu reports another set ID (osu! says -1 for maps without one in the .osu). **Previous** on the dashboard and the mod panel (`App.Previous`, `Queue.Back`, the last 10 now-playing maps in `recent`): osu! opens the map played before again and the current one returns to the front of the queue. History rows have **Open in osu!** (`POST /api/jump`, `osu://b/<id>`; history now records `beatmapId`). Mirrors are probed once after start instead of every 30 min, show OK, and a mirror refusing a download with HTTP 403 is reported in Activity (once per mirror until it works again) |
 | 1.4.5 | PR #9 | `!np` answers with the map osu! has open according to tosu (`tosu.Game` now carries title, artist, mapper, difficulty and stars; `App.tosuMap`), naming the requester only when that map is the queue's now-playing request; without tosu it still answers from the queue. The overlay leaves out "requested by" when nobody asked for the map |
