@@ -49,7 +49,7 @@ Thai: see [README.th.md](README.th.md).
 
 | | |
 |---|---|
-| Version | **1.4.6** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.4.7** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
 | Tests | `go test ./...`: 15 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
@@ -340,8 +340,10 @@ character, lowercases capital words of three letters or more (`SoftenCaps`: Goog
 stay), and cuts at `tts.maxLength`. Announcement values (title, artist, mapper, …) are softened the same way. The last 20 go out in the state as `speech` (newest first, increasing `id`).
 
 The dashboard speaks them with the Web Speech API (`speechSynthesis`, i.e. the voices of Windows and the browser; Edge has natural ones).
-Browsers refuse to speak without a user gesture, so the top-bar **Start TTS** button starts it per tab; only tabs where it was clicked speak,
-nothing from before the click is read, and at most five messages wait. With `tts.lang` `auto`, Thai letters pick Thai, else English
+TTS starts by itself when the dashboard loads (`ttsAutoStart`): a tenth of a second of silence is played to see whether the browser allows sound yet;
+if it answers `NotAllowedError`, the pill says **Click anywhere to start TTS** and the first click or key on the page starts it (Edge can allow it outright
+under Media autoplay). The top-bar 🔊 button switches it off, which is remembered in that browser (`localStorage` `osureq.ttsOff`) until it is started again.
+Nothing from before TTS started is read, and at most five messages wait. With `tts.lang` `auto`, Thai letters pick Thai, else English
 (natural/online voices first); `tts.voice` picks a browser voice, used only for its own language. OBS records it as desktop audio.
 Streamers should turn TikFinity's TTS off.
 
@@ -786,7 +788,7 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `maxLength` / `cooldownSec` | `120` / `3` | Letters per message (10-500); seconds between a viewer's read messages |
 | | `allow` | empty | Whose chat is read: `subscriber` (ใจส้ม), `follower`, `gifter`, `mod`; any one; empty = everyone |
 | | `blockedWords` | empty | |
-| | `announce` | `true` | Speak what happens to requests (only in a tab where **Start TTS** was pressed) |
+| | `announce` | `true` | Speak what happens to requests (only in a dashboard tab where TTS is on) |
 | | `templates` | Thai set | Event → line with placeholders (see [Chat TTS](#chat-tts)); empty or `-` = silent |
 | hotkeys | `enabled` | `false` | Global hotkeys (work while osu! has focus) |
 | | `next` / `skip` / `removeLast` / `toggleRequests` | `Ctrl+Alt+N` / `Ctrl+Alt+S` / `Ctrl+Alt+Backspace` / `Ctrl+Alt+R` | |
@@ -833,15 +835,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.4.6          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.4.7          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.4.6      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.4.6" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.7      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.4.7" -o dist\osureq.exe .
 ```
 
 ### Releases (GitHub Actions)
@@ -849,15 +851,15 @@ go build -trimpath -ldflags "-X main.version=1.4.6" -o dist\osureq.exe .
 `.github/workflows/build.yml` runs on every push to `main` and every pull request: `go vet`, `go test` and a build on
 `windows-latest`; the exe is kept as a workflow artifact for 14 days (version `0.0.0-dev+<commit>`).
 To publish a release, bump the version (Changelog row, Version row, `build.ps1` default) and merge it into `main`, then
-either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.6`) or tag and push:
+either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.7`) or tag and push:
 
 ```powershell
-git tag v1.4.6
-git push origin v1.4.6
+git tag v1.4.7
+git push origin v1.4.7
 ```
 
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
-creates the tag `v1.4.6` on that commit together with the release (a tag made by the workflow does not start another run).
+creates the tag `v1.4.7` on that commit together with the release (a tag made by the workflow does not start another run).
 The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 The tag build uses the tag's number for `main.version` and the Windows resources, and publishes a GitHub release with
 `osureq-<version>-windows-x64.zip` (`osureq.exe`, `LICENSE`, `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
@@ -957,7 +959,7 @@ Read this before changing anything.
 | Phone cannot open the mod panel | Same Wi-Fi (not a guest network, which isolates devices)? Allowed in the Windows firewall for **private** networks? Windows network profile set to Private? Use an address from Settings → Mod panel. |
 | Windows says the app is unsafe / "Windows protected your PC" | That is SmartScreen warning about an **unsigned** program, usually one that was downloaded or received in a zip. Windows Defender finds nothing in it. Click **More info → Run anyway**, or right-click `osureq.exe` → **Properties** → tick **Unblock**. Only a code-signing certificate removes the warning for everyone. |
 | TikFinity's TTS reads `!req 123…` | Turn TikFinity's TTS off and use **Settings → TTS**, which never reads commands. |
-| Chat TTS is silent | Press **Start TTS** at the top (browsers need a click). Thai is silent with **Settings → TTS → Who speaks** on `browser` in Chrome or Dia (no Thai voice there): use `auto` or `Google`, or open the dashboard in Edge. |
+| Chat TTS is silent | If the top bar says **Click anywhere to start TTS**, click the page once (the browser wants a click before sound), or allow Media autoplay for the dashboard in Edge. If it says **Start TTS**, it was switched off: press it. Thai is silent with **Settings → TTS → Who speaks** on `browser` in Chrome or Dia (no Thai voice there): use `auto` or `Google`, or open the dashboard in Edge. |
 | Anything else | `osureq.log` next to the exe. |
 
 ---
@@ -966,6 +968,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
+| 1.4.7 | PR #11 | TTS starts by itself when the dashboard loads (`ttsAutoStart`); when the browser wants an interaction first, the first click or key anywhere starts it. Switching it off is remembered per browser (`osureq.ttsOff`). README credits chaiwat2183 for the idea |
 | 1.4.6 | PR #10 | Auto mode no longer stalls: a failed first request is passed over (as Next does), and the tracker also matches by artist and title when tosu reports another set ID (osu! says -1 for maps without one in the .osu). **Previous** on the dashboard and the mod panel (`App.Previous`, `Queue.Back`, the last 10 now-playing maps in `recent`): osu! opens the map played before again and the current one returns to the front of the queue. History rows have **Open in osu!** (`POST /api/jump`, `osu://b/<id>`; history now records `beatmapId`). Mirrors are probed once after start instead of every 30 min, show OK, and a mirror refusing a download with HTTP 403 is reported in Activity (once per mirror until it works again) |
 | 1.4.5 | PR #9 | `!np` answers with the map osu! has open according to tosu (`tosu.Game` now carries title, artist, mapper, difficulty and stars; `App.tosuMap`), naming the requester only when that map is the queue's now-playing request; without tosu it still answers from the queue. The overlay leaves out "requested by" when nobody asked for the map |
 | 1.4.4 | PR #8 | Card menu (⋯) moves to `<body>` while open so the cards below no longer cover it. One-click ♪ preview button on every card; the mod panel's ♪ plays or stops the preview on the stream PC (`App.AskPreview` → `State.previewAsk`, the dashboard reports back with `PUT /api/preview`). Mirrors box on the home page: each download mirror's state, speed and last error (`downloader.Statuses`), checked 15 s after start, every 30 min, after each download and with **Check**. TTS reads all-caps titles, artists, mappers and difficulties as words (`SWITCHED-ON` was spelled out) |

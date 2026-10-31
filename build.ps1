@@ -1,8 +1,8 @@
 # Builds dist\osureq.exe: a single Windows x64 executable with the dashboard embedded.
-# Usage:  powershell -ExecutionPolicy Bypass -File build.ps1 [-Version 1.4.6] [-SkipTests]
+# Usage:  powershell -ExecutionPolicy Bypass -File build.ps1 [-Version 1.4.7] [-SkipTests]
 # The default version follows the latest Changelog entry in docs/DEVELOPMENT.md; bump both together.
 param(
-  [string]$Version = "1.4.6",
+  [string]$Version = "1.4.7",
   [switch]$SkipTests
 )
 $ErrorActionPreference = "Stop"
