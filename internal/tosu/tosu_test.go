@@ -89,6 +89,19 @@ func TestTracker(t *testing.T) {
 			t.Errorf("%s: phases %v, want final %s", c.name, got, c.want)
 		}
 	}
+	// osu! reports set -1 for a map whose .osu has no set ID: the song still matches
+	tr := Tracker{Song: SongKey("Susumu Hirasawa", "SWITCHED-ON LOTUS")}
+	tr.Reset(req, time.Unix(0, 0))
+	song := func(state string) Game {
+		return Game{State: state, SetID: -1, Artist: "Susumu Hirasawa", Title: "Switched-On Lotus"}
+	}
+	if got := run(&tr, song("selectPlay"), song("play"), song("resultScreen"), song("selectPlay")); got[len(got)-1] != Ended {
+		t.Errorf("same song, other set id: phases %v", got)
+	}
+	tr.Reset(req, time.Unix(0, 0))
+	if got := run(&tr, Game{State: "play", SetID: -1, Artist: "x", Title: "other song"}); got[0] != Waiting {
+		t.Errorf("another song must not count: %v", got)
+	}
 	var idle Tracker
 	if idle.Update(g("play", req), time.Now()) {
 		t.Error("a tracker with no map must not change")

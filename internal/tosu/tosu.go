@@ -430,13 +430,30 @@ const (
 // the results screen. Picking another map in song select does not count.
 type Tracker struct {
 	SetID int
+	// Song is "artist - title" of the map, lower case. It also matches when
+	// tosu reports another set ID for it, as osu! does for maps whose .osu
+	// has no BeatmapSetID (tosu then says -1 or 0).
+	Song  string
 	Phase Phase
 	Since time.Time // when Phase was entered
 }
 
+// SongKey is the Tracker.Song of a map.
+func SongKey(artist, title string) string {
+	if strings.TrimSpace(title) == "" {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(artist) + " - " + strings.TrimSpace(title))
+}
+
+// same reports whether g shows the tracked map.
+func (t *Tracker) same(g Game) bool {
+	return g.SetID == t.SetID || t.Song != "" && SongKey(g.Artist, g.Title) == t.Song
+}
+
 // Reset starts tracking a new now-playing map.
 func (t *Tracker) Reset(setID int, now time.Time) {
-	*t = Tracker{SetID: setID, Phase: Waiting, Since: now}
+	*t = Tracker{SetID: setID, Song: t.Song, Phase: Waiting, Since: now}
 }
 
 // Update feeds a game state and reports whether the phase changed.
@@ -451,12 +468,12 @@ func (t *Tracker) Update(g Game, now time.Time) bool {
 	next := t.Phase
 	switch t.Phase {
 	case Waiting:
-		if g.State == "play" && g.SetID == t.SetID {
+		if g.State == "play" && t.same(g) {
 			next = Playing
 		}
 	case Playing:
 		switch {
-		case g.State == "play" && g.SetID == t.SetID:
+		case g.State == "play" && t.same(g):
 		case g.State == "resultScreen":
 			next = Results
 		default: // song select, menu, or straight into another map
@@ -466,7 +483,7 @@ func (t *Tracker) Update(g Game, now time.Time) bool {
 		switch g.State {
 		case "resultScreen":
 		case "play":
-			if g.SetID == t.SetID {
+			if t.same(g) {
 				next = Playing // retry from the results screen
 			} else {
 				next = Ended

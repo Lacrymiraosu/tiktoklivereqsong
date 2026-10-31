@@ -90,14 +90,15 @@ type Result struct {
 }
 
 type Played struct {
-	SetID  int       `json:"setId"`
-	Title  string    `json:"title"`
-	User   string    `json:"user"`
-	At     time.Time `json:"at"`
-	Result string    `json:"result"` // played | skipped
-	Test   bool      `json:"test,omitempty"`
-	Play   *Result   `json:"play,omitempty"` // tosu's numbers, when the map was played
-	Mods   string    `json:"mods,omitempty"` // requested mods
+	SetID     int       `json:"setId"`
+	BeatmapID int       `json:"beatmapId,omitempty"` // the difficulty opened, for jumping back to it (not in entries before 1.4.6)
+	Title     string    `json:"title"`
+	User      string    `json:"user"`
+	At        time.Time `json:"at"`
+	Result    string    `json:"result"` // played | skipped
+	Test      bool      `json:"test,omitempty"`
+	Play      *Result   `json:"play,omitempty"` // tosu's numbers, when the map was played
+	Mods      string    `json:"mods,omitempty"` // requested mods
 }
 
 type Rejected struct {
@@ -113,6 +114,7 @@ type Rejected struct {
 type data struct {
 	Items    []*Item              `json:"items"`
 	Now      *Item                `json:"now"`
+	Recent   []*Item              `json:"recent,omitempty"` // maps that were now playing, newest first (Back)
 	History  []Played             `json:"history"`
 	LastReq  map[string]time.Time `json:"lastRequest"`
 	Rejected []Rejected           `json:"rejected"`
@@ -128,6 +130,7 @@ type data struct {
 type Snapshot struct {
 	Items    []Item     `json:"items"`
 	Now      *Item      `json:"now"`
+	Prev     string     `json:"prev,omitempty"` // "artist - title" Back would return to
 	History  []Played   `json:"history"`
 	Rejected []Rejected `json:"rejected"`
 }
@@ -143,6 +146,7 @@ type Queue struct {
 const (
 	maxHistory  = 200
 	maxRejected = 100
+	maxRecent   = 10
 )
 
 func Open(path string) (*Queue, error) {
@@ -301,6 +305,13 @@ func (q *Queue) ClearTest() []string {
 		ids = append(ids, q.d.Now.ID)
 		q.d.Now = nil
 	}
+	recent := q.d.Recent[:0]
+	for _, it := range q.d.Recent {
+		if !it.Test {
+			recent = append(recent, it)
+		}
+	}
+	q.d.Recent = recent
 	hist := q.d.History[:0]
 	for _, h := range q.d.History {
 		if !h.Test {
@@ -486,13 +497,56 @@ func (q *Queue) finishLocked(result string) {
 		return
 	}
 	q.record(q.d.Now, result)
+	q.d.Recent = append([]*Item{q.d.Now}, q.d.Recent...)
+	if len(q.d.Recent) > maxRecent {
+		q.d.Recent = q.d.Recent[:maxRecent]
+	}
 	q.d.Now = nil
 	q.changed()
 }
 
+// Previous returns the map Back would return to.
+func (q *Queue) Previous() (Item, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.d.Recent) == 0 {
+		return Item{}, false
+	}
+	return copyItem(q.d.Recent[0]), true
+}
+
+// Back makes the previous map (id, from Previous) now playing again, like a
+// player's previous button: the current map goes back to the front of the
+// queue and the previous one leaves the history, as it is being played again.
+func (q *Queue) Back(id string) (Item, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.d.Recent) == 0 || q.d.Recent[0].ID != id {
+		return Item{}, false
+	}
+	prev := q.d.Recent[0]
+	q.d.Recent = q.d.Recent[1:]
+	if cur := q.d.Now; cur != nil {
+		cur.State, cur.StartedAt, cur.PlayPhase, cur.PhaseAt, cur.Result = Ready, time.Time{}, "", time.Time{}, nil
+		if cur.File == "" && cur.MD5 != "installed" {
+			cur.State = Queued // nothing to open it from: fetch it again
+		}
+		q.d.Items = append([]*Item{cur}, q.d.Items...)
+	}
+	if len(q.d.History) > 0 && q.d.History[0].SetID == prev.SetID && q.d.History[0].User == prev.User {
+		q.d.History = q.d.History[1:]
+	}
+	prev.State, prev.Result = Playing, nil
+	prev.StartedAt = time.Now()
+	prev.PlayPhase, prev.PhaseAt = "waiting", prev.StartedAt
+	q.d.Now = prev
+	q.changed()
+	return copyItem(prev), true
+}
+
 // record adds it to the history; q.mu must be held.
 func (q *Queue) record(it *Item, result string) {
-	q.d.History = append([]Played{{SetID: it.SetID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test, Play: it.Result, Mods: it.Mods}}, q.d.History...)
+	q.d.History = append([]Played{{SetID: it.SetID, BeatmapID: it.BeatmapID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test, Play: it.Result, Mods: it.Mods}}, q.d.History...)
 	if len(q.d.History) > maxHistory {
 		q.d.History = q.d.History[:maxHistory]
 	}
@@ -594,6 +648,11 @@ func (q *Queue) Files() map[string]bool {
 	if q.d.Now != nil && q.d.Now.File != "" {
 		out[q.d.Now.File] = true
 	}
+	for _, it := range q.d.Recent { // kept for Back
+		if it.File != "" {
+			out[it.File] = true
+		}
+	}
 	return out
 }
 
@@ -610,6 +669,9 @@ func (q *Queue) Snapshot() Snapshot {
 	if q.d.Now != nil {
 		n := copyItem(q.d.Now)
 		s.Now = &n
+	}
+	if len(q.d.Recent) > 0 {
+		s.Prev = q.d.Recent[0].Artist + " - " + q.d.Recent[0].Title
 	}
 	return s
 }
