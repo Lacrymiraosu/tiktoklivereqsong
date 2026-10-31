@@ -49,7 +49,7 @@ Thai: see [README.th.md](README.th.md).
 
 | | |
 |---|---|
-| Version | **1.4.5** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.4.6** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
 | Tests | `go test ./...`: 15 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
@@ -289,7 +289,7 @@ accuracy) and the top three requesters. **Show on overlay** bumps `summaryShown`
 
 ## Auto mode (requires tosu)
 
-The helper follows the map it opened (matched by **beatmapset**, so any difficulty counts) through tosu's game state
+The helper follows the map it opened (matched by **beatmapset**, so any difficulty counts, or by artist and title when tosu reports another set ID, as osu! does with -1 for maps whose .osu has no set ID) through tosu's game state
 (`internal/tosu.Tracker`):
 
 | What tosu shows | Phase (`Item.playPhase`) |
@@ -301,7 +301,7 @@ The helper follows the map it opened (matched by **beatmapset**, so any difficul
 
 `busy`, `unknown`, `update` and empty states are ignored, because tosu reports them briefly while osu! loads.
 There is **no timer fallback**: if tosu is not connected, auto mode pauses and the dashboard says so; it resumes by itself when tosu returns.
-When nothing is playing, the first ready map opens straight away. Manual **Next** always works.
+When nothing is playing, the first ready map opens straight away. Requests that failed to download are passed over, as with Next. Manual **Next** always works.
 
 **Play results:** while the map is in `playing`, the latest live numbers from `play` are kept. Entering `results` stores tosu's `resultsScreen`
 as **passed**; leaving gameplay without a results screen stores the last live numbers as **failed** (tosu's `play.failed`) or **quit**.
@@ -650,7 +650,7 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 | `GET /api/state` | the same `State` once |
 | `GET /api/config` | `{config, defaults}` |
 | `PUT /api/config` | replace the whole config (validated); `{ok, restartNeeded}` |
-| `POST /api/action/{name}` | `next`, `skip`, `removeLast`, `toggleRequests`, `clear`, `cleanup`, `toggleDryRun`, `clearTest`, `launchTikfinity`, `reconnect`, `openTikfinityDownload`, `launchTosu`, `reconnectTosu`, `openTosuDownload`, `stopTosu`, `stopTikfinity`, `quit`, `quitAll` (closes tosu and TikFinity, then quits), `installUpdate` (only when a downloaded update is ready: quits, installs and starts the new version), `showSummary`, `newSession`, `checkMirrors` (probes every download mirror now) |
+| `POST /api/action/{name}` | `next`, `previous` (back to the map played before: osu! opens it again, the current map returns to the front of the queue), `skip`, `removeLast`, `toggleRequests`, `clear`, `cleanup`, `toggleDryRun`, `clearTest`, `launchTikfinity`, `reconnect`, `openTikfinityDownload`, `launchTosu`, `reconnectTosu`, `openTosuDownload`, `stopTosu`, `stopTikfinity`, `quit`, `quitAll` (closes tosu and TikFinity, then quits), `installUpdate` (only when a downloaded update is ready: quits, installs and starts the new version), `showSummary`, `newSession`, `checkMirrors` (probes every download mirror now; otherwise they are probed once, 15 s after start, and downloads keep the panel current) |
 | `POST /api/queue/{id}/{op}` | `remove`, `skip`, `play`, `retry`, `move` (body `{"to": <index>}`) |
 | `POST /api/test` | quick add: `{"input": "<id or link>", "user": "<name>"}` → `{ok, item}` or `{ok:false, code, error}` |
 | `POST /api/simulate` | simulated chat: `{"message": "!req …", "user": "<name>"}`; `code: "ignored"` when it is not a request; for a chat command `{ok, command: "cmd_done" \| "cmd_not_mod" \| "cmd_nothing"}` |
@@ -660,6 +660,7 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 | `POST /api/volume` | `{"volume": 0-100}` sets the master volume |
 | `POST /api/tts` | `{"lang": "th"\|"en", "text": "…"}` (at most 600 letters) → `audio/mpeg` from Google's voice; 502 with the reason if Google fails |
 | `PUT /api/preview` | `{"setId": n}`: the set the dashboard is playing a preview of (0 = none), shown on the mod panel |
+| `POST /api/jump` | `{"setId": n, "beatmapId": n}`: osu! jumps to a history map (`osu://b/<beatmapId>`; without `beatmapId`, the set's first difficulty from osu!); the queue is not touched |
 | `POST /api/ban` | `{"kind": "user" \| "set" \| "mapper", "value": "…"}` → `{ok, removed}` |
 
 `State` fields: `version`, `tikfinity` (status), `tosu` (status incl. `game`), `autoGap`, `queue` (`items`, `now`, `history`, `rejected`),
@@ -670,7 +671,7 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 
 **Mod panel** (separate listener, `remote.port`, default 21281, only when `remote.enabled`): `GET /m` (page), `POST /m/login` `{"pin"}`
 (sets the `osureq_mod` cookie; `401 wrong_pin`, `429 locked`), `POST /m/logout`, `GET /m/api/state` (now playing, queue, requests, TikFinity/tosu
-level, votes), `POST /m/api/action/{next|skip|toggleRequests}`, `POST /m/api/queue/{id}/{remove|skip|move|preview}` (`preview` plays or stops the map's preview on the dashboard of the stream PC). Everything else answers 404.
+level, votes), `POST /m/api/action/{next|previous|skip|toggleRequests}`, `POST /m/api/queue/{id}/{remove|skip|move|preview}` (`preview` plays or stops the map's preview on the dashboard of the stream PC). Everything else answers 404.
 
 Example (PowerShell):
 
@@ -832,15 +833,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.4.5          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.4.6          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.4.5      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.4.5" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.6      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.4.6" -o dist\osureq.exe .
 ```
 
 ### Releases (GitHub Actions)
@@ -848,15 +849,15 @@ go build -trimpath -ldflags "-X main.version=1.4.5" -o dist\osureq.exe .
 `.github/workflows/build.yml` runs on every push to `main` and every pull request: `go vet`, `go test` and a build on
 `windows-latest`; the exe is kept as a workflow artifact for 14 days (version `0.0.0-dev+<commit>`).
 To publish a release, bump the version (Changelog row, Version row, `build.ps1` default) and merge it into `main`, then
-either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.5`) or tag and push:
+either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.6`) or tag and push:
 
 ```powershell
-git tag v1.4.5
-git push origin v1.4.5
+git tag v1.4.6
+git push origin v1.4.6
 ```
 
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
-creates the tag `v1.4.5` on that commit together with the release (a tag made by the workflow does not start another run).
+creates the tag `v1.4.6` on that commit together with the release (a tag made by the workflow does not start another run).
 The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 The tag build uses the tag's number for `main.version` and the Windows resources, and publishes a GitHub release with
 `osureq-<version>-windows-x64.zip` (`osureq.exe`, `LICENSE`, `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
@@ -965,6 +966,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
+| 1.4.6 | PR #10 | Auto mode no longer stalls: a failed first request is passed over (as Next does), and the tracker also matches by artist and title when tosu reports another set ID (osu! says -1 for maps without one in the .osu). **Previous** on the dashboard and the mod panel (`App.Previous`, `Queue.Back`, the last 10 now-playing maps in `recent`): osu! opens the map played before again and the current one returns to the front of the queue. History rows have **Open in osu!** (`POST /api/jump`, `osu://b/<id>`; history now records `beatmapId`). Mirrors are probed once after start instead of every 30 min, show OK, and a mirror refusing a download with HTTP 403 is reported in Activity (once per mirror until it works again) |
 | 1.4.5 | PR #9 | `!np` answers with the map osu! has open according to tosu (`tosu.Game` now carries title, artist, mapper, difficulty and stars; `App.tosuMap`), naming the requester only when that map is the queue's now-playing request; without tosu it still answers from the queue. The overlay leaves out "requested by" when nobody asked for the map |
 | 1.4.4 | PR #8 | Card menu (⋯) moves to `<body>` while open so the cards below no longer cover it. One-click ♪ preview button on every card; the mod panel's ♪ plays or stops the preview on the stream PC (`App.AskPreview` → `State.previewAsk`, the dashboard reports back with `PUT /api/preview`). Mirrors box on the home page: each download mirror's state, speed and last error (`downloader.Statuses`), checked 15 s after start, every 30 min, after each download and with **Check**. TTS reads all-caps titles, artists, mappers and difficulties as words (`SWITCHED-ON` was spelled out) |
 | 1.4.3 | PR #7 | More mirrors in the order kiki-bm.app uses: downloads try hinai → Nekoha → beatconnect → osu.direct → catboy → Sayobot → official (`config.DefaultSources`; saved configs get them once via `download.sourcesRev`), song search tries hinai → Nekoha → osu.direct → catboy (`search.DefaultMirrors`; a failing, rate-limited or empty mirror hands over). A refused download shows the mirror's own message, HTTP 429 rests a mirror for its `Retry-After`, hinai's `404 content_removed` stops the request. Host whitelist allows ports and `.sayobot.cn` subdomains |
