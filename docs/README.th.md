@@ -148,6 +148,7 @@ go build -trimpath -ldflags "-X main.version=1.4.6" -o dist\osureq.exe .
 
 ข้อมูลแมพ ภาพปก และตัวอย่างเพลงมาจาก osu! (ppy Pty Ltd) แมพเป็นของผู้สร้างแมพ (mapper) และเพลงเป็นของศิลปินเจ้าของเพลง
 
+* ไอเดีย: [chaiwat2183](https://osu.ppy.sh/users/21039251)
 * [osu!](https://osu.ppy.sh) โดย ppy Pty Ltd: ตัวเกม
 * [TikFinity](https://tikfinity.zerody.one/) โดย zerody: ส่งแชทและของขวัญจาก TikTok LIVE
 * [tosu](https://github.com/tosuapp/tosu): อ่านสถานะเกม osu! แบบสด

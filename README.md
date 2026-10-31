@@ -141,6 +141,7 @@ go build -trimpath -ldflags "-X main.version=1.4.6" -o dist\osureq.exe .
 
 Beatmap data, covers and audio previews come from osu! (ppy Pty Ltd). Beatmaps belong to their mappers, music to its artists.
 
+* Idea: [chaiwat2183](https://osu.ppy.sh/users/21039251)
 * [osu!](https://osu.ppy.sh) by ppy Pty Ltd: the game
 * [TikFinity](https://tikfinity.zerody.one/) by zerody: chat and gifts from TikTok LIVE
 * [tosu](https://github.com/tosuapp/tosu): live osu! game state
