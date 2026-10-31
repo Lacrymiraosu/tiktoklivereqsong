@@ -422,7 +422,7 @@ const (
 	Waiting Phase = "waiting" // opened, not started yet
 	Playing Phase = "playing" // in gameplay (retries stay here)
 	Results Phase = "results" // on the results screen
-	Ended   Phase = "ended"   // back in song select / menu after playing
+	Ended   Phase = "ended"   // back in song select / menu after playing (playing it again goes back to playing)
 )
 
 // Tracker decides when the requested map has been played. A map counts as
@@ -478,6 +478,10 @@ func (t *Tracker) Update(g Game, now time.Time) bool {
 			next = Results
 		default: // song select, menu, or straight into another map
 			next = Ended
+		}
+	case Ended:
+		if g.State == "play" && t.same(g) {
+			next = Playing // played again, e.g. a retry after a fail
 		}
 	case Results:
 		switch g.State {

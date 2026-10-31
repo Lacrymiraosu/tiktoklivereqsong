@@ -297,7 +297,8 @@ The helper follows the map it opened (matched by **beatmapset**, so any difficul
 | Map opened, not started (song select alone does not count) | `waiting` |
 | Gameplay on that map (retries and fails stay here) | `playing` |
 | Results screen (retry from here goes back to `playing`) | `results` |
-| Song select or menu after playing, or gameplay of another map | `ended` → the next map opens after `autoGapSec` |
+| Song select or menu after playing, or gameplay of another map | `ended` → the next map opens after `autoGapSec` (with `autoNeedsPass`, only if the play reached the results screen) |
+| Gameplay on that map again after `ended` (a retry after a fail or quit) | `playing` |
 
 `busy`, `unknown`, `update` and empty states are ignored, because tosu reports them briefly while osu! loads.
 There is **no timer fallback**: if tosu is not connected, auto mode pauses and the dashboard says so; it resumes by itself when tosu returns.
@@ -755,6 +756,7 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `noRepeatMin` | `60` | Block maps played within this many minutes |
 | | `playMode` | `manual` | `manual` or `auto` (tosu) |
 | | `autoGapSec` | `5` | Seconds after the song ends before the next map opens |
+| | `autoNeedsPass` | `false` | Auto mode opens the next map only after a clear (results screen); a fail or Esc waits for a retry or Next |
 | | `fair` | `false` | New requests take turns between viewers |
 | | `autoCloseAt` / `autoReopenAt` | `0` / `0` | Close requests when this many are waiting (0 = off); reopen at this many or fewer (must be lower) |
 | | `closeAt` | empty | `HH:MM` local time: close requests once when the clock passes it |
@@ -968,7 +970,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
-| 1.4.7 | PR #11 | TTS starts by itself when the dashboard loads (`ttsAutoStart`); when the browser wants an interaction first, the first click or key anywhere starts it. Switching it off is remembered per browser (`osureq.ttsOff`). README credits chaiwat2183 for the idea |
+| 1.4.7 | PR #11 | TTS starts by itself when the dashboard loads (`ttsAutoStart`); when the browser wants an interaction first, the first click or key anywhere starts it. Switching it off is remembered per browser (`osureq.ttsOff`). New `queue.autoNeedsPass` ("Auto: only after a clear", off by default): a fail or quit waits for a retry or Next; the tracker now goes from `ended` back to `playing` when the same map is played again. README credits chaiwat2183 for the idea |
 | 1.4.6 | PR #10 | Auto mode no longer stalls: a failed first request is passed over (as Next does), and the tracker also matches by artist and title when tosu reports another set ID (osu! says -1 for maps without one in the .osu). **Previous** on the dashboard and the mod panel (`App.Previous`, `Queue.Back`, the last 10 now-playing maps in `recent`): osu! opens the map played before again and the current one returns to the front of the queue. History rows have **Open in osu!** (`POST /api/jump`, `osu://b/<id>`; history now records `beatmapId`). Mirrors are probed once after start instead of every 30 min, show OK, and a mirror refusing a download with HTTP 403 is reported in Activity (once per mirror until it works again) |
 | 1.4.5 | PR #9 | `!np` answers with the map osu! has open according to tosu (`tosu.Game` now carries title, artist, mapper, difficulty and stars; `App.tosuMap`), naming the requester only when that map is the queue's now-playing request; without tosu it still answers from the queue. The overlay leaves out "requested by" when nobody asked for the map |
 | 1.4.4 | PR #8 | Card menu (⋯) moves to `<body>` while open so the cards below no longer cover it. One-click ♪ preview button on every card; the mod panel's ♪ plays or stops the preview on the stream PC (`App.AskPreview` → `State.previewAsk`, the dashboard reports back with `PUT /api/preview`). Mirrors box on the home page: each download mirror's state, speed and last error (`downloader.Statuses`), checked 15 s after start, every 30 min, after each download and with **Check**. TTS reads all-caps titles, artists, mappers and difficulties as words (`SWITCHED-ON` was spelled out) |
