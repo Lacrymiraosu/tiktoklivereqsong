@@ -23,7 +23,7 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
 
 ## ความสามารถ
 
-* รับคำขอจากแชท TikTok ผ่าน TikFinity รองรับทั้ง ID ลิงก์ osu! ทุกรูปแบบ และ**ชื่อเพลง** (`!req freedom dive`) ขอพร้อม **mod** ได้ (`!req 2096297 HDHR`)
+* รับคำขอจากแชท TikTok ผ่าน TikFinity หรือ**รับจาก TikTok โดยตรง** ไม่ต้องเปิดโปรแกรมอื่น (ดู [รับแชทโดยไม่ใช้ TikFinity](#รับแชทโดยไม่ใช้-tikfinity)) รองรับทั้ง ID ลิงก์ osu! ทุกรูปแบบ และ**ชื่อเพลง** (`!req freedom dive`) ขอพร้อม **mod** ได้ (`!req 2096297 HDHR`)
 * ตรวจกฎ: ช่วงดาว (ตั้งแยกตามโหมดได้) ความยาว โหมด สถานะแมพ จำนวนคำขอต่อคน คูลดาวน์ แมพซ้ำ รายชื่อแบน เฉพาะผู้ติดตาม
 * ดาวน์โหลดจาก mirror (hinai → Nekoha → beatconnect → osu.direct → catboy.best → Sayobot → เว็บ osu! ทางการ ถ้าเจ้าไหนล่มจะไปเจ้าถัดไป) และตรวจ MD5 ให้ตรงกับเวอร์ชันล่าสุดบน osu!
 * เปิดแมพเข้า osu! (stable และ lazer) เมื่อกด **ถัดไป** หรือเปิดเองอัตโนมัติเมื่อเพลงก่อนหน้าเล่นจบ (ดูจาก tosu)
@@ -45,6 +45,7 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
 * Windows 10/11 64 บิต
 * osu! **stable** หรือ **lazer**
 * [**TikFinity Desktop**](https://tikfinity.zerody.one/) เชื่อมกับบัญชี TikTok และเปิดไว้ตอนไลฟ์ (osureq รับแชทผ่าน TikFinity)
+  **หรือ**ไม่ต้องมีเลยถ้าเลือก **TikTok โดยตรง** (ตั้งค่า → การเชื่อมต่อ ดู [รับแชทโดยไม่ใช้ TikFinity](#รับแชทโดยไม่ใช้-tikfinity))
 * [**tosu**](https://github.com/tosuapp/tosu/releases/latest) เปิดไว้ตอนไลฟ์ (ใช้ดูว่าเพลงเล่นจบหรือยัง และเก็บผลการเล่น)
 * OBS หรือ TikTok LIVE Studio ถ้าจะใช้ overlay
 
@@ -58,6 +59,16 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
 5. ถ้าจะใช้ overlay ให้เพิ่ม **Browser Source** ใน OBS เป็น `http://127.0.0.1:21280/overlay` (พื้นหลังโปร่งใส)
 
 ลองทั้งระบบก่อนไลฟ์จริงได้ที่แผง **ทดสอบ** บนแดชบอร์ด
+
+### รับแชทโดยไม่ใช้ TikFinity
+
+ไปที่ **ตั้งค่า → การเชื่อมต่อ → รับแชทจาก** เลือก **TikTok โดยตรง** แล้วใส่ชื่อ @ TikTok ของคุณ osureq จะอ่านไลฟ์เอง
+ทั้งแชท ของขวัญ และสถานะผู้ชม ไม่ต้องติดตั้งหรือเปิดโปรแกรมอื่น ตอนยังไม่ได้ไลฟ์จะเช็กทุก 30 วินาที และเชื่อมต่อเองทันทีที่เริ่มไลฟ์
+
+TikTok ยอมให้เชื่อมต่อเฉพาะที่อยู่ที่ถูกเซ็นแล้ว [Euler Stream](https://www.eulerstream.com) เป็นผู้เซ็น (เซิร์ฟเวอร์เดียวกับที่
+TikTok-Live-Connector ใช้) นับเฉพาะตอนเชื่อมต่อ แชทไม่นับ ถ้าไม่มี API key เชื่อมต่อได้ 30 ครั้งต่อชั่วโมง 100 ครั้งต่อวัน
+พอสำหรับไลฟ์เดียว ถ้าสมัคร key ฟรีที่ eulerstream.com จะได้มากขึ้น ใส่ไว้ที่ **API key ของ Euler Stream** key เก็บไว้ในเครื่องนี้เท่านั้น
+และถูกซ่อนในไฟล์ช่วยเหลือ ยังสลับกลับไปใช้ TikFinity ได้ด้วยสวิตช์เดียวกัน
 
 ### ผู้ชมพิมพ์อะไรได้บ้าง
 
@@ -86,7 +97,8 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
                                           └──► แดชบอร์ด + overlay (http://127.0.0.1:21280)
 ```
 
-1. **รับแชท**: TikFinity ส่งข้อความแชทและของขวัญมาทาง WebSocket (`ws://127.0.0.1:21213/`)
+1. **รับแชท**: TikFinity ส่งข้อความแชทและของขวัญมาทาง WebSocket (`ws://127.0.0.1:21213/`) หรือถ้าเลือก TikTok โดยตรง
+   osureq อ่านจาก WebSocket ไลฟ์ของ TikTok เอง (Euler Stream เป็นผู้เซ็นการเชื่อมต่อ)
    osureq สนใจเฉพาะข้อความที่ขึ้นต้นด้วยคำสั่ง เช่น `!req`
 2. **ตรวจผู้ขอ**: เช็กรายชื่อแบน คิวเต็มหรือยัง จำนวนคำขอต่อคน และคูลดาวน์ โดยไม่ต้องใช้เน็ต
 3. **อ่านข้อมูลแมพ**: ดึงหน้าแมพจาก osu.ppy.sh (ไม่ต้องใช้ API key) เพื่อเอาชื่อเพลง ดาว ความยาว โหมด สถานะ และ MD5 ของแต่ละ diff
@@ -112,7 +124,7 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
 cd tiktoklivereqsong
-.\build.ps1 -Version 1.4.7
+.\build.ps1 -Version 1.4.8
 ```
 
 `build.ps1` จะรัน `go vet` และ `go test` ก่อน สร้างไฟล์ resource ของ Windows (ไอคอน ชื่อ เวอร์ชัน) แล้ว build ออกมาเป็น `dist\osureq.exe`
@@ -120,8 +132,8 @@ cd tiktoklivereqsong
 
 ```powershell
 $env:CGO_ENABLED = "0"
-go run ./tools/winres -version 1.4.7
-go build -trimpath -ldflags "-X main.version=1.4.7" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.8
+go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
 ```
 
 ### สำหรับคนที่จะแก้โค้ด
@@ -134,12 +146,12 @@ go build -trimpath -ldflags "-X main.version=1.4.7" -o dist\osureq.exe .
 
 * ทุกครั้งที่ push เข้า `main` หรือเปิด pull request, GitHub จะ vet, test และ build ให้ ไฟล์ exe อยู่ในหน้า Actions 14 วัน
 * ปล่อยเวอร์ชันใหม่: อัปเดตเลขเวอร์ชันใน `build.ps1` (และ changelog) แล้ว merge เข้า `main` จากนั้นเลือกทางใดทางหนึ่ง
-  * ไม่ต้องใช้ git: เปิด **Actions → build → Run workflow** เลือก `main` ใส่เลขเวอร์ชัน (เช่น `1.4.7`) แล้วกด **Run workflow**
+  * ไม่ต้องใช้ git: เปิด **Actions → build → Run workflow** เลือก `main` ใส่เลขเวอร์ชัน (เช่น `1.4.8`) แล้วกด **Run workflow**
   * หรือ push tag
 
   ```powershell
-  git tag v1.4.7
-  git push origin v1.4.7
+  git tag v1.4.8
+  git push origin v1.4.8
   ```
 
   GitHub จะ build ด้วยเลขเวอร์ชันจาก tag แล้วสร้าง Release พร้อม `osureq-<เวอร์ชัน>-windows-x64.zip` (มี exe, `LICENSE` และ `THIRD_PARTY_LICENSES.txt`) และไฟล์ `.sha256`
@@ -151,16 +163,18 @@ go build -trimpath -ldflags "-X main.version=1.4.7" -o dist\osureq.exe .
 * ไอเดีย: [chaiwat2183](https://osu.ppy.sh/users/21039251)
 * [osu!](https://osu.ppy.sh) โดย ppy Pty Ltd: ตัวเกม
 * [TikFinity](https://tikfinity.zerody.one/) โดย zerody: ส่งแชทและของขวัญจาก TikTok LIVE
+* [Euler Stream](https://www.eulerstream.com): เซ็นการเชื่อมต่อแบบ TikTok โดยตรง, [gotiktoklive](https://github.com/steampoweredtaco/gotiktoklive)
+  สำหรับรูปแบบข้อความของ TikTok LIVE และ [TikTok-Live-Connector](https://github.com/zerodytrash/TikTok-Live-Connector) ที่เป็นตัวอย่างวิธีเชื่อมต่อ
 * [tosu](https://github.com/tosuapp/tosu): อ่านสถานะเกม osu! แบบสด
 * Mirror ดาวน์โหลดไฟล์ `.osz`: [hinai](https://mirror.hinamizawa.ai), [Nekoha](https://mirror.nekoha.moe), [beatconnect](https://beatconnect.io), [osu.direct](https://osu.direct), [catboy.best](https://catboy.best) และ [Sayobot](https://osu.sayobot.cn) (hinai, Nekoha, osu.direct และ catboy.best ใช้ค้นหาเพลงด้วย)
-* ไลบรารี Go: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys),
+* ไลบรารี Go: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys), [protobuf-go](https://github.com/protocolbuffers/protobuf-go),
   [tc-hib/winres](https://github.com/tc-hib/winres), [nfnt/resize](https://github.com/nfnt/resize), [golang.org/x/image](https://pkg.go.dev/golang.org/x/image)
 * ฟอนต์: [Varela Round](https://fonts.google.com/specimen/Varela+Round) และ [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) จาก Google Fonts
 
-osureq เป็นโปรเจกต์ของแฟนเกม ไม่มีส่วนเกี่ยวข้องและไม่ได้รับการรับรองจาก ppy Pty Ltd, TikTok, TikFinity หรือ tosu
+osureq เป็นโปรเจกต์ของแฟนเกม ไม่มีส่วนเกี่ยวข้องและไม่ได้รับการรับรองจาก ppy Pty Ltd, TikTok, TikFinity, Euler Stream หรือ tosu
 osu! เป็นเครื่องหมายการค้าของ ppy Pty Ltd และ TikTok เป็นเครื่องหมายการค้าของเจ้าของ
 
 ## License
 
 [MIT](../LICENSE) © 2026 kikinomae ส่วน license ของโค้ดภายนอกที่ถูก build รวมไว้ใน `osureq.exe` (Go standard library,
-`golang.org/x/sys` และ `coder/websocket`) อยู่ใน [THIRD_PARTY_LICENSES.txt](../THIRD_PARTY_LICENSES.txt)
+`golang.org/x/sys`, `coder/websocket`, `protobuf-go` และรูปแบบข้อความจาก gotiktoklive) อยู่ใน [THIRD_PARTY_LICENSES.txt](../THIRD_PARTY_LICENSES.txt)

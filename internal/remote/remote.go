@@ -311,7 +311,8 @@ type State struct {
 	Lang      string       `json:"lang"`
 	Requests  bool         `json:"requests"`
 	PlayMode  string       `json:"playMode"`
-	TikFinity string       `json:"tikfinity"` // red | yellow | green
+	TikFinity string       `json:"tikfinity"`  // red | yellow | green
+	ChatFrom  string       `json:"chatSource"` // tikfinity | tiktok
 	Tosu      string       `json:"tosu"`
 	Now       *Item        `json:"now"`
 	Items     []Item       `json:"items"`
@@ -341,7 +342,7 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 	a, cfg := s.App, s.App.Cfg.Get()
 	snap := a.Queue.Snapshot()
 	st := State{Lang: cfg.Language, Requests: cfg.Command.Enabled, PlayMode: cfg.Queue.PlayMode,
-		TikFinity: string(a.TF.Status().Level), Tosu: string(a.Tosu.Status().Level), VoteSkip: a.Votes(), Previewing: a.Previewing(), Items: []Item{}}
+		TikFinity: string(a.TF.Status().Level), ChatFrom: a.TF.Status().Source, Tosu: string(a.Tosu.Status().Level), VoteSkip: a.Votes(), Previewing: a.Previewing(), Items: []Item{}}
 	conv := func(it queue.Item) Item {
 		return Item{ID: it.ID, User: it.User, Title: it.Title, Artist: it.Artist, Version: it.Version, Stars: it.Stars, Mode: it.Mode,
 			State: string(it.State), Priority: it.Priority, Phase: it.PlayPhase, SetID: it.SetID, Mods: it.Mods}

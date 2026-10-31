@@ -3,16 +3,20 @@ package server
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/app"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
@@ -318,6 +322,90 @@ func TestTTSProxy(t *testing.T) {
 	w = do(h, http.MethodPost, "/api/tts", `{"lang":"th","text":"hi"}`, func(r *http.Request) { r.Header.Del("X-Osureq") })
 	if w.Code != http.StatusForbidden {
 		t.Errorf("without X-Osureq another site could use it: got %d", w.Code)
+	}
+}
+
+// One dashboard page reads TTS: the last one to start it. Closing it frees
+// the voice; switching TTS off keeps it, so the other pages stay quiet.
+func TestTTSSpeaker(t *testing.T) {
+	s, h := newTestServer(t)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := ln.Addr().(*net.TCPAddr).Port
+	srv := httptest.NewUnstartedServer(s.Handler(p))
+	srv.Listener.Close()
+	srv.Listener = ln
+	srv.Start()
+	defer srv.Close()
+	state := func() State {
+		var st State
+		json.Unmarshal(do(h, http.MethodGet, "/api/state", "").Body.Bytes(), &st)
+		return st
+	}
+	open := func(page string) *websocket.Conn {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		c, _, err := websocket.Dial(ctx, fmt.Sprintf("ws://127.0.0.1:%d/ws?page=%s", p, page), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	claim := func(page string, on bool) {
+		t.Helper()
+		if w := do(h, http.MethodPost, "/api/tts/speaker", fmt.Sprintf(`{"page":%q,"on":%v}`, page, on)); w.Code != http.StatusOK {
+			t.Fatalf("claim: %d %s", w.Code, w.Body)
+		}
+	}
+	a, b := open("a"), open("b")
+	defer b.CloseNow()
+	waitPages := func(n int) {
+		t.Helper()
+		for i := 0; i < 300; i++ {
+			s.mu.Lock()
+			got := len(s.pages)
+			s.mu.Unlock()
+			if got == n {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatalf("pages never reached %d", n)
+	}
+	waitPages(2)
+	if st := state(); st.TTSSpeaker != "" {
+		t.Fatalf("speaker before anyone started TTS: %q", st.TTSSpeaker)
+	}
+	claim("a", true)
+	claim("b", true)
+	if st := state(); st.TTSSpeaker != "b" || !st.TTSSpeakerOn {
+		t.Fatalf("the last page to start should speak: %+v", st.TTSSpeaker)
+	}
+	claim("a", false) // a page that does not speak switching off changes nothing
+	if st := state(); st.TTSSpeaker != "b" || !st.TTSSpeakerOn {
+		t.Fatalf("after a quiet page switched off: %q %v", st.TTSSpeaker, st.TTSSpeakerOn)
+	}
+	claim("a", true)
+	b.Close(websocket.StatusNormalClosure, "") // closing a page that does not speak changes nothing
+	waitPages(1)
+	if st := state(); st.TTSSpeaker != "a" {
+		t.Fatalf("after closing the quiet page: %q", st.TTSSpeaker)
+	}
+	claim("a", false)
+	if st := state(); st.TTSSpeaker != "a" || st.TTSSpeakerOn {
+		t.Fatalf("switched off: %q %v", st.TTSSpeaker, st.TTSSpeakerOn)
+	}
+	a.Close(websocket.StatusNormalClosure, "")
+	waitPages(0)
+	if st := state(); st.TTSSpeaker != "" || st.TTSSpeakerOn {
+		t.Fatalf("closing the speaking page should free the voice: %q", st.TTSSpeaker)
+	}
+	for _, body := range []string{`{"on":true}`, `{"page":"` + strings.Repeat("x", 65) + `","on":true}`, `nope`} {
+		if w := do(h, http.MethodPost, "/api/tts/speaker", body); w.Code != http.StatusBadRequest {
+			t.Errorf("%s: got %d", body, w.Code)
+		}
 	}
 }
 

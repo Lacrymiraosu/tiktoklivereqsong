@@ -65,7 +65,18 @@ func (a *App) Preflight(ctx context.Context, env PreflightEnv) []Check {
 		}()
 	}
 
-	if a.TF != nil {
+	if a.TF != nil && a.TF.Status().Source == "tiktok" {
+		st := a.TF.Status()
+		u := map[string]string{"u": st.User}
+		switch {
+		case st.Level == "green":
+			add(Check{ID: "tikfinity", Status: "ok", Key: "tt_live", Vars: u})
+		case st.Code == "waiting_stream":
+			add(Check{ID: "tikfinity", Status: "ok", Key: "tt_ready", Vars: u})
+		default:
+			add(Check{ID: "tikfinity", Status: "fail", Key: "tt_" + orConnecting(st.Code), Vars: u, Detail: st.Error})
+		}
+	} else if a.TF != nil {
 		st := a.TF.Status()
 		switch {
 		case st.Level == "green":
