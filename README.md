@@ -69,7 +69,7 @@ Use the **Test** panel on the dashboard to try the whole chain before you go liv
 !req 2096297 HDHR                                 ← with mods (a song name takes them as +HDHR at the end)
 !remove                                           ← removes your own latest request
 !pos                                              ← where are my requests in the queue
-!np                                               ← what is playing and who asked for it
+!np                                               ← what osu! is playing (from tosu) and who asked for it
 ```
 
 With vote skip turned on (Settings → Command), viewers can type `!voteskip`. Mods can also use `!skip` (skip the song being played), `!remove @user` and `!reqon` / `!reqoff` (open/close requests).
@@ -112,7 +112,7 @@ You need [Go](https://go.dev/dl/) 1.23 or newer on Windows (`winget install GoLa
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
 cd tiktoklivereqsong
-.\build.ps1 -Version 1.4.4
+.\build.ps1 -Version 1.4.5
 ```
 
 `build.ps1` runs `go vet` and `go test`, generates the Windows resources (icon, name, version) and builds `dist\osureq.exe`.
@@ -120,19 +120,19 @@ If PowerShell refuses to run scripts, build by hand:
 
 ```powershell
 $env:CGO_ENABLED = "0"
-go run ./tools/winres -version 1.4.4
-go build -trimpath -ldflags "-X main.version=1.4.4" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.5
+go build -trimpath -ldflags "-X main.version=1.4.5" -o dist\osureq.exe .
 ```
 
 ### Automatic builds and releases (GitHub Actions)
 
 * Every push to `main` and every pull request is vetted, tested and built; the exe stays on the Actions page for 14 days.
 * To release a new version, update the version number in `build.ps1` (and the changelog) and merge it into `main`. Then either
-  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.4.4`) and press **Run workflow**, or push a tag:
+  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.4.5`) and press **Run workflow**, or push a tag:
 
   ```powershell
-  git tag v1.4.4
-  git push origin v1.4.4
+  git tag v1.4.5
+  git push origin v1.4.5
   ```
 
   GitHub builds with the tag's version and publishes a release with `osureq-<version>-windows-x64.zip` (the exe, `LICENSE` and `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.

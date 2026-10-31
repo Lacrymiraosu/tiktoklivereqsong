@@ -49,7 +49,7 @@ Thai: see [README.th.md](README.th.md).
 
 | | |
 |---|---|
-| Version | **1.4.4** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.4.5** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
 | Tests | `go test ./...`: 15 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
@@ -193,7 +193,7 @@ Other chat commands (names are configurable; an empty name turns one off):
 | `!skip` | mods | skips the song being played (opens the next one) |
 | `!reqon` / `!reqoff` | mods | opens / closes requests |
 | `!pos` | anyone | the overlay shows where the viewer's requests are (`#2, #5`); once per viewer every 20 s |
-| `!np` | anyone | the overlay shows the song being played and who asked for it; once per viewer every 20 s |
+| `!np` | anyone | the overlay shows the song osu! has open according to tosu (the queue's now-playing map when tosu is not connected), and who asked for it when it is a request; once per viewer every 20 s |
 | `!voteskip` | anyone | one vote per viewer per song; skips when `command.voteSkipVotes` different viewers voted (0 = off, the default) |
 
 Mods are the users in **Settings → Command → Mods**, plus TikTok moderators when TikFinity sends that flag (`command.trustTikTokMods`).
@@ -357,7 +357,7 @@ empty placeholders vanish, `@` is dropped because voices say "at") and queues it
 `added`, `rejected`, `rejected_stars_high|stars_low|mod_stars|too_long|duplicate|recently_played|cooldown|user_limit|search_none`, `nowplaying`
 (from `play`), `np` / `np_none` / `pos` (the `!np` and `!pos` answers; default `กำลังเล่น {artist} - {title} {setid}`), `result_passed|result_failed`, `gift` (once per gift, from `gift`), `voteskip`, `auto_off` (also the closing time), `auto_on`.
 Empty or `-` is silent. Placeholders: `{user}` (display name) `{title}` `{artist}` `{mapper}` `{diff}` `{mods}` (spaced: "HD HR") `{stars}`
-`{pos}` `{setid}` (`{setid_digits}`: "3 9 8 0 4", read digit by digit); `!np` adds `{requester}`; rejections add `validator.Rejection.Vars` (`{max}` `{min}` `{length}` `{wait}` `{n}` …) and `{reason}` (Thai when the template has
+`{pos}` `{setid}` (`{setid_digits}`: "3 9 8 0 4", read digit by digit); `!np` adds `{requester}` (empty when tosu shows a map nobody requested); rejections add `validator.Rejection.Vars` (`{max}` `{min}` `{length}` `{wait}` `{n}` …) and `{reason}` (Thai when the template has
 Thai letters, else English); results `{acc}` `{rank}` `{combo}` `{misses}` `{pp}`; gifts `{coins}` `{gift}`. Defaults are
 `config.ThaiAnnouncements()`; the settings tab can load those or `EnglishAnnouncements()` (sent with `GET /api/config` as `announcements`).
 A `config.json` from an older version gets the lines added since then in the language of its own `added` line (`TTS.fillTemplates`).
@@ -832,15 +832,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.4.4          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.4.5          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.4.4      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.4.4" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.5      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.4.5" -o dist\osureq.exe .
 ```
 
 ### Releases (GitHub Actions)
@@ -848,15 +848,15 @@ go build -trimpath -ldflags "-X main.version=1.4.4" -o dist\osureq.exe .
 `.github/workflows/build.yml` runs on every push to `main` and every pull request: `go vet`, `go test` and a build on
 `windows-latest`; the exe is kept as a workflow artifact for 14 days (version `0.0.0-dev+<commit>`).
 To publish a release, bump the version (Changelog row, Version row, `build.ps1` default) and merge it into `main`, then
-either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.4`) or tag and push:
+either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.5`) or tag and push:
 
 ```powershell
-git tag v1.4.4
-git push origin v1.4.4
+git tag v1.4.5
+git push origin v1.4.5
 ```
 
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
-creates the tag `v1.4.4` on that commit together with the release (a tag made by the workflow does not start another run).
+creates the tag `v1.4.5` on that commit together with the release (a tag made by the workflow does not start another run).
 The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 The tag build uses the tag's number for `main.version` and the Windows resources, and publishes a GitHub release with
 `osureq-<version>-windows-x64.zip` (`osureq.exe`, `LICENSE`, `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
@@ -965,6 +965,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
+| 1.4.5 | PR #9 | `!np` answers with the map osu! has open according to tosu (`tosu.Game` now carries title, artist, mapper, difficulty and stars; `App.tosuMap`), naming the requester only when that map is the queue's now-playing request; without tosu it still answers from the queue. The overlay leaves out "requested by" when nobody asked for the map |
 | 1.4.4 | PR #8 | Card menu (⋯) moves to `<body>` while open so the cards below no longer cover it. One-click ♪ preview button on every card; the mod panel's ♪ plays or stops the preview on the stream PC (`App.AskPreview` → `State.previewAsk`, the dashboard reports back with `PUT /api/preview`). Mirrors box on the home page: each download mirror's state, speed and last error (`downloader.Statuses`), checked 15 s after start, every 30 min, after each download and with **Check**. TTS reads all-caps titles, artists, mappers and difficulties as words (`SWITCHED-ON` was spelled out) |
 | 1.4.3 | PR #7 | More mirrors in the order kiki-bm.app uses: downloads try hinai → Nekoha → beatconnect → osu.direct → catboy → Sayobot → official (`config.DefaultSources`; saved configs get them once via `download.sourcesRev`), song search tries hinai → Nekoha → osu.direct → catboy (`search.DefaultMirrors`; a failing, rate-limited or empty mirror hands over). A refused download shows the mirror's own message, HTTP 429 rests a mirror for its `Retry-After`, hinai's `404 content_removed` stops the request. Host whitelist allows ports and `.sayobot.cn` subdomains |
 | 1.4.2 | PR #6 | Updates install themselves: with `connection.autoUpdate` (default on, needs `checkUpdates`) a newer release's zip is downloaded from this project's GitHub releases, checked against its `.sha256` and installed the next time osureq starts, or right away with the dashboard's update button (`installUpdate`, restarts osureq); the dashboard and overlay reload when the version changes. TTS no longer spells capital words letter by letter (`SoftenCaps`: capital words of 3+ letters are lowercased in chat, names and announcement values; Google's Thai voice spelled "KIKI" as K, I, K, I) |

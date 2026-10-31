@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
 )
 
 // IsMod reports whether a chat user may use mod commands: listed in
@@ -144,11 +145,37 @@ func (a *App) infoAllowed(user, code string) bool {
 	return true
 }
 
+// tosuMap is the map osu! has open, while tosu is connected and sends one.
+func (a *App) tosuMap() (tosu.Game, bool) {
+	if a.Tosu == nil || !a.Tosu.Connected() {
+		return tosu.Game{}, false
+	}
+	a.mu.Lock()
+	g := a.game
+	a.mu.Unlock()
+	return g, g.SetID > 0 && g.Title != ""
+}
+
 // infoEvent fills ev with the answer to !pos ("pos"/"pos_none") or !np
 // ("np"/"np_none") for user.
 func (a *App) infoEvent(ev FeedEvent, code, user string) FeedEvent {
 	if code == "np" {
 		now, ok := a.Queue.Now()
+		if g, live := a.tosuMap(); live {
+			// what osu! really has open, which may not be a request at all
+			ev.Code, ev.Title, ev.Artist, ev.Version, ev.Stars = "np", g.Title, g.Artist, g.Version, g.Stars
+			ev.Mapper, ev.SetID = g.Mapper, g.SetID
+			if g.State == "play" {
+				ev.Mods = g.Play.Mods
+			}
+			if ok && now.SetID == g.SetID {
+				ev.Target = now.User
+				if ev.Mods == "" {
+					ev.Mods = now.Mods
+				}
+			}
+			return ev
+		}
 		if !ok {
 			ev.Code = "np_none"
 			return ev

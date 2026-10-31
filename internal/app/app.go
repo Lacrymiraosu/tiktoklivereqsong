@@ -53,6 +53,7 @@ type App struct {
 	feedSeq     int64
 	lastPlay    tosu.Score // latest live numbers of the map being tracked
 	lastFailed  bool
+	game        tosu.Game // tosu's latest payload: the map osu! has open (!np)
 	warned      map[string]bool
 	infoAt      map[string]time.Time // user|command -> last !pos / !np answered
 	voteID      string               // now-playing item the skip votes are for
@@ -566,6 +567,7 @@ func (a *App) OnGame(g tosu.Game) {
 	a.detectGame(g.Client)
 	now, ok := a.Queue.Now()
 	a.mu.Lock()
+	a.game = g
 	if !ok {
 		a.track, a.trackID = tosu.Tracker{}, ""
 		a.mu.Unlock()
