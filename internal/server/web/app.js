@@ -269,8 +269,9 @@ const T = {
   tpl_rejected_search_none: ["Rejected: no map with that name", "ถูกปฏิเสธ: ไม่พบแมพชื่อนี้"],
   tpl_nowplaying: ["Next map opens", "เปิดเพลงถัดไป"], tpl_np: ["!np (what is playing)", "!np (เพลงที่กำลังเล่น)"], tpl_np_none: ["!np with nothing playing", "!np ตอนยังไม่มีเพลง"], tpl_pos: ["!pos (queue position)", "!pos (ลำดับคิว)"], tpl_result_passed: ["Result: cleared", "ผลการเล่น: ผ่าน"], tpl_result_failed: ["Result: failed", "ผลการเล่น: ไม่ผ่าน"],
   tpl_gift: ["Gift", "ของขวัญ"], tpl_voteskip: ["Vote skip passed", "โหวตข้ามเพลงสำเร็จ"], tpl_auto_off: ["Requests closed (queue full or time)", "ปิดรับคำขอ (คิวเต็มหรือถึงเวลา)"], tpl_auto_on: ["Requests open again", "เปิดรับคำขออีกครั้ง"],
-  ttsStart: ["Start TTS", "เริ่มเสียงอ่าน"], ttsOn: ["TTS on", "เสียงอ่านเปิดอยู่"],
-  ttsTitleOff: ["Browsers only speak after a click: click to start TTS (chat and announcements) in this tab.", "เบราว์เซอร์จะพูดได้หลังคลิกเท่านั้น: คลิกเพื่อเริ่มเสียงอ่าน (แชทและประกาศ) ในแท็บนี้"],
+  ttsStart: ["Start TTS", "เริ่มเสียงอ่าน"], ttsOn: ["TTS on", "เสียงอ่านเปิดอยู่"], ttsArmed: ["Click anywhere to start TTS", "คลิกตรงไหนก็ได้เพื่อเริ่มเสียงอ่าน"],
+  ttsTitleOff: ["TTS is off in this tab: click to start it (chat and announcements). It stays off here until you start it again.", "เสียงอ่านปิดอยู่ในแท็บนี้: คลิกเพื่อเริ่ม (แชทและประกาศ) จะปิดอยู่จนกว่าจะกดเริ่มอีกครั้ง"],
+  ttsTitleArmed: ["This browser lets a page make sound only after you interact with it: TTS starts on your first click or key press anywhere on the dashboard. In Microsoft Edge you can skip this: Settings → Cookies and site permissions → Media autoplay → Allow this address.", "เบราว์เซอร์ให้หน้าเว็บมีเสียงได้หลังจากมีการกดหน้านั้นก่อน: เสียงอ่านจะเริ่มเมื่อคลิกหรือกดปุ่มใดก็ได้บนแดชบอร์ดครั้งแรก ถ้าใช้ Microsoft Edge ตั้งให้ไม่ต้องคลิกได้ที่ Settings → Cookies and site permissions → Media autoplay → Allow แล้วใส่ที่อยู่นี้"],
   ttsTitleOn: ["TTS is speaking in this tab (commands in chat are skipped). Click to stop.", "กำลังใช้เสียงอ่านในแท็บนี้ (ไม่อ่านคำสั่งในแชท) คลิกเพื่อหยุด"],
   sg_chat: ["Reading chat", "อ่านแชท"], sg_voice: ["Voice", "เสียง"], sg_announce: ["Announcements", "ประกาศเหตุการณ์"],
   modOn: ["on", "เปิดอยู่"], ttsSkip: ["Skip this message", "ข้ามข้อความนี้"],
@@ -954,9 +955,11 @@ $("#rmLastBtn").addEventListener("click", () => act("/api/action/removeLast"));
 $("#clearBtn").addEventListener("click", () => { if (confirm(t("confirmClear"))) act("/api/action/clear"); });
 /* ---------- chat TTS ---------- */
 // The helper sends chat to read (S.speech, newest first, commands already
-// left out, see app.speakChat). Browsers only speak after a click, so the
-// streamer starts it once per tab with the top-bar button.
-let ttsOn = false, ttsSeen = -1, ttsBusy = false;
+// left out, see app.speakChat). TTS starts by itself when the page opens,
+// unless it was switched off in this browser. Browsers that allow sound only
+// after an interaction get it started by the first click or key anywhere
+// (ttsArmed) instead of by the top-bar button.
+let ttsOn = false, ttsSeen = -1, ttsBusy = false, ttsArmed = false;
 const ttsQueue = [], ttsWarned = {};
 const hasThai = s => /[\u0E00-\u0E7F]/.test(s);
 let ttsAudio = null; // Google's voice playing, if any
@@ -1027,20 +1030,46 @@ function handleSpeech() {
 function renderTTS() {
   const on = !!(S && S.tts && (S.tts.enabled || S.tts.announce));
   $("#ttsWrap").hidden = !on || !("speechSynthesis" in window);
-  if (!on && ttsOn) { ttsOn = false; ttsQueue.length = 0; ttsStop(); }
+  if (S && !on && ttsOn) { ttsQueue.length = 0; ttsStop(); } // switched off in Settings: silent, starts again with it
   const p = $("#ttsPill");
-  p.textContent = ttsOn ? "🔊 " + t("ttsOn") : "🔈 " + t("ttsStart");
-  p.title = t(ttsOn ? "ttsTitleOn" : "ttsTitleOff");
+  p.textContent = ttsOn ? "🔊 " + t("ttsOn") : "🔈 " + t(ttsArmed ? "ttsArmed" : "ttsStart");
+  p.title = t(ttsOn ? "ttsTitleOn" : ttsArmed ? "ttsTitleArmed" : "ttsTitleOff");
   p.classList.toggle("off", !ttsOn);
   $("#ttsSkip").hidden = !ttsOn || !ttsBusy;
   $("#ttsSkip").title = t("ttsSkip");
 }
-$("#ttsPill").addEventListener("click", () => {
-  ttsOn = !ttsOn;
-  if (!ttsOn) { ttsQueue.length = 0; ttsStop(); ttsBusy = false; }
-  else speechSynthesis.speak(new SpeechSynthesisUtterance("")); // the click unlocks speech in this tab
+// ttsStart turns TTS on; called from a click or key, it also unlocks speech in this tab.
+function ttsStart() {
+  ttsOn = true; ttsArmed = false;
+  if ("speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+  try { localStorage.removeItem("osureq.ttsOff"); } catch {}
+  renderTTS();
+}
+$("#ttsPill").addEventListener("click", e => {
+  e.stopPropagation(); // not the "first click anywhere" as well
+  if (!ttsOn) return ttsStart();
+  ttsOn = false; ttsArmed = false; ttsQueue.length = 0; ttsStop(); ttsBusy = false;
+  try { localStorage.setItem("osureq.ttsOff", "1"); } catch {} // stays off here until started again
   renderTTS();
 });
+// ttsAutoStart: on page load, start TTS unless it was switched off here. A
+// moment of silence tells whether the browser lets this page make sound yet.
+function ttsAutoStart() {
+  try { if (localStorage.getItem("osureq.ttsOff") === "1") return; } catch {}
+  const wav = new Uint8Array(44 + 800).fill(128); // 0.1 s of 8 kHz 8-bit silence
+  const dv = new DataView(wav.buffer), str = (o, s) => [...s].forEach((c, i) => dv.setUint8(o + i, c.charCodeAt(0)));
+  str(0, "RIFF"); dv.setUint32(4, 36 + 800, true); str(8, "WAVEfmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, 8000, true); dv.setUint32(28, 8000, true); dv.setUint16(32, 1, true); dv.setUint16(34, 8, true); str(36, "data"); dv.setUint32(40, 800, true);
+  const a = new Audio(URL.createObjectURL(new Blob([wav], { type: "audio/wav" })));
+  a.volume = 0;
+  const arm = () => {
+    ttsArmed = true; renderTTS();
+    const go = e => { if (e.target.closest && e.target.closest("#ttsPill")) return; /* its own click starts it */ removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); if (ttsArmed) ttsStart(); };
+    addEventListener("pointerdown", go, true); addEventListener("keydown", go, true);
+  };
+  a.play().then(() => { if (!ttsOn) ttsStart(); }, e => (e && e.name === "NotAllowedError" ? arm() : ttsStart())).finally(() => URL.revokeObjectURL(a.src));
+}
+ttsAutoStart();
 $("#ttsSkip").addEventListener("click", ttsStop);
 if ("speechSynthesis" in window) speechSynthesis.addEventListener("voiceschanged", () => { if (!$("#settings").hidden && tab === "tts") renderSettings(); });
 
@@ -1291,7 +1320,7 @@ const SCHEMA = {
   ],
   tts: [
     F("", "group", "sg_chat"),
-    F("tts.enabled", "switch", "Read chat aloud (without commands)", "อ่านแชทออกเสียง (ไม่อ่านคำสั่ง)", "Reads TikTok chat in this dashboard with the voices of Windows, and never reads messages starting with ! (!req, !np…), links or emoji. Turn off TikFinity's own TTS so chat is not read twice. Browsers only speak after a click: press \"🔈 Start TTS\" at the top once per tab. OBS picks it up as desktop audio.", "อ่านแชท TikTok ในแดชบอร์ดนี้ด้วยเสียงของ Windows และไม่อ่านข้อความที่ขึ้นต้นด้วย ! (!req, !np…) ลิงก์ หรืออีโมจิ ให้ปิด TTS ของ TikFinity เพื่อไม่ให้อ่านซ้ำ เบราว์เซอร์จะพูดได้หลังคลิกเท่านั้น: กดปุ่ม \"🔈 เริ่มเสียงอ่าน\" ด้านบนหนึ่งครั้งต่อแท็บ OBS จับเสียงได้ผ่าน Desktop Audio"),
+    F("tts.enabled", "switch", "Read chat aloud (without commands)", "อ่านแชทออกเสียง (ไม่อ่านคำสั่ง)", "Reads TikTok chat in this dashboard with the voices of Windows, and never reads messages starting with ! (!req, !np…), links or emoji. Turn off TikFinity's own TTS so chat is not read twice. TTS starts by itself when the dashboard opens (if the browser wants a click first, the first click anywhere starts it); the 🔊 button at the top switches it off. OBS picks it up as desktop audio.", "อ่านแชท TikTok ในแดชบอร์ดนี้ด้วยเสียงของ Windows และไม่อ่านข้อความที่ขึ้นต้นด้วย ! (!req, !np…) ลิงก์ หรืออีโมจิ ให้ปิด TTS ของ TikFinity เพื่อไม่ให้อ่านซ้ำ เสียงอ่านจะเริ่มเองเมื่อเปิดแดชบอร์ด (ถ้าเบราว์เซอร์ต้องการให้คลิกก่อน คลิกตรงไหนก็ได้ครั้งแรกจะเริ่มให้) ปุ่ม 🔊 ด้านบนใช้ปิด OBS จับเสียงได้ผ่าน Desktop Audio"),
     F("tts.readName", "switch", "Say who wrote it", "บอกชื่อคนพิมพ์", "\"name says …\"", "\"ชื่อ บอกว่า …\""),
     F("tts.maxLength", "number", "Max letters per message", "ความยาวสูงสุดต่อข้อความ", "Longer messages are cut.", "ข้อความที่ยาวกว่านี้จะถูกตัด", { min: 10, max: 500 }),
     F("tts.cooldownSec", "number", "Per-viewer cooldown (s)", "คูลดาวน์ต่อคน (วินาที)", "A viewer's next message within this time is not read.", "ข้อความถัดไปของคนเดิมภายในเวลานี้จะไม่ถูกอ่าน", { min: 0 }),
