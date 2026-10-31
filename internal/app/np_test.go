@@ -194,3 +194,30 @@ func TestJumpOpensHistoryMap(t *testing.T) {
 		t.Error("an old entry without a difficulty and no osu! lookup should fail, not open a wrong link")
 	}
 }
+
+func TestAutoNeedsPass(t *testing.T) {
+	a := newTestApp(t, func(c *config.Config) {
+		c.Queue.PlayMode, c.Queue.AutoGapSec, c.Queue.AutoNeedsPass, c.Test.DryRun = "auto", 0, true, true
+	})
+	t0 := time.Now()
+	add(a, "cur", "u1", 1, t0)
+	add(a, "next", "u2", 2, t0.Add(time.Second))
+	a.Queue.Update("next", func(x *queue.Item) { x.State = queue.Ready })
+	a.Queue.Promote("cur", "played")
+	end := func(outcome string) {
+		a.Queue.Update("cur", func(x *queue.Item) {
+			x.PlayPhase, x.PhaseAt, x.Result = string(tosu.Ended), t0.Add(-time.Minute), &queue.Result{Outcome: outcome}
+		})
+	}
+	connectTosu(t, a, `{"client":"stable","state":{"number":5,"name":"selectPlay"},"beatmap":{"id":9,"set":9}}`)
+
+	end("failed")
+	a.tick(context.Background())
+	time.Sleep(100 * time.Millisecond)
+	if now, _ := a.Queue.Now(); now.ID != "cur" {
+		t.Fatalf("a failed play must not open the next map, now %s", now.ID)
+	}
+	end("passed")
+	a.tick(context.Background())
+	waitFor(t, func() bool { now, _ := a.Queue.Now(); return now.ID == "next" }, "the next map after a clear")
+}

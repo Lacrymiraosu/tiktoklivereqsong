@@ -315,6 +315,7 @@ const T = {
   ph_ended: ["finished", "เล่นจบแล้ว"],
   ph_nextIn: ["next map in {n}s", "แมพถัดไปใน {n} วิ"],
   ph_pressNext: ["press Next", "กด ถัดไป"],
+  ph_needsPass: ["not cleared: retry it to the results screen, or press Next", "ยังไม่ผ่าน: เล่นใหม่ให้ถึงหน้าผลคะแนน หรือกด ถัดไป"],
   ph_noTosu: ["auto mode paused: tosu not connected", "โหมดอัตโนมัติหยุดรอ: ยังไม่เชื่อมต่อ tosu"],
   ph_queueEmpty: ["queue is empty", "คิวว่าง"],
   r_too_long: ["too long", "ยาวเกิน"], r_meta_error: ["osu! lookup failed", "ดึงข้อมูล osu! ไม่ได้"], r_bad_input: ["invalid input", "รูปแบบไม่ถูกต้อง"], r_requests_off: ["requests off", "ปิดรับคำขอ"], r_followers_only: ["not a follower", "ไม่ได้ติดตาม"],
@@ -586,7 +587,8 @@ function updatePhase() {
   else if (phase === "ended") {
     const left = Math.ceil(S.autoGap - (Date.now() - new Date(n.phaseAt)) / 1000);
     const hasNext = (S.queue.items || []).some(i => i.state !== "failed");
-    text += " · " + (!auto ? t("ph_pressNext") : !hasNext ? t("ph_queueEmpty") : t("ph_nextIn", { n: Math.max(0, left) }));
+    const passed = n.result && n.result.outcome === "passed";
+    text += " · " + (!auto ? t("ph_pressNext") : !hasNext ? t("ph_queueEmpty") : S.autoNeedsPass && !passed ? t("ph_needsPass") : t("ph_nextIn", { n: Math.max(0, left) }));
   }
   if (n.result) text += " · " + t("res_" + n.result.outcome) + " " + resultShort(n.result);
   if (n.result && n.result.missing) text += " · ⚠ " + t("ph_missing", { m: n.result.missing });
@@ -1279,6 +1281,7 @@ const SCHEMA = {
     F("gifts.creditMinutes", "number", "Unused priority lasts (min)", "สิทธิ์ที่ยังไม่ใช้อยู่ได้ (นาที)", null, null, { min: 1 }),
     F("queue.playMode", "seg", "Play mode", "โหมดเล่น", "auto opens the next map when tosu sees that you played the current one and went back to song select (requires tosu). Without tosu, auto waits.", "auto จะเปิดแมพถัดไปเมื่อ tosu เห็นว่าเล่นแมพปัจจุบันจบและกลับไปหน้าเลือกเพลงแล้ว (ต้องใช้ tosu) ถ้าไม่มี tosu จะหยุดรอ", { options: [["manual", ["manual (press Next)", "กดเอง (ถัดไป)"]], ["auto", ["auto", "อัตโนมัติ"]]] }),
     F("queue.autoGapSec", "number", "Wait after song ends (s)", "รอหลังเพลงจบ (วินาที)", "Seconds after you return to song select before the next map opens.", "จำนวนวินาทีหลังกลับไปหน้าเลือกเพลง ก่อนเปิดแมพถัดไป", { min: 0 }),
+    F("queue.autoNeedsPass", "switch", "Auto: only after a clear", "auto: ไปต่อเมื่อเล่นผ่านเท่านั้น", "In auto mode, the next map opens only after the current one reached the results screen. A fail or Esc mid-song waits: retry it, or press Next.", "ในโหมด auto จะเปิดแมพถัดไปเมื่อเล่นจนถึงหน้าผลคะแนนเท่านั้น ถ้าเล่นไม่ผ่านหรือกด Esc ออกกลางเพลง จะรอให้เล่นใหม่ หรือกด ถัดไป"),
   ],
   download: [
     F("download.sources", "sources", "Sources (in order)", "แหล่งดาวน์โหลด (ตามลำดับ)", "The official source opens osu.ppy.sh in your browser (you must be logged in there) and waits for the file in Downloads. It is only used when MD5 checking is on.", "แหล่ง official จะเปิด osu.ppy.sh ในเบราว์เซอร์ (ต้องล็อกอินไว้) แล้วรอไฟล์ในโฟลเดอร์ดาวน์โหลด ใช้เฉพาะตอนเปิดตรวจ MD5"),

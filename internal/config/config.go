@@ -126,6 +126,9 @@ type Queue struct {
 	CloseAt      string `json:"closeAt"`
 	PlayMode     string `json:"playMode"` // manual | auto
 	AutoGapSec   int    `json:"autoGapSec"`
+	// AutoNeedsPass: auto mode opens the next map only after the current one
+	// reached the results screen; a fail or a quit waits for a retry or Next.
+	AutoNeedsPass bool `json:"autoNeedsPass"`
 }
 
 type Source struct {

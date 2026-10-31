@@ -533,6 +533,9 @@ func (a *App) tick(ctx context.Context) {
 			if now.PlayPhase != string(tosu.Ended) || time.Since(now.PhaseAt) < time.Duration(cfg.Queue.AutoGapSec)*time.Second {
 				return
 			}
+			if cfg.Queue.AutoNeedsPass && (now.Result == nil || now.Result.Outcome != "passed") {
+				return // failed or quit: wait for a retry that reaches the results, or Next
+			}
 		}
 		go a.Next("played")
 	}

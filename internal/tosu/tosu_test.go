@@ -80,6 +80,9 @@ func TestTracker(t *testing.T) {
 		{"straight into another map", []Game{g("play", req), g("play", 7)}, Ended},
 		{"loading glitches are ignored", []Game{g("play", req), g("busy", 0), g("unknown", 0), g("", 0), g("play", req)}, Playing},
 		{"results then menu", []Game{g("play", req), g("resultScreen", req), g("menu", 0)}, Ended},
+		{"retry after a quit", []Game{g("play", req), g("selectPlay", req), g("play", req)}, Playing},
+		{"retry after a quit, then cleared", []Game{g("play", req), g("selectPlay", req), g("play", req), g("resultScreen", req)}, Results},
+		{"other map after the end", []Game{g("play", req), g("selectPlay", req), g("play", 7)}, Ended},
 	}
 	for _, c := range cases {
 		var tr Tracker
