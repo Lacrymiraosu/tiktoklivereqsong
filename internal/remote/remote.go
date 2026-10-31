@@ -318,7 +318,8 @@ type State struct {
 	VoteSkip  app.VoteSkip `json:"voteSkip"`
 	// Previewing is the set whose preview the dashboard on the stream PC
 	// is playing (0 = none).
-	Previewing int `json:"previewing"`
+	Previewing int    `json:"previewing"`
+	Prev       string `json:"prev,omitempty"` // "artist - title" the previous button returns to
 }
 
 type Item struct {
@@ -349,6 +350,7 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 		n := conv(*snap.Now)
 		st.Now = &n
 	}
+	st.Prev = snap.Prev
 	for _, it := range snap.Items {
 		st.Items = append(st.Items, conv(it))
 	}
@@ -361,6 +363,8 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 	switch name {
 	case "next":
 		err = a.Next("played")
+	case "previous":
+		err = a.Previous()
 	case "skip":
 		err = a.Skip("")
 	case "toggleRequests":

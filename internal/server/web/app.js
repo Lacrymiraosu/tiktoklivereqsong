@@ -26,6 +26,7 @@ const ICON = {
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
   note: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
+  prev: '<path d="M19 5l-9 7 9 7zM6 5v14"/>',
 };
 
 /* ---------- i18n (en / th) ---------- */
@@ -88,7 +89,8 @@ const T = {
   banned: ["Banned {v} · removed {n}. Undo in Settings → Map rules.", "แบน {v} แล้ว · ลบ {n} คำขอ ยกเลิกได้ใน ตั้งค่า → กฎแมพ"],
   mirrors: ["Mirrors", "Mirror"], mirrorCheck: ["Check", "ตรวจ"], mirrorChecking: ["Checking…", "กำลังตรวจ…"],
   m_unknown: ["not checked yet", "ยังไม่ได้ตรวจ"], m_resting: ["rate limited, {s}s", "โดนจำกัดความถี่ รออีก {s} วิ"], m_ago: ["{t} ago", "{t} ที่แล้ว"],
-  mirrorHint: ["Checked 15 s after start, every 30 min and after each download.", "ตรวจหลังเปิดโปรแกรม 15 วิ ทุก 30 นาที และหลังดาวน์โหลดแต่ละครั้ง"],
+  mirrorHint: ["Checked once after start, then by each download. A mirror that refuses a download (HTTP 403) is also reported in Activity.", "ตรวจครั้งเดียวหลังเปิดโปรแกรม จากนั้นอัปเดตตามการดาวน์โหลดแต่ละครั้ง ถ้า mirror ไหนไม่ยอมให้โหลด (HTTP 403) จะแจ้งในกิจกรรมด้วย"],
+  n_mirrorRefused: ["{src} refused the download: {msg}", "{src} ไม่ยอมให้โหลด: {msg}"],
   pvPlay: ["preview", "ฟังตัวอย่าง"], pvStop: ["stop", "หยุด"], pvFail: ["Could not play the preview", "เล่นตัวอย่างเพลงไม่ได้"],
   viewer: ["viewer", "viewer"], viewerTitle: ["Open in the beatmap viewer", "เปิดใน beatmap viewer"],
   confirmQuit: ["Stop osureq? Requests will not be taken until you start it again.", "ปิด osureq? จะไม่รับคำขอจนกว่าจะเปิดใหม่"],
@@ -128,6 +130,9 @@ const T = {
   nowPlaying: ["Now playing", "กำลังเล่น"],
   nothingPlaying: ["Nothing playing. Press Next to open the first map in the queue.", "ยังไม่มีเพลงที่เล่นอยู่ กด ถัดไป เพื่อเปิดแมพแรกในคิว"],
   next: ["Next", "ถัดไป"],
+  jump: ["Open in osu!", "เปิดใน osu!"], jumpTitle: ["osu! jumps to this map (osu://b/…); the queue stays as it is", "osu! กระโดดไปที่แมพนี้ (osu://b/…) คิวไม่เปลี่ยน"],
+  prev: ["Previous", "ก่อนหน้า"], prevTitle: ["Back to {title}: osu! opens it again and the current map goes back to the front of the queue", "กลับไป {title}: osu! เปิดเพลงนั้นอีกครั้ง และแมพปัจจุบันกลับไปอยู่หน้าคิว"],
+  e_no_previous: ["No map was played before this one", "ยังไม่มีแมพก่อนหน้า"], e_open_failed: ["Could not open {title}: {msg}", "เปิด {title} ไม่ได้: {msg}"],
   skip: ["Skip", "ข้าม"],
   by: ["by", "โดย"],
   mappedBy: ["mapped by", "แมพโดย"],
@@ -593,12 +598,16 @@ setInterval(updatePhase, 1000);
 
 function renderNow(n) {
   const box = $("#np");
-  if (same(box, JSON.stringify([n, LANG, S.viewerUrl]))) return;
+  const prevTitle = S.queue.prev || "";
+  if (same(box, JSON.stringify([n, LANG, S.viewerUrl, prevTitle]))) return;
   box.replaceChildren();
   const next = h("button", { class: "btn main", onclick: e => busy(e.currentTarget, () => act("/api/action/next")) }, svg(ICON.next), t("next"));
+  // back to the map played before: osu! jumps to it again
+  const prev = prevTitle ? h("button", { class: "btn", title: t("prevTitle", { title: prevTitle }), "aria-label": t("prevTitle", { title: prevTitle }),
+    onclick: e => busy(e.currentTarget, () => act("/api/action/previous")) }, svg(ICON.prev), t("prev")) : null;
   if (!n) {
     box.append(h("div", { class: "np empty" }, h("div", { class: "npi", style: "justify-content:center;text-align:center" },
-      h("div", { class: "npt", style: "align-items:center" }, h("small", {}, t("nothingPlaying"))), h("div", { class: "npa" }, next))));
+      h("div", { class: "npt", style: "align-items:center" }, h("small", {}, t("nothingPlaying"))), h("div", { class: "npa" }, prev, next))));
     return;
   }
   box.append(h("div", { class: "np", style: `background-image:url("${coverOf(n)}")` },
@@ -611,7 +620,7 @@ function renderNow(n) {
         tagsFor(n),
         h("span", { class: "phase", id: "phase" }, h("i"), h("span")),
         h("span", { class: "modewarn", id: "modeWarn", hidden: true })),
-      h("div", { class: "npa" },
+      h("div", { class: "npa" }, prev,
         h("button", { class: "btn", onclick: e => busy(e.currentTarget, () => act("/api/action/skip")) }, svg(ICON.skip), t("skip")),
         next))));
 }
@@ -800,13 +809,13 @@ function renderMirrors() {
   fill("#mirrorList", list.map(m => {
     const dot = { ok: "green", failed: "red", resting: "yellow" }[m.state] || "";
     let detail = t("m_unknown");
-    if (m.state === "ok") detail = m.ms + " ms";
+    if (m.state === "ok") detail = "OK";
     else if (m.state === "failed") detail = m.error;
     else if (m.state === "resting") detail = t("m_resting", { s: Math.ceil(m.ms / 1000) });
     const when = m.at ? t("m_ago", { t: ago(m.at) }) : "";
-    return h("div", { class: "mrow " + m.state, title: [m.name, m.error, when].filter(Boolean).join(" · ") },
+    return h("div", { class: "mrow " + m.state, title: [m.name, m.state === "ok" ? m.ms + " ms" : m.error, when].filter(Boolean).join(" · ") },
       h("span", { class: "dot " + dot }), h("b", {}, m.name), h("span", { class: "mdet" }, detail), h("small", {}, when));
-  }), [list.map(m => [m.name, m.state, m.state === "ok" ? Math.round(m.ms / 100) : m.error, m.at && ago(m.at)]), S.mirrorCheck]);
+  }), [list.map(m => [m.name, m.state, m.state === "ok" ? "" : m.error, m.at && ago(m.at)]), S.mirrorCheck]);
 }
 $("#mirrorBtn").addEventListener("click", () => act("/api/action/checkMirrors"));
 
@@ -825,8 +834,14 @@ function renderSide() {
   }), [rej.slice(0, 40), [...banned]]);
   fill("#noteLog", notes.map(n => logItem({ error: "err", warn: "warn" }[n.kind] || "info", t("k_" + n.kind), "", n.at,
     n.key && T["n_" + n.key] ? t("n_" + n.key, n.vars || {}) : n.text)), notes);
-  fill("#histLog", hist.map(p => logItem(p.result === "played" ? "ok" : "warn", p.title + (p.mods ? " +" + p.mods : ""), "@" + p.user, p.at,
-    t(p.result) + (p.play ? " · " + t("res_" + p.play.outcome) + " " + resultShort(p.play) : ""))), hist);
+  fill("#histLog", hist.map(p => {
+    const li = logItem(p.result === "played" ? "ok" : "warn", p.title + (p.mods ? " +" + p.mods : ""), "@" + p.user, p.at,
+      t(p.result) + (p.play ? " · " + t("res_" + p.play.outcome) + " " + resultShort(p.play) : ""));
+    // jump back to it in osu! (osu://b/…) without touching the queue
+    li.append(h("button", { class: "mlink jumplink", type: "button", title: t("jumpTitle"),
+      onclick: e => busy(e.currentTarget, () => act("/api/jump", { setId: p.setId, beatmapId: p.beatmapId || 0 })) }, "↗ " + t("jump")));
+    return li;
+  }), hist);
   fill("#rawLog", raw.map(r => logItem("info", r.event, "", r.at, "", r.raw)), raw.map(r => [r.at, r.event]));
   renderSummary(S.summary);
   const ov = location.origin + "/overlay";

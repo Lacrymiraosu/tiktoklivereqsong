@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -133,6 +134,30 @@ func (a *App) warnOnce(key string, vars map[string]string, f string, args ...any
 	a.mu.Unlock()
 	if !seen {
 		a.Say("warn", key, vars, f, args...)
+	}
+}
+
+// warnRefused tells the streamer when a mirror refuses a download with
+// HTTP 403 (catboy.best answers so to banned IPs): once per mirror, and
+// again only after that mirror has worked in between.
+func (a *App) warnRefused(tried []queue.Attempt) {
+	for _, x := range tried {
+		refused := x.Status == "failed" && strings.Contains(x.Message, "HTTP 403")
+		key := "refused|" + x.Source
+		a.mu.Lock()
+		if a.warned == nil {
+			a.warned = map[string]bool{}
+		}
+		seen := a.warned[key]
+		if refused {
+			a.warned[key] = true
+		} else if x.Status == "ok" {
+			delete(a.warned, key)
+		}
+		a.mu.Unlock()
+		if refused && !seen {
+			a.Say("warn", "mirrorRefused", map[string]string{"src": x.Source, "msg": x.Message}, "%s refused the download: %s", x.Source, x.Message)
+		}
 	}
 }
 
@@ -469,12 +494,22 @@ func (a *App) Run(ctx context.Context) {
 func (a *App) tick(ctx context.Context) {
 	a.autoRequests(time.Now())
 	cfg := a.Cfg.Get()
+	auto := cfg.Queue.PlayMode == "auto"
 	n := 0
 	if cfg.Import.Preload {
 		n = cfg.Import.PreloadCount
 	}
-	if cfg.Queue.PlayMode == "auto" {
-		n = max(n, 1)
+	// the map auto mode opens next: the first one that did not fail, like Next
+	var head queue.Item
+	found := false
+	for i, it := range a.Queue.First(1 << 30) {
+		if it.State != queue.Failed {
+			head, found = it, true
+			if auto {
+				n = max(n, i+1) // so it gets downloaded even behind failed ones
+			}
+			break
+		}
 	}
 	for _, it := range a.Queue.First(n) {
 		if it.State == queue.Queued {
@@ -485,9 +520,8 @@ func (a *App) tick(ctx context.Context) {
 			break
 		}
 	}
-	if cfg.Queue.PlayMode == "auto" {
-		head, ok := a.Queue.Head()
-		if !ok || head.State != queue.Ready {
+	if auto {
+		if !found || head.State != queue.Ready {
 			return
 		}
 		// Auto mode only trusts tosu: without it there is no way to know the
@@ -575,7 +609,7 @@ func (a *App) OnGame(g tosu.Game) {
 	}
 	if a.trackID != now.ID {
 		a.trackID = now.ID
-		a.track = tosu.Tracker{SetID: now.SetID, Phase: tosu.Phase(now.PlayPhase), Since: now.PhaseAt}
+		a.track = tosu.Tracker{SetID: now.SetID, Song: tosu.SongKey(now.Artist, now.Title), Phase: tosu.Phase(now.PlayPhase), Since: now.PhaseAt}
 		if a.track.Phase == "" {
 			a.track.Reset(now.SetID, time.Now())
 		}
@@ -734,9 +768,14 @@ func (a *App) download(ctx context.Context, id string) error {
 	}
 
 	job := downloader.Job{SetID: it.SetID, Ref: ref, HasVideo: set == nil || set.Video}
+	var tried []queue.Attempt
 	out, err := a.DL.Get(ctx, job, func(at []queue.Attempt) {
+		tried = at
 		a.Queue.Update(id, func(x *queue.Item) { x.Attempts = at })
 	})
+	if ctx.Err() == nil {
+		a.warnRefused(tried)
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			a.Queue.Update(id, func(x *queue.Item) {
@@ -877,6 +916,74 @@ func (a *App) play(id, result string) error {
 	a.Queue.Promote(id, result)
 	a.announcePlaying(it)
 	log.Printf("now playing: %s - %s [%s] for @%s", it.Artist, it.Title, it.Version, it.User)
+	return nil
+}
+
+// Previous goes back to the map played before the current one: osu! jumps
+// to it again and it becomes now playing; the current map goes back to the
+// front of the queue (Queue.Back).
+func (a *App) Previous() error {
+	if !a.advance.TryLock() {
+		return uerr("busy", "already opening a map", nil)
+	}
+	defer a.advance.Unlock()
+	it, ok := a.Queue.Previous()
+	if !ok {
+		return uerr("no_previous", "no map was played before this one", nil)
+	}
+	cfg := a.Cfg.Get()
+	var err error
+	_, statErr := os.Stat(it.File)
+	switch {
+	case cfg.Test.DryRun:
+		a.Say("info", "dryOpen", map[string]string{"title": it.Artist + " - " + it.Title + " [" + it.Version + "]"}, "dry run: would open %s - %s [%s] (%s)", it.Artist, it.Title, it.Version, cfg.Import.Mode)
+	case it.File != "" && statErr == nil:
+		// it was imported when it played, so opening the .osz again only jumps to it
+		err = a.Import.Import(it.File, importer.Open, cfg.Osu.Game, cfg.Osu.Folder, target(it))
+	case it.BeatmapID > 0:
+		err = a.OpenURL(fmt.Sprintf("osu://b/%d", it.BeatmapID))
+	default:
+		err = errors.New("its file is gone and the difficulty is unknown")
+	}
+	if err != nil {
+		return uerr("open_failed", fmt.Sprintf("could not open %s - %s: %v", it.Artist, it.Title, err), map[string]string{"title": it.Artist + " - " + it.Title, "msg": err.Error()})
+	}
+	if _, ok := a.Queue.Back(it.ID); !ok {
+		return uerr("busy", "the queue changed meanwhile", nil)
+	}
+	a.announcePlaying(it)
+	log.Printf("back to the previous map: %s - %s [%s] for @%s", it.Artist, it.Title, it.Version, it.User)
+	return nil
+}
+
+// Jump opens a map from the history in osu! (osu://b/…), so the streamer can
+// go back to it without touching the queue. Entries from before beatmap IDs
+// were recorded open the set's first difficulty, looked up on osu!.
+func (a *App) Jump(setID, beatmapID int) error {
+	if setID <= 0 && beatmapID <= 0 {
+		return uerr("not_found", "no map to open", nil)
+	}
+	if beatmapID <= 0 {
+		if a.Meta == nil {
+			return uerr("open_failed", "the difficulty is unknown", map[string]string{"title": strconv.Itoa(setID), "msg": "the difficulty is unknown"})
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		set, err := a.Meta.Get(ctx, setID, 0)
+		cancel()
+		if err != nil || len(set.Diffs) == 0 {
+			return uerr("open_failed", fmt.Sprintf("could not find set %d on osu!: %v", setID, err), map[string]string{"title": strconv.Itoa(setID), "msg": fmt.Sprint(err)})
+		}
+		beatmapID = set.Diffs[0].ID
+	}
+	url := fmt.Sprintf("osu://b/%d", beatmapID)
+	if a.Cfg.Get().Test.DryRun {
+		a.Say("info", "dryOpen", map[string]string{"title": url}, "dry run: would open %s", url)
+		return nil
+	}
+	if err := a.OpenURL(url); err != nil {
+		return uerr("open_failed", fmt.Sprintf("could not open %s: %v", url, err), map[string]string{"title": url, "msg": err.Error()})
+	}
+	log.Printf("jumped to %s in osu!", url)
 	return nil
 }
 

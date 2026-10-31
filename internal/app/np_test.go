@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
 	"github.com/coder/websocket"
@@ -39,16 +41,41 @@ func (f *fakeTosu) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// connectTosu points a.Tosu at a fake tosu sending msg and waits until it is connected.
+func connectTosu(t *testing.T, a *App, msg string) *fakeTosu {
+	t.Helper()
+	fake := &fakeTosu{msg: msg}
+	srv := httptest.NewServer(fake)
+	t.Cleanup(srv.Close)
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/websocket/v2"
+	a.Tosu = tosu.New(tosu.Env{Running: func(string) bool { return true }, Path: func(string) (string, bool) { return "", false },
+		Launch: func(string) error { return nil }}, func() tosu.Settings {
+		return tosu.Settings{URL: url, Reconnect: 50 * time.Millisecond}
+	})
+	a.Tosu.OnGame = a.OnGame
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go a.Tosu.Run(ctx)
+	waitFor(t, a.Tosu.Connected, "tosu")
+	return fake
+}
+
+func waitFor(t *testing.T, cond func() bool, what string) {
+	t.Helper()
+	for i := 0; i < 300; i++ {
+		if cond() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", what)
+}
+
 const lotusPayload = `{"client":"stable","state":{"number":2,"name":"play"},
 	"beatmap":{"id":1,"set":292301,"artist":"Susumu Hirasawa","title":"SWITCHED-ON LOTUS","mapper":"Dr Manhattan","version":"Nattahnam","stats":{"stars":{"total":7.64}}},
 	"play":{"mods":{"name":"HD"}}}`
 
 func TestNowPlayingFollowsTosu(t *testing.T) {
-	fake := &fakeTosu{msg: lotusPayload}
-	srv := httptest.NewServer(fake)
-	defer srv.Close()
-	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/websocket/v2"
-
 	a := newTestApp(t, nil)
 	add(a, "req-1", "fan", 39804, time.Now())
 	a.Queue.Promote("req-1", "played") // the queue says set 39804 is playing
@@ -63,25 +90,8 @@ func TestNowPlayingFollowsTosu(t *testing.T) {
 		t.Errorf("without tosu: %+v", f)
 	}
 
-	a.Tosu = tosu.New(tosu.Env{Running: func(string) bool { return true }, Path: func(string) (string, bool) { return "", false },
-		Launch: func(string) error { return nil }}, func() tosu.Settings {
-		return tosu.Settings{URL: url, Reconnect: 50 * time.Millisecond}
-	})
-	a.Tosu.OnGame = a.OnGame
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go a.Tosu.Run(ctx)
-	wait := func(cond func() bool, what string) {
-		t.Helper()
-		for i := 0; i < 300; i++ {
-			if cond() {
-				return
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-		t.Fatalf("timed out waiting for %s", what)
-	}
-	wait(func() bool { g, ok := a.tosuMap(); return ok && g.SetID == 292301 }, "tosu map")
+	fake := connectTosu(t, a, lotusPayload)
+	waitFor(t, func() bool { g, ok := a.tosuMap(); return ok && g.SetID == 292301 }, "tosu map")
 
 	// osu! plays something nobody requested: tosu wins, no requester
 	f := np("u2")
@@ -92,8 +102,95 @@ func TestNowPlayingFollowsTosu(t *testing.T) {
 
 	// the open map is the request: its requester is named
 	fake.put(strings.Replace(lotusPayload, `"set":292301`, `"set":39804`, 1))
-	wait(func() bool { g, _ := a.tosuMap(); return g.SetID == 39804 }, "tosu on the request")
+	waitFor(t, func() bool { g, _ := a.tosuMap(); return g.SetID == 39804 }, "tosu on the request")
 	if f := np("u3"); f.SetID != 39804 || f.Target != "fan" || f.Title != "SWITCHED-ON LOTUS" {
 		t.Errorf("tosu on the requested map: %+v", f)
+	}
+}
+
+func TestAutoSkipsFailedFirstItem(t *testing.T) {
+	a := newTestApp(t, func(c *config.Config) { c.Queue.PlayMode, c.Test.DryRun = "auto", true })
+	t0 := time.Now()
+	add(a, "bad", "u1", 1, t0)
+	add(a, "good", "u2", 2, t0.Add(time.Second))
+	a.Queue.Update("bad", func(x *queue.Item) { x.State = queue.Failed })
+	a.Queue.Update("good", func(x *queue.Item) { x.State = queue.Ready })
+	connectTosu(t, a, `{"client":"stable","state":{"number":5,"name":"selectPlay"},"beatmap":{"id":9,"set":9}}`)
+
+	a.tick(context.Background())
+	waitFor(t, func() bool { now, ok := a.Queue.Now(); return ok && now.ID == "good" }, "auto to open the map after the failed one")
+}
+
+func TestWarnRefusedOncePerMirror(t *testing.T) {
+	a := newTestApp(t, nil)
+	banned := []queue.Attempt{{Source: "catboy", Status: "failed", Message: "HTTP 403: you have been banned"}, {Source: "sayobot", Status: "ok"}}
+	count := func() int {
+		n := 0
+		for _, x := range a.Notices() {
+			if x.Key == "mirrorRefused" {
+				n++
+			}
+		}
+		return n
+	}
+	a.warnRefused(banned)
+	a.warnRefused(banned)
+	if n := count(); n != 1 {
+		t.Fatalf("a refusing mirror is reported once, got %d", n)
+	}
+	if v := a.Notices()[0].Vars; v["src"] != "catboy" || !strings.Contains(v["msg"], "banned") {
+		t.Errorf("notice vars: %v", v)
+	}
+	a.warnRefused([]queue.Attempt{{Source: "catboy", Status: "failed", Message: "HTTP 500"}})
+	a.warnRefused([]queue.Attempt{{Source: "catboy", Status: "ok"}})
+	a.warnRefused(banned)
+	if n := count(); n != 2 {
+		t.Errorf("refusing again after working should be reported again, got %d", n)
+	}
+}
+
+func TestPrevious(t *testing.T) {
+	a := newTestApp(t, func(c *config.Config) { c.Test.DryRun = true })
+	if err := a.Previous(); err == nil {
+		t.Fatal("no previous map yet")
+	}
+	t0 := time.Now()
+	add(a, "one", "u1", 1, t0)
+	add(a, "two", "u2", 2, t0.Add(time.Second))
+	a.Queue.Promote("one", "played")
+	a.Queue.Promote("two", "played")
+	if err := a.Previous(); err != nil {
+		t.Fatal(err)
+	}
+	if now, _ := a.Queue.Now(); now.ID != "one" {
+		t.Errorf("now = %s", now.ID)
+	}
+	if ids := ids(a); len(ids) != 1 || ids[0] != "two" {
+		t.Errorf("queue = %v", ids)
+	}
+}
+
+func TestJumpOpensHistoryMap(t *testing.T) {
+	a := newTestApp(t, nil)
+	var opened []string
+	a.OpenURL = func(u string) error { opened = append(opened, u); return nil }
+	a.Queue.Add(&queue.Item{ID: "x", User: "u", SetID: 39804, BeatmapID: 86324, Title: "FREEDOM DiVE", AddedAt: time.Now()})
+	a.Queue.Promote("x", "played")
+	a.Queue.Finish("played")
+	h := a.Queue.Snapshot().History
+	if len(h) != 1 || h[0].BeatmapID != 86324 {
+		t.Fatalf("history should keep the difficulty: %+v", h)
+	}
+	if err := a.Jump(h[0].SetID, h[0].BeatmapID); err != nil {
+		t.Fatal(err)
+	}
+	if len(opened) != 1 || opened[0] != "osu://b/86324" {
+		t.Errorf("opened %v", opened)
+	}
+	if a.Queue.Len() != 0 {
+		t.Error("jumping must not touch the queue")
+	}
+	if err := a.Jump(39804, 0); err == nil {
+		t.Error("an old entry without a difficulty and no osu! lookup should fail, not open a wrong link")
 	}
 }

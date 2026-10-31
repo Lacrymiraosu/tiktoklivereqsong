@@ -34,8 +34,10 @@ button,input{font:inherit;color:inherit}
 .lab{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--pink)}
 .np b{display:block;font-size:19px;margin-top:4px;overflow-wrap:anywhere}
 .np .sub{font-size:14px;color:var(--dim);overflow-wrap:anywhere}
-.np .acts{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:12px}
-.np .acts:has(.pv){grid-template-columns:auto 1fr 2fr}
+.np .acts{display:flex;gap:8px;margin-top:12px}
+.np .acts .btn{flex:1}
+.np .acts .btn.main{flex:2}
+.np .acts .btn.pv,.np .acts .btn.prev{flex:0 0 auto}
 .btn.pv{min-width:44px;font-size:16px}
 .btn.pv.on{background:var(--sky);border-color:var(--sky);color:#0d2233}
 .req{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -94,13 +96,13 @@ const TX = {
   wrong_pin: ["Wrong PIN", "PIN ไม่ถูกต้อง"], locked: ["Too many wrong PINs. Try again in {n} min.", "ใส่ PIN ผิดหลายครั้งเกินไป ลองใหม่ใน {n} นาที"],
   requests: ["Requests", "รับคำขอ"], nowPlaying: ["Now playing", "กำลังเล่น"], nothing: ["Nothing playing", "ยังไม่มีเพลงที่เล่นอยู่"],
   preview: ["Play the preview on the stream PC", "เล่นตัวอย่างเพลงบนคอมสตรีม"], stopPreview: ["Stop the preview", "หยุดตัวอย่างเพลง"],
-  next: ["Next", "ถัดไป"], skip: ["Skip", "ข้าม"], remove: ["Remove", "ลบ"], up: ["Up", "ขึ้น"], down: ["Down", "ลง"],
+  next: ["Next", "ถัดไป"], prev: ["Back to {t}", "กลับไป {t}"], skip: ["Skip", "ข้าม"], remove: ["Remove", "ลบ"], up: ["Up", "ขึ้น"], down: ["Down", "ลง"],
   queue: ["Queue ({n})", "คิว ({n})"], empty: ["The queue is empty", "คิวว่าง"], by: ["requested by", "ขอโดย"],
   confirmRemove: ["Remove {t} (@{u})?", "ลบ {t} (@{u})?"], confirmSkip: ["Skip the song being played?", "ข้ามเพลงที่กำลังเล่น?"],
   st_queued: ["waiting", "รอดาวน์โหลด"], st_downloading: ["downloading", "กำลังดาวน์โหลด"], st_ready: ["ready", "พร้อมเล่น"], st_failed: ["failed", "ล้มเหลว"],
   ph_waiting: ["waiting to be played", "รอเริ่มเล่น"], ph_playing: ["playing", "กำลังเล่น"], ph_results: ["results screen", "หน้าผลคะแนน"], ph_ended: ["finished", "เล่นจบแล้ว"],
   votes: ["skip votes {v}/{n}", "โหวตข้าม {v}/{n}"], offline: ["Lost connection to osureq", "ขาดการเชื่อมต่อกับ osureq"],
-  e_queue_empty: ["The queue is empty", "คิวว่างอยู่"], e_busy: ["Already opening a map", "กำลังเปิดแมพอยู่"], e_not_found: ["That request is gone", "คำขอนี้ไม่อยู่แล้ว"],
+  e_queue_empty: ["The queue is empty", "คิวว่างอยู่"], e_busy: ["Already opening a map", "กำลังเปิดแมพอยู่"], e_not_found: ["That request is gone", "คำขอนี้ไม่อยู่แล้ว"], e_no_previous: ["No map was played before this one", "ยังไม่มีแมพก่อนหน้า"],
 };
 let LANG = (navigator.language || "").startsWith("th") ? "th" : "en";
 try { LANG = localStorage.getItem("osureq.modLang") || LANG; } catch {}
@@ -181,7 +183,7 @@ function render(s) {
   $("#reqSw").checked = s.requests;
   $("#tfDot").className = "dot " + s.tikfinity;
   $("#tosuDot").className = "dot " + s.tosu;
-  const key = JSON.stringify([s.now, s.items, s.voteSkip, s.previewing, LANG]);
+  const key = JSON.stringify([s.now, s.items, s.voteSkip, s.previewing, s.prev, LANG]);
   if (key === lastKey) return; // nothing changed: keep the page still under the thumb
   lastKey = key;
   const n = s.now, vs = s.voteSkip || {};
@@ -189,7 +191,7 @@ function render(s) {
     ? `<b>${esc(n.title)}</b><div class="sub">${star(n)}${modsTag(n)}${esc(n.artist)} · [${esc(n.version)}]</div>
        <div class="sub">${tx("by")} @${esc(n.user)} · ${tx("ph_" + (n.phase || "waiting"))}${vs.needed > 0 && vs.votes > 0 ? " · " + tx("votes", { v: vs.votes, n: vs.needed }) : ""}</div>`
     : `<div class="sub" style="margin-top:6px">${tx("nothing")}</div>`) +
-    `<div class="acts" data-id="${n ? esc(n.id) : ""}">${n ? pvBtn(n, s.previewing) : ""}<button class="btn" type="button" data-act="skip"${n ? "" : " disabled"}>${tx("skip")}</button><button class="btn main" type="button" data-act="next">${tx("next")} →</button></div>`;
+    `<div class="acts" data-id="${n ? esc(n.id) : ""}">${s.prev ? `<button class="btn prev" type="button" data-act="previous" title="${esc(tx("prev", { t: s.prev }))}" aria-label="${esc(tx("prev", { t: s.prev }))}">◀</button>` : ""}${n ? pvBtn(n, s.previewing) : ""}<button class="btn" type="button" data-act="skip"${n ? "" : " disabled"}>${tx("skip")}</button><button class="btn main" type="button" data-act="next">${tx("next")} →</button></div>`;
   $("#queueTitle").textContent = tx("queue", { n: s.items.length });
   $("#queue").innerHTML = s.items.length ? s.items.map((it, i) => `<div class="row" data-id="${esc(it.id)}">
       <span class="n${it.priority ? " prio" : ""}">${it.priority ? "★" : i + 1}</span>

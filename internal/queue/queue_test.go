@@ -107,3 +107,48 @@ func TestAddFair(t *testing.T) {
 		t.Errorf("after priority: %q", got)
 	}
 }
+
+func TestBackToPrevious(t *testing.T) {
+	q, err := Open(filepath.Join(t.TempDir(), "queue.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"a", "b", "c"} {
+		q.Add(&Item{ID: id, User: "u-" + id, SetID: int(id[0]), Artist: "x", Title: id, State: Ready, File: id + ".osz"})
+	}
+	if _, ok := q.Previous(); ok {
+		t.Fatal("nothing was played yet")
+	}
+	q.Promote("a", "played")
+	q.Promote("b", "played")
+	if s := q.Snapshot(); s.Prev != "x - a" || len(s.History) != 1 {
+		t.Fatalf("prev %q history %d", s.Prev, len(s.History))
+	}
+	prev, ok := q.Previous()
+	if !ok || prev.ID != "a" {
+		t.Fatalf("previous = %+v", prev)
+	}
+	if _, ok := q.Back("zzz"); ok {
+		t.Fatal("Back must refuse a map that is not the previous one")
+	}
+	if _, ok := q.Back("a"); !ok {
+		t.Fatal("Back failed")
+	}
+	s := q.Snapshot()
+	if s.Now == nil || s.Now.ID != "a" || s.Now.PlayPhase != "waiting" {
+		t.Errorf("now = %+v", s.Now)
+	}
+	if len(s.Items) != 2 || s.Items[0].ID != "b" || s.Items[0].State != Ready || s.Items[0].PlayPhase != "" {
+		t.Errorf("current map should be back at the front, ready: %+v", s.Items)
+	}
+	if len(s.History) != 0 || s.Prev != "" {
+		t.Errorf("a is playing again: history %+v prev %q", s.History, s.Prev)
+	}
+	if !q.Files()["b.osz"] {
+		t.Error("b's file must be kept")
+	}
+	q.Promote("b", "played")
+	if !q.Files()["a.osz"] {
+		t.Error("the previous map's file is kept for Back")
+	}
+}

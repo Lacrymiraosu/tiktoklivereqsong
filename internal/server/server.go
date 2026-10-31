@@ -150,6 +150,7 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/simulate", s.simulate)
 	mux.HandleFunc("POST /api/simulateGift", s.simulateGift)
 	mux.HandleFunc("POST /api/ban", s.ban)
+	mux.HandleFunc("POST /api/jump", s.jump)
 	mux.HandleFunc("POST /api/volume", s.volume)
 	mux.HandleFunc("POST /api/preflight", s.preflight)
 	mux.HandleFunc("POST /api/support", s.supportFile)
@@ -279,6 +280,8 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 	switch r.PathValue("name") {
 	case "next":
 		err = a.Next("played")
+	case "previous":
+		err = a.Previous()
 	case "skip":
 		err = a.Skip("")
 	case "removeLast":
@@ -518,6 +521,19 @@ func (s *Server) ban(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "removed": n})
+}
+
+// jump opens a history map in osu!: {"setId": n, "beatmapId": n}.
+func (s *Server) jump(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		SetID     int `json:"setId"`
+		BeatmapID int `json:"beatmapId"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 256)).Decode(&body) != nil {
+		httpErr(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	result(w, s.App.Jump(body.SetID, body.BeatmapID))
 }
 
 // simulateGift pretends a viewer sent a gift worth `coins`.
