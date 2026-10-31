@@ -15,9 +15,11 @@ import (
 
 func TestParse(t *testing.T) {
 	g, ok := Parse([]byte(`{"client":"stable","state":{"number":2,"name":"play"},
-		"beatmap":{"id":2161977,"set":1001507,"checksum":"0E408D471D32017A53D9F8F22D574874","time":{"live":1234}},
+		"beatmap":{"id":2161977,"set":1001507,"checksum":"0E408D471D32017A53D9F8F22D574874","time":{"live":1234},
+			"artist":"Susumu Hirasawa","title":"SWITCHED-ON LOTUS","mapper":"Dr Manhattan","version":"Nattahnam","stats":{"stars":{"live":1.2,"total":7.64}}},
 		"play":{"failed":false,"playerName":"x"},"leaderboard":[]}`))
-	want := Game{Client: "stable", State: "play", SetID: 1001507, BeatmapID: 2161977, Checksum: "0e408d471d32017a53d9f8f22d574874"}
+	want := Game{Client: "stable", State: "play", SetID: 1001507, BeatmapID: 2161977, Checksum: "0e408d471d32017a53d9f8f22d574874",
+		Title: "SWITCHED-ON LOTUS", Artist: "Susumu Hirasawa", Mapper: "Dr Manhattan", Version: "Nattahnam", Stars: 7.64}
 	if !ok || g != want {
 		t.Fatalf("got %+v %v", g, ok)
 	}

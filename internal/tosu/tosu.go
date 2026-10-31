@@ -29,15 +29,20 @@ const (
 
 // Game is the part of tosu's v2 payload the helper uses.
 type Game struct {
-	Client    string `json:"client"` // stable | lazer
-	State     string `json:"state"`  // menu, play, resultScreen, selectPlay, … (tosu GameState names)
-	SetID     int    `json:"setId"`
-	BeatmapID int    `json:"beatmapId"`
-	Checksum  string `json:"checksum"`
-	Failed    bool   `json:"failed"`
-	Mode      string `json:"mode"`    // ruleset selected in osu! (settings.mode): osu | taiko | fruits | mania
-	Play      Score  `json:"play"`    // live numbers during gameplay
-	Results   Score  `json:"results"` // the results screen (only meaningful in state resultScreen)
+	Client    string  `json:"client"` // stable | lazer
+	State     string  `json:"state"`  // menu, play, resultScreen, selectPlay, … (tosu GameState names)
+	SetID     int     `json:"setId"`
+	BeatmapID int     `json:"beatmapId"`
+	Checksum  string  `json:"checksum"`
+	Title     string  `json:"title"` // the open map, for !np
+	Artist    string  `json:"artist"`
+	Mapper    string  `json:"mapper"`
+	Version   string  `json:"version"`
+	Stars     float64 `json:"stars"`
+	Failed    bool    `json:"failed"`
+	Mode      string  `json:"mode"`    // ruleset selected in osu! (settings.mode): osu | taiko | fruits | mania
+	Play      Score   `json:"play"`    // live numbers during gameplay
+	Results   Score   `json:"results"` // the results screen (only meaningful in state resultScreen)
 }
 
 // Score is one play's numbers, from tosu's play or resultsScreen block.
@@ -303,6 +308,15 @@ type v2 struct {
 		ID       int    `json:"id"`
 		Set      int    `json:"set"`
 		Checksum string `json:"checksum"`
+		Title    string `json:"title"`
+		Artist   string `json:"artist"`
+		Mapper   string `json:"mapper"`
+		Version  string `json:"version"`
+		Stats    struct {
+			Stars struct {
+				Total float64 `json:"total"`
+			} `json:"stars"`
+		} `json:"stats"`
 	} `json:"beatmap"`
 	Play struct {
 		Failed   bool    `json:"failed"`
@@ -363,6 +377,7 @@ func Parse(b []byte) (Game, bool) {
 		Mode:   rulesetName(m.Settings.Mode.Number, m.Settings.Mode.Name),
 		Client: m.Client, State: name, SetID: m.Beatmap.Set, BeatmapID: m.Beatmap.ID,
 		Checksum: strings.ToLower(m.Beatmap.Checksum), Failed: p.Failed,
+		Title: m.Beatmap.Title, Artist: m.Beatmap.Artist, Mapper: m.Beatmap.Mapper, Version: m.Beatmap.Version, Stars: m.Beatmap.Stats.Stars.Total,
 		Play: Score{Accuracy: p.Accuracy, Rank: p.Rank.Current, MaxCombo: p.Combo.Max, Score: p.Score,
 			PP: p.PP.Current, Mods: p.Mods.Name, Misses: p.Hits.Miss},
 		Results: Score{Accuracy: r.Accuracy, Rank: r.Rank, MaxCombo: r.MaxCombo, Score: r.Score,

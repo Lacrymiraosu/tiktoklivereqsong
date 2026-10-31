@@ -141,7 +141,7 @@ function toastHTML(e) {
     case "command":
       switch (e.code) {
         case "pos": return ["#", who, tx("c_pos", { n: e.pos }), [map, esc(e.short || "")].filter(Boolean).join(" · ")];
-        case "np": return ["♪", who, tx("c_np"), `${tx("reqBy")} @${esc(e.target)} · ${e.stars ? star(e) : ""}${map}`];
+        case "np": return ["♪", who, tx("c_np"), `${e.target ? tx("reqBy") + " @" + esc(e.target) + " · " : ""}${e.stars ? star(e) : ""}${modsTag(e)}${map}`]; // no target: osu! has a map nobody asked for
         case "vote": return ["!", who, tx("c_vote", { n: esc(e.short) }), map];
         case "pos_none": case "np_none": return ["!", who, tx("c_" + e.code), ""];
       }
