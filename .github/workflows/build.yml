@@ -5,6 +5,8 @@
 # licenses) and its SHA-256.
 # Actions -> build -> Run workflow on main with a version (1.2.3): the same
 # release, and the tag v1.2.3 is created on that commit (no git needed).
+# Run workflow with "notes" (1.2.3) instead: only the text of the existing
+# release v1.2.3 is replaced by .github/release-notes/v1.2.3.md.
 name: build
 
 on:
@@ -18,12 +20,17 @@ on:
         description: "Release this commit as version x.y.z (empty: just build)"
         required: false
         default: ""
+      notes:
+        description: "Only update the notes of the existing release x.y.z from .github/release-notes"
+        required: false
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
   build:
+    if: inputs.notes == ''
     runs-on: windows-latest
     outputs:
       version: ${{ steps.ver.outputs.version }}
@@ -36,6 +43,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
+      - name: Release notes have no @mentions
+        shell: bash
+        run: bash .github/check-release-notes.sh
 
       - name: Version
         id: ver
@@ -116,3 +127,23 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "osureq ${TAG#v}" \
             "$@"
+
+  notes:
+    if: inputs.notes != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_NOTES: ${{ inputs.notes }}
+        run: |
+          v="${INPUT_NOTES#v}"
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Version must look like 1.2.3, got '$v'"; exit 1; }
+          notes=".github/release-notes/v$v.md"
+          [ -f "$notes" ] || { echo "::error::$notes does not exist"; exit 1; }
+          bash .github/check-release-notes.sh "$notes"
+          gh release edit "v$v" --repo "$GITHUB_REPOSITORY" --notes-file "$notes"
