@@ -908,6 +908,9 @@ git push origin v1.4.8
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
 creates the tag `v1.4.8` on that commit together with the release (a tag made by the workflow does not start another run).
 The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
+To fix the text of a release that is already out, change its file, merge it, and run the workflow with **notes** set to the version
+(only `gh release edit --notes-file`, nothing is rebuilt). Every build runs `.github/check-release-notes.sh`, which fails on a bare `@word`
+in release notes: GitHub reads it as a mention and lists that account under the release's Contributors (1.4.8 listed a user called `name`).
 The tag build uses the tag's number for `main.version` and the Windows resources, and publishes a GitHub release with
 `osureq-<version>-windows-x64.zip` (`osureq.exe`, `LICENSE`, `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
 When a new module ends up in the exe (`go list -deps -f '{{if not .Standard}}{{.Module.Path}}{{end}}' .`), add its license to `THIRD_PARTY_LICENSES.txt`.
