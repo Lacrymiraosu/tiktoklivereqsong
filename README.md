@@ -35,7 +35,7 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 * Session summary (maps played, best play, top requesters) on the dashboard and, on request, the overlay
 * Fair queue (viewers take turns), requests that close by themselves at a queue size or a time, bans for a whole song or artist (`artist="a_hisa"`)
 * Optional mod panel: run the queue from a phone on the same Wi-Fi, protected by a PIN
-* Optional chat TTS that reads chat aloud but never the commands (`!req …`), links or emoji, instead of TikFinity's TTS, and spoken announcements ("test1 requested …", "… is too hard, 7.25 stars") from lines you write
+* Optional chat TTS that reads chat aloud but never the commands (`!req …`), links or emoji, instead of TikFinity's TTS, and spoken announcements ("test1 requested …", "… is too hard, 7.25 stars") from lines you write ([recommended](#text-to-speech-use-osureqs-own-tts))
 * A support file (log, raw events, settings) to send after a stream with a problem
 * Switches between stable and lazer to match tosu, and updates itself: a new osureq is downloaded from the GitHub releases, checked and installed the next time you start it
 * Close tosu, TikFinity or everything from the dashboard
@@ -70,6 +70,24 @@ TikTok only lets a connection in when its address is signed. [Euler Stream](http
 server TikTok-Live-Connector uses). Only connecting counts, chat does not: without an API key that is 30 connections an hour and
 100 a day, plenty for one stream. A free key from eulerstream.com allows more; put it in **Euler Stream API key**. It stays on
 your PC and is hidden in the support file. TikFinity stays available with the same switch.
+
+### Text to speech: use osureq's own TTS
+
+We recommend osureq's TTS over TikFinity's, because **osureq can say what was requested**. TikFinity only sees the chat
+text, so it reads `!req 129891 HDHR` out as a string of numbers and letters. osureq knows the map behind the request and says its name:
+
+> “test1 requested FREEDOM DiVE by xi, mapped by Nakagawa-Kanon, FOUR DIMENSIONS HDHR”
+
+* It announces what happens to requests: added, rejected with the reason (“FREEDOM DiVE is too hard, 7.25 stars”), the next
+  map, `!np`, play results and gifts. Every line can be changed in **Settings → TTS**, with `{title}`, `{artist}`, `{mapper}`,
+  `{diff}`, `{mods}`, `{stars}` and more.
+* It reads the rest of the chat but never commands (`!req …`), links or emoji.
+* It can read only subscribers (ใจส้ม), followers, gifters or mods.
+
+To use it, turn on **Read chat aloud** and **Announce requests** in **Settings → TTS**, and if TikFinity is running, **turn its TTS off** so chat
+is not read twice. TTS starts when the dashboard opens (if the browser asks for a click first, click anywhere on the page) and
+OBS records it as desktop audio. Windows has no Thai voice, so **Who speaks: auto** uses Google's voice for Thai, which sends the
+text being read to Google.
 
 ### What viewers type
 
