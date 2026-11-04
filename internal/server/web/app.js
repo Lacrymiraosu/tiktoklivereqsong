@@ -62,6 +62,10 @@ const T = {
   giftDone: ["Gift sent: {n} priority and {r} request(s) earned", "ส่งของขวัญแล้ว: ได้คิวพิเศษ {n} ครั้ง และขอเพลงได้ {r} เพลง"],
   priority: ["priority", "คิวพิเศษ"],
   dryRun: ["Dry run", "ทดลองไม่เปิดเกม"],
+  autoDl: ["Auto download", "ดาวน์โหลดอัตโนมัติ"],
+  autoDlOnTip: ["On: the next {n} maps in the queue are downloaded and checked in the background, so Next is instant.", "เปิดอยู่: โหลดและตรวจแมพ {n} เพลงถัดไปในคิวไว้ก่อน กด ถัดไป แล้วเปิดได้ทันที"],
+  autoDlOffTip: ["Off: nothing is downloaded in the background. A map is fetched when you open it (Next or Play now), so it takes a moment.", "ปิดอยู่: ไม่โหลดอะไรล่วงหน้า แมพจะถูกโหลดตอนเปิด (ถัดไป หรือ เล่นเลย) เลยรอสักครู่"],
+  n_autoDlOn: ["Auto download on ({n} maps ahead)", "เปิดดาวน์โหลดอัตโนมัติแล้ว (ล่วงหน้า {n} เพลง)"], n_autoDlOff: ["Auto download off: maps are fetched when opened", "ปิดดาวน์โหลดอัตโนมัติแล้ว: โหลดแมพตอนเปิด"],
   clearTest: ["Clear test data", "ล้างข้อมูลทดสอบ"],
   testPh: ["!req 2096297, a link or any chat message", "!req 2096297, ลิงก์ หรือแชททั่วไป"],
   spokenTest: ["Not a request: read aloud by chat TTS", "ไม่ใช่คำขอ: ส่งให้เสียงอ่านแชทแล้ว"],
@@ -434,6 +438,8 @@ function render() {
   $("#reqSw").checked = S.requests;
   if (!volEditing) showVolume(S.masterVolume ?? 10);
   $("#dryRunSw").checked = S.dryRun;
+  $("#autoDlSw").checked = S.autoDownload;
+  $("#autoDlWrap").title = t(S.autoDownload ? "autoDlOnTip" : "autoDlOffTip", { n: S.autoDownloadN });
   $("#dryPill").hidden = !S.dryRun;
   renderTTS();
   const up = $("#updPill");
@@ -1158,6 +1164,7 @@ $("#testMode").addEventListener("click", e => {
   renderTestHint();
 });
 $("#dryRunSw").addEventListener("change", () => act("/api/action/toggleDryRun"));
+$("#autoDlSw").addEventListener("change", () => act("/api/action/toggleAutoDownload"));
 /* ---------- pre-stream check ---------- */
 // Runs app.Preflight and lists the result in a drawer; problems first.
 let pfChecks = null, pfRunning = false;
@@ -1336,8 +1343,8 @@ const SCHEMA = {
   import: [
     F("import.mode", "seg", "Import mode", "วิธีนำเข้า", "open: osu! imports and jumps to the map (stable + lazer). copy / extract: stable only, picked up on song select or F5.", "open: osu! นำเข้าแล้วกระโดดไปที่แมพ (stable + lazer) copy / extract: เฉพาะ stable จะเห็นเมื่อเข้าหน้าเลือกเพลงหรือกด F5",
       { options: [["open", "open"], ["copy-to-songs", "copy to Songs"], ["extract-to-songs", "extract to Songs"]] }),
-    F("import.preload", "switch", "Preload upcoming maps", "โหลดแมพถัดไปล่วงหน้า", "Downloads and verifies the next maps in the background (stable: also copies them into Songs) so Next is instant.", "ดาวน์โหลดและตรวจแมพถัดไปไว้ก่อน (stable: คัดลอกเข้า Songs ด้วย) กด ถัดไป แล้วเปิดได้ทันที"),
-    F("import.preloadCount", "number", "Preload count", "จำนวนที่โหลดล่วงหน้า", null, null, { min: 0, max: 10 }),
+    F("import.preload", "switch", "Auto download", "ดาวน์โหลดอัตโนมัติ", "Downloads and verifies the next maps in the background (stable: also copies them into Songs) so Next is instant. The same switch is above the queue on the dashboard.", "ดาวน์โหลดและตรวจแมพถัดไปไว้ก่อน (stable: คัดลอกเข้า Songs ด้วย) กด ถัดไป แล้วเปิดได้ทันที สวิตช์เดียวกันอยู่เหนือคิวในหน้าแดชบอร์ด"),
+    F("import.preloadCount", "number", "Auto download: how many maps ahead", "ดาวน์โหลดอัตโนมัติ: กี่เพลงล่วงหน้า", null, null, { min: 0, max: 10 }),
   ],
   overlay: [
     F("", "overlaylink", "OBS Browser Source URL", "URL สำหรับ Browser Source ใน OBS", "Add a Browser Source in OBS or TikTok LIVE Studio with this URL. The background is transparent.", "เพิ่ม Browser Source ใน OBS หรือ TikTok LIVE Studio ด้วย URL นี้ พื้นหลังโปร่งใส"),

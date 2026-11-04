@@ -166,6 +166,17 @@ func TestActions(t *testing.T) {
 		t.Error("toggleRequests did not toggle")
 	}
 
+	pre := s.App.Cfg.Get().Import.Preload
+	if m := decode(t, do(h, http.MethodPost, "/api/action/toggleAutoDownload", "")); m["ok"] != true {
+		t.Fatalf("toggleAutoDownload: %v", m)
+	}
+	if s.App.Cfg.Get().Import.Preload == pre {
+		t.Error("toggleAutoDownload did not toggle")
+	}
+	if st := decode(t, do(h, http.MethodGet, "/api/state", "")); st["autoDownload"] != !pre {
+		t.Errorf("state.autoDownload = %v, want %v", st["autoDownload"], !pre)
+	}
+
 	// An app error comes back with its code so the dashboard can translate it.
 	m := decode(t, do(h, http.MethodPost, "/api/action/next", ""))
 	if m["ok"] != false || m["code"] != "queue_empty" {

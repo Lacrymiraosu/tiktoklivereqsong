@@ -127,7 +127,7 @@ TikTok chat ──► TikFinity ──WebSocket──► osureq ──► osu.pp
    A rejected request shows its reason on the overlay, because TikFinity cannot write back into TikTok chat.
 5. **Queue**: saved in `queue.json`, so it survives a restart. Viewers whose gifts add up to enough coins get priority (when turned on).
 6. **Download and verify**: the `.osz` is downloaded from the mirrors in the configured order, one map at a time, and the MD5 of every
-   `.osu` inside is compared with osu!. An outdated mirror copy makes it try the next source. The next maps are preloaded so they open instantly.
+   `.osu` inside is compared with osu!. An outdated mirror copy makes it try the next source. The next maps are downloaded ahead of time so they open instantly (the **Auto download** switch above the queue turns this off).
 7. **Open**: press **Next** on the dashboard (or the hotkey) and osureq opens the `.osz`; osu! imports it and jumps to the map.
 8. **Auto mode**: osureq follows the game state from tosu. Once the opened map has really been played and the player leaves the results
    screen, the next map opens after a few seconds. The play result (accuracy, rank, combo, misses, pp, mods) is saved and shown on the overlay.

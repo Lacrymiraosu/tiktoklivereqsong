@@ -1121,6 +1121,27 @@ func (a *App) SetVolume(v int) error {
 	return a.Cfg.Set(c)
 }
 
+// ToggleAutoDownload switches the background download of the next maps in
+// the queue (import.preload). Off, a map is fetched when it is opened (Next,
+// Play now, or auto mode for the one it opens next); downloads that are
+// already running finish. Turning it on with a count of 0 would do nothing,
+// so it then uses the default of 2.
+func (a *App) ToggleAutoDownload() bool {
+	c := a.Cfg.Get()
+	c.Import.Preload = !c.Import.Preload
+	if c.Import.Preload && c.Import.PreloadCount == 0 {
+		c.Import.PreloadCount = config.Default().Import.PreloadCount
+	}
+	a.Cfg.Set(c)
+	if c.Import.Preload {
+		a.Say("info", "autoDlOn", map[string]string{"n": strconv.Itoa(c.Import.PreloadCount)}, "auto download ON: the next %d maps are fetched in the background", c.Import.PreloadCount)
+	} else {
+		a.Say("info", "autoDlOff", nil, "auto download OFF: a map is fetched when it is opened")
+	}
+	a.Wake()
+	return c.Import.Preload
+}
+
 func (a *App) ToggleDryRun() bool {
 	c := a.Cfg.Get()
 	c.Test.DryRun = !c.Test.DryRun

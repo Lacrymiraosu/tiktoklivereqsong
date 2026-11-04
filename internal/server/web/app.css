@@ -109,7 +109,8 @@ button.pill:hover, a.pill:hover { background: var(--surface-2); }
 .reqtog { display: inline-flex; align-items: center; gap: .6rem; min-height: 2.5rem; padding: .2rem .5rem .2rem .9rem; border-radius: 999px; border: 1px solid var(--line); cursor: pointer; }
 .reqtog .reqlabel { font-weight: 600; font-size: .9rem; }
 .reqtog .switch { --bs-switch-height: 1.5rem; }
-.reqtog.sm { min-height: 2.1rem; padding-left: .75rem; border-style: dashed; font-size: .85rem; }
+.reqtog.sm { min-height: 2.1rem; padding-left: .75rem; font-size: .85rem; }
+.testh .reqtog.sm { border-style: dashed; }
 .reqtog.sm .switch { --bs-switch-height: 1.25rem; }
 .reqtog:has(input:not(:checked)) { border-color: color-mix(in oklch, var(--bad) 50%, transparent); background: color-mix(in oklch, var(--bad) 8%, var(--surface)); }
 .reqtog.sm:has(input:not(:checked)) { border-color: var(--line); background: none; }
@@ -126,7 +127,7 @@ button.pill:hover, a.pill:hover { background: var(--surface-2); }
 @media (max-width: 1100px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 .cols > main { min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
 .side { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
-.subh { display: flex; align-items: center; gap: .6rem; margin: .25rem 0 -.25rem; font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; }
+.subh { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: .25rem 0 -.25rem; font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; }
 #resolving { margin: 0 .25rem; }
 .btnrow { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .9rem; }
 
