@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -228,5 +229,38 @@ func TestAvatarsReachFeedAndQueue(t *testing.T) {
 	a.command(tikfinity.Chat{User: "stranger", Comment: "!pos"}, false)
 	if f := a.Feed()[0]; f.Avatar != "" {
 		t.Errorf("unknown viewers have no picture: %+v", f)
+	}
+}
+
+// The dashboard's auto download switch is import.preload: off, the queue is
+// left alone (the app here has no downloader, so a download would panic).
+func TestAutoDownloadSwitch(t *testing.T) {
+	a := newTestApp(t, func(c *config.Config) { c.Import.Preload, c.Import.PreloadCount = true, 3 })
+	if a.ToggleAutoDownload() || a.Cfg.Get().Import.Preload {
+		t.Fatal("the first toggle should turn auto download off")
+	}
+	add(a, "x", "u", 1, time.Now())
+	a.tick(context.Background())
+	if it, _ := a.Queue.Get("x"); it.State == queue.Downloading || it.State == queue.Ready {
+		t.Errorf("off: nothing should be fetched in the background, state %q", it.State)
+	}
+	if !a.ToggleAutoDownload() || !a.Cfg.Get().Import.Preload {
+		t.Fatal("the second toggle should turn it on")
+	}
+	if got := a.Cfg.Get().Import.PreloadCount; got != 3 {
+		t.Errorf("the count is kept: %d", got)
+	}
+	var keys []string
+	for _, n := range a.Notices() {
+		keys = append(keys, n.Key)
+	}
+	if len(keys) < 2 || keys[0] != "autoDlOn" || keys[1] != "autoDlOff" {
+		t.Errorf("Activity should say off then on (newest first): %v", keys)
+	}
+
+	// on with a count of 0 would fetch nothing: it takes the default
+	b := newTestApp(t, func(c *config.Config) { c.Import.Preload, c.Import.PreloadCount = false, 0 })
+	if !b.ToggleAutoDownload() || b.Cfg.Get().Import.PreloadCount != config.Default().Import.PreloadCount {
+		t.Errorf("count after switching on from 0: %d", b.Cfg.Get().Import.PreloadCount)
 	}
 }

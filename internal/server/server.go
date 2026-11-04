@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -80,6 +81,8 @@ type State struct {
 	Volume         int                           `json:"masterVolume"`
 	BlacklistUsers []string                      `json:"blacklistUsers"`
 	DryRun         bool                          `json:"dryRun"`
+	AutoDownload   bool                          `json:"autoDownload"`  // import.preload: the next maps are fetched in the background
+	AutoDownloadN  int                           `json:"autoDownloadN"` // how many (import.preloadCount)
 	VoteSkip       app.VoteSkip                  `json:"voteSkip"`
 	Update         *update.Release               `json:"update,omitempty"`
 	Summary        queue.Summary                 `json:"summary"`
@@ -103,7 +106,7 @@ func (s *Server) state() State {
 		Version: s.Version, TikFinity: s.App.TF.Status(), Tosu: s.App.Tosu.Status(), AutoGap: cfg.Queue.AutoGapSec, AutoNeedsPass: cfg.Queue.AutoNeedsPass, Queue: s.App.Queue.Snapshot(),
 		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(), Feed: s.App.Feed(),
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name, Search: cfg.Command.Search && s.App.Search != nil, RequestCoins: cfg.Gifts.RequestCoins,
-		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, Volume: cfg.MasterVolume, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, Raw: raw, FirstRaw: first,
+		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, Volume: cfg.MasterVolume, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, AutoDownload: cfg.Import.Preload, AutoDownloadN: cfg.Import.PreloadCount, Raw: raw, FirstRaw: first,
 		VoteSkip: s.App.Votes(), Update: s.App.Update(), Summary: s.App.Queue.Summary(), SummaryShown: s.App.SummaryShown(), TTS: cfg.TTS, Speech: s.App.Speech(),
 		PreviewAsk: s.App.PreviewAsked(), MirrorCheck: s.App.CheckingMirrors(),
 	}
@@ -184,8 +187,7 @@ func (s *Server) Push() {
 func (s *Server) Handler(port int) http.Handler {
 	mux := http.NewServeMux()
 	sub, _ := fs.Sub(webFS, "web")
-	files := http.FileServerFS(sub)
-	mux.Handle("GET /assets/", http.StripPrefix("/assets/", files))
+	mux.Handle("GET /assets/", http.StripPrefix("/assets/", assetTypes(http.FileServerFS(sub))))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) { serveFile(w, sub, "index.html") })
 	mux.HandleFunc("GET /overlay", func(w http.ResponseWriter, r *http.Request) { serveFile(w, sub, "overlay.html") })
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, s.state()) })
@@ -209,6 +211,23 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/tts", s.tts)
 	mux.HandleFunc("POST /api/tts/speaker", s.ttsSpeaker)
 	return guard(port, mux)
+}
+
+// assetTypes sets the content type of the dashboard's files itself. The
+// standard library asks the Windows registry for it, and on a PC where .js
+// is registered as text/plain a browser refuses to run a module script.
+func assetTypes(next http.Handler) http.Handler {
+	types := map[string]string{
+		".js":  "text/javascript; charset=utf-8",
+		".css": "text/css; charset=utf-8",
+		".svg": "image/svg+xml",
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if t, ok := types[path.Ext(r.URL.Path)]; ok {
+			w.Header().Set("Content-Type", t)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func serveFile(w http.ResponseWriter, sub fs.FS, name string) {
@@ -398,6 +417,8 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 		a.NewSession()
 	case "toggleDryRun":
 		a.ToggleDryRun()
+	case "toggleAutoDownload":
+		a.ToggleAutoDownload()
 	case "clearTest":
 		a.ClearTest()
 	case "openTikfinityDownload":

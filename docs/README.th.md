@@ -12,7 +12,7 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
 
 **แดชบอร์ด**: เพลงที่กำลังเล่น คิวพร้อมปุ่มจัดการ คำขอที่ถูกปฏิเสธ ประวัติ และสรุปไลฟ์
 
-![แดชบอร์ด osureq: เพลงที่กำลังเล่น คิวคำขอ คำขอที่ถูกปฏิเสธ และสรุปไลฟ์](images/dashboard-th.png)
+![แดชบอร์ด osureq: เพลงที่กำลังเล่น คิวคำขอ คำขอที่ถูกปฏิเสธ และสรุปไลฟ์](images/dashboard-th.jpg)
 
 | Overlay ใน OBS | แผงม็อดบนมือถือ |
 |---|---|
@@ -48,6 +48,7 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
   **หรือ**ไม่ต้องมีเลยถ้าเลือก **TikTok โดยตรง** (ตั้งค่า → การเชื่อมต่อ ดู [รับแชทโดยไม่ใช้ TikFinity](#รับแชทโดยไม่ใช้-tikfinity))
 * [**tosu**](https://github.com/tosuapp/tosu/releases/latest) เปิดไว้ตอนไลฟ์ (ใช้ดูว่าเพลงเล่นจบหรือยัง และเก็บผลการเล่น)
 * OBS หรือ TikTok LIVE Studio ถ้าจะใช้ overlay
+* เบราว์เซอร์รุ่นใหม่สำหรับแดชบอร์ด: Chrome หรือ Edge 130, Firefox 132 หรือ Safari 18 ขึ้นไป
 
 ## เริ่มใช้งาน
 
@@ -123,7 +124,7 @@ Windows ไม่มีเสียงไทยมาให้ ตัวเล�
    ถ้าไม่ผ่าน overlay จะขึ้นเหตุผลให้ผู้ชมเห็น เพราะ TikFinity เขียนกลับลงแชท TikTok ไม่ได้
 5. **เข้าคิว**: คิวถูกบันทึกใน `queue.json` ปิดเปิดโปรแกรมใหม่คิวก็ยังอยู่ ส่วนคนที่ส่งของขวัญครบจะได้คิวพิเศษ (ถ้าเปิดไว้)
 6. **ดาวน์โหลดและตรวจไฟล์**: โหลด `.osz` จาก mirror ตามลำดับที่ตั้งไว้ ทีละแมพ แล้วตรวจ MD5 ของไฟล์ `.osu` ข้างในกับข้อมูลจาก osu!
-   ถ้า mirror มีไฟล์เวอร์ชันเก่าจะลองแหล่งถัดไป แมพถัด ๆ ไปจะโหลดล่วงหน้าไว้ให้กดเล่นได้ทันที
+   ถ้า mirror มีไฟล์เวอร์ชันเก่าจะลองแหล่งถัดไป แมพถัด ๆ ไปจะโหลดล่วงหน้าไว้ให้กดเล่นได้ทันที (ปิดได้ที่สวิตช์ **ดาวน์โหลดอัตโนมัติ** เหนือคิว)
 7. **เปิดแมพ**: กด **ถัดไป** บนแดชบอร์ดหรือคีย์ลัด osureq จะเปิด `.osz` ให้ osu! นำเข้าแล้วกระโดดไปที่แมพนั้น
 8. **โหมดอัตโนมัติ**: osureq ติดตามสถานะเกมจาก tosu เมื่อแมพที่เปิดถูกเล่นจริงแล้วผู้เล่นออกจากหน้าผลคะแนน
    แมพถัดไปจะเปิดเองหลังรอไม่กี่วินาที ผลการเล่น (ความแม่น อันดับ คอมโบ miss pp mods) จะถูกเก็บไว้และขึ้นบน overlay
@@ -140,7 +141,7 @@ Windows ไม่มีเสียงไทยมาให้ ตัวเล�
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
 cd tiktoklivereqsong
-.\build.ps1 -Version 1.4.8
+.\build.ps1 -Version 1.4.9
 ```
 
 `build.ps1` จะรัน `go vet` และ `go test` ก่อน สร้างไฟล์ resource ของ Windows (ไอคอน ชื่อ เวอร์ชัน) แล้ว build ออกมาเป็น `dist\osureq.exe`
@@ -148,8 +149,8 @@ cd tiktoklivereqsong
 
 ```powershell
 $env:CGO_ENABLED = "0"
-go run ./tools/winres -version 1.4.8
-go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.9
+go build -trimpath -ldflags "-X main.version=1.4.9" -o dist\osureq.exe .
 ```
 
 ### สำหรับคนที่จะแก้โค้ด
@@ -162,12 +163,12 @@ go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
 
 * ทุกครั้งที่ push เข้า `main` หรือเปิด pull request, GitHub จะ vet, test และ build ให้ ไฟล์ exe อยู่ในหน้า Actions 14 วัน
 * ปล่อยเวอร์ชันใหม่: อัปเดตเลขเวอร์ชันใน `build.ps1` (และ changelog) แล้ว merge เข้า `main` จากนั้นเลือกทางใดทางหนึ่ง
-  * ไม่ต้องใช้ git: เปิด **Actions → build → Run workflow** เลือก `main` ใส่เลขเวอร์ชัน (เช่น `1.4.8`) แล้วกด **Run workflow**
+  * ไม่ต้องใช้ git: เปิด **Actions → build → Run workflow** เลือก `main` ใส่เลขเวอร์ชัน (เช่น `1.4.9`) แล้วกด **Run workflow**
   * หรือ push tag
 
   ```powershell
-  git tag v1.4.8
-  git push origin v1.4.8
+  git tag v1.4.9
+  git push origin v1.4.9
   ```
 
   GitHub จะ build ด้วยเลขเวอร์ชันจาก tag แล้วสร้าง Release พร้อม `osureq-<เวอร์ชัน>-windows-x64.zip` (มี exe, `LICENSE` และ `THIRD_PARTY_LICENSES.txt`) และไฟล์ `.sha256`
@@ -185,7 +186,8 @@ go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
 * Mirror ดาวน์โหลดไฟล์ `.osz`: [hinai](https://mirror.hinamizawa.ai), [Nekoha](https://mirror.nekoha.moe), [beatconnect](https://beatconnect.io), [osu.direct](https://osu.direct), [catboy.best](https://catboy.best) และ [Sayobot](https://osu.sayobot.cn) (hinai, Nekoha, osu.direct และ catboy.best ใช้ค้นหาเพลงด้วย)
 * ไลบรารี Go: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys), [protobuf-go](https://github.com/protocolbuffers/protobuf-go),
   [tc-hib/winres](https://github.com/tc-hib/winres), [nfnt/resize](https://github.com/nfnt/resize), [golang.org/x/image](https://pkg.go.dev/golang.org/x/image)
-* ฟอนต์: [Varela Round](https://fonts.google.com/specimen/Varela+Round) และ [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) จาก Google Fonts
+* [Bootstrap](https://getbootstrap.com) 6 (พร้อม [Floating UI](https://floating-ui.com) และ [Vanilla Calendar Pro](https://github.com/uvarov-frontend/vanilla-calendar-pro)): ส่วนประกอบของแดชบอร์ด
+* ฟอนต์: [Kanit](https://fonts.google.com/specimen/Kanit), [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai), [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) และ [Varela Round](https://fonts.google.com/specimen/Varela+Round) (overlay) จาก Google Fonts
 
 osureq เป็นโปรเจกต์ของแฟนเกม ไม่มีส่วนเกี่ยวข้องและไม่ได้รับการรับรองจาก ppy Pty Ltd, TikTok, TikFinity, Euler Stream หรือ tosu
 osu! เป็นเครื่องหมายการค้าของ ppy Pty Ltd และ TikTok เป็นเครื่องหมายการค้าของเจ้าของ

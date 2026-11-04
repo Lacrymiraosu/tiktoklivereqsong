@@ -128,9 +128,26 @@ func TestStateAndHeaders(t *testing.T) {
 
 func TestPagesServed(t *testing.T) {
 	_, h := newTestServer(t)
-	for _, p := range []string{"/", "/overlay", "/assets/app.js", "/assets/app.css"} {
+	for _, p := range []string{"/", "/overlay", "/assets/app.js", "/assets/app.css", "/assets/bootstrap.min.css", "/assets/bootstrap.bundle.min.js"} {
 		if w := do(h, http.MethodGet, p, ""); w.Code != http.StatusOK || w.Body.Len() == 0 {
 			t.Errorf("%s: got %d (%d bytes)", p, w.Code, w.Body.Len())
+		}
+	}
+}
+
+// The dashboard loads app.js as a module, which browsers only run with a
+// JavaScript type; the files must not depend on what the PC registers for .js.
+func TestAssetTypes(t *testing.T) {
+	_, h := newTestServer(t)
+	for p, want := range map[string]string{
+		"/assets/app.js":                  "text/javascript",
+		"/assets/bootstrap.bundle.min.js": "text/javascript",
+		"/assets/app.css":                 "text/css",
+		"/assets/bootstrap.min.css":       "text/css",
+		"/assets/icon.svg":                "image/svg+xml",
+	} {
+		if got := do(h, http.MethodGet, p, "").Header().Get("Content-Type"); !strings.HasPrefix(got, want) {
+			t.Errorf("%s: Content-Type %q, want %s", p, got, want)
 		}
 	}
 }
@@ -147,6 +164,17 @@ func TestActions(t *testing.T) {
 	}
 	if s.App.Cfg.Get().Command.Enabled == on {
 		t.Error("toggleRequests did not toggle")
+	}
+
+	pre := s.App.Cfg.Get().Import.Preload
+	if m := decode(t, do(h, http.MethodPost, "/api/action/toggleAutoDownload", "")); m["ok"] != true {
+		t.Fatalf("toggleAutoDownload: %v", m)
+	}
+	if s.App.Cfg.Get().Import.Preload == pre {
+		t.Error("toggleAutoDownload did not toggle")
+	}
+	if st := decode(t, do(h, http.MethodGet, "/api/state", "")); st["autoDownload"] != !pre {
+		t.Errorf("state.autoDownload = %v, want %v", st["autoDownload"], !pre)
 	}
 
 	// An app error comes back with its code so the dashboard can translate it.

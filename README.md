@@ -12,7 +12,7 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 
 **Dashboard**: the map being played, the queue with one-click controls, rejected requests, history and a summary of the stream.
 
-![osureq dashboard: now playing, the request queue, rejected requests and the stream summary](docs/images/dashboard-en.png)
+![osureq dashboard: now playing, the request queue, rejected requests and the stream summary](docs/images/dashboard-en.jpg)
 
 | OBS overlay | Mod panel on a phone |
 |---|---|
@@ -48,6 +48,7 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
   **or** nothing at all with **TikTok direct** (Settings → Connection, see [Chat without TikFinity](#chat-without-tikfinity))
 * [**tosu**](https://github.com/tosuapp/tosu/releases/latest), running while you are live (tells when a song has ended and records results)
 * OBS or TikTok LIVE Studio, for the overlay
+* A recent browser for the dashboard: Chrome or Edge 130, Firefox 132 or Safari 18, or newer
 
 ## Getting started
 
@@ -126,7 +127,7 @@ TikTok chat ──► TikFinity ──WebSocket──► osureq ──► osu.pp
    A rejected request shows its reason on the overlay, because TikFinity cannot write back into TikTok chat.
 5. **Queue**: saved in `queue.json`, so it survives a restart. Viewers whose gifts add up to enough coins get priority (when turned on).
 6. **Download and verify**: the `.osz` is downloaded from the mirrors in the configured order, one map at a time, and the MD5 of every
-   `.osu` inside is compared with osu!. An outdated mirror copy makes it try the next source. The next maps are preloaded so they open instantly.
+   `.osu` inside is compared with osu!. An outdated mirror copy makes it try the next source. The next maps are downloaded ahead of time so they open instantly (the **Auto download** switch above the queue turns this off).
 7. **Open**: press **Next** on the dashboard (or the hotkey) and osureq opens the `.osz`; osu! imports it and jumps to the map.
 8. **Auto mode**: osureq follows the game state from tosu. Once the opened map has really been played and the player leaves the results
    screen, the next map opens after a few seconds. The play result (accuracy, rank, combo, misses, pp, mods) is saved and shown on the overlay.
@@ -143,7 +144,7 @@ You need [Go](https://go.dev/dl/) 1.23 or newer on Windows (`winget install GoLa
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
 cd tiktoklivereqsong
-.\build.ps1 -Version 1.4.8
+.\build.ps1 -Version 1.4.9
 ```
 
 `build.ps1` runs `go vet` and `go test`, generates the Windows resources (icon, name, version) and builds `dist\osureq.exe`.
@@ -151,19 +152,19 @@ If PowerShell refuses to run scripts, build by hand:
 
 ```powershell
 $env:CGO_ENABLED = "0"
-go run ./tools/winres -version 1.4.8
-go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.9
+go build -trimpath -ldflags "-X main.version=1.4.9" -o dist\osureq.exe .
 ```
 
 ### Automatic builds and releases (GitHub Actions)
 
 * Every push to `main` and every pull request is vetted, tested and built; the exe stays on the Actions page for 14 days.
 * To release a new version, update the version number in `build.ps1` (and the changelog) and merge it into `main`. Then either
-  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.4.8`) and press **Run workflow**, or push a tag:
+  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.4.9`) and press **Run workflow**, or push a tag:
 
   ```powershell
-  git tag v1.4.8
-  git push origin v1.4.8
+  git tag v1.4.9
+  git push origin v1.4.9
   ```
 
   GitHub builds with the tag's version and publishes a release with `osureq-<version>-windows-x64.zip` (the exe, `LICENSE` and `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
@@ -181,7 +182,8 @@ Beatmap data, covers and audio previews come from osu! (ppy Pty Ltd). Beatmaps b
 * Beatmap mirrors, where the `.osz` files are downloaded from: [hinai](https://mirror.hinamizawa.ai), [Nekoha](https://mirror.nekoha.moe), [beatconnect](https://beatconnect.io), [osu.direct](https://osu.direct), [catboy.best](https://catboy.best) and [Sayobot](https://osu.sayobot.cn) (hinai, Nekoha, osu.direct and catboy.best also power the song search)
 * Go libraries: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys), [protobuf-go](https://github.com/protocolbuffers/protobuf-go),
   [tc-hib/winres](https://github.com/tc-hib/winres), [nfnt/resize](https://github.com/nfnt/resize), [golang.org/x/image](https://pkg.go.dev/golang.org/x/image)
-* Fonts: [Varela Round](https://fonts.google.com/specimen/Varela+Round) and [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) from Google Fonts
+* [Bootstrap](https://getbootstrap.com) 6 (with [Floating UI](https://floating-ui.com) and [Vanilla Calendar Pro](https://github.com/uvarov-frontend/vanilla-calendar-pro)): the dashboard's components
+* Fonts: [Kanit](https://fonts.google.com/specimen/Kanit), [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai), [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) and [Varela Round](https://fonts.google.com/specimen/Varela+Round) (overlay) from Google Fonts
 
 osureq is a fan project and is not affiliated with or endorsed by ppy Pty Ltd, TikTok, TikFinity, Euler Stream or tosu.
 osu! is a trademark of ppy Pty Ltd. TikTok is a trademark of its respective owner.

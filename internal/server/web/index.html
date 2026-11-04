@@ -3,44 +3,79 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#1c1726">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#14111b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <title>osu! requests</title>
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600&family=Varela+Round&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Kanit:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/bootstrap.min.css">
 <link rel="stylesheet" href="/assets/app.css">
-<script src="/assets/app.js" defer></script>
+<script type="module" src="/assets/app.js"></script>
 </head>
 <body>
-<div id="shell">
-  <header class="top">
+<header class="topbar">
+  <nav class="page topnav" aria-label="osureq">
     <div class="brand">
       <div class="logo" id="logo"></div>
       <div><h1 data-t="title">osu! requests</h1><p data-t="subtitle">TikTok LIVE → TikFinity → osu!</p></div>
     </div>
-    <div class="topacts">
+
+    <div class="pills">
       <a class="pill upd" id="updPill" href="#" target="_blank" rel="noopener" hidden></a>
-      <span class="ttswrap" id="ttsWrap" hidden><button class="pill tts" type="button" id="ttsPill"></button><button class="icon ttsskip" type="button" id="ttsSkip" hidden>⏭</button></span>
+      <span class="ttswrap" id="ttsWrap" hidden>
+        <button class="pill tts" type="button" id="ttsPill"></button>
+        <button class="btn-outline theme-secondary btn-icon rounded-pill ttsskip" type="button" id="ttsSkip" hidden aria-label="Skip">⏭</button>
+      </span>
       <span class="pill dry" id="dryPill" hidden>DRY RUN</span>
       <span class="pill" id="tfPill"><i class="dot" id="tfDot"></i><span id="tfText">…</span></span>
       <span class="pill" id="tosuPill"><i class="dot" id="tosuDot"></i><span id="tosuText">tosu</span></span>
-      <label class="reqtog"><span data-t="requests">Requests</span><input type="checkbox" class="switch" id="reqSw"></label>
-      <span class="volwrap">
-        <button class="pill volbtn" type="button" id="volBtn" aria-haspopup="true" aria-expanded="false" data-tl="masterVolume" title="Master volume">
-          <svg viewBox="0 0 24 24" id="volIco"></svg><span id="volTxt">10%</span></button>
-        <div class="volpop" id="volPop" hidden>
-          <div class="volrow"><button class="icon volmute" type="button" id="volMute" aria-label="Mute"><svg viewBox="0 0 24 24" id="volIco2"></svg></button>
-            <input type="range" id="volRange" min="0" max="100" step="1" value="10" aria-label="Master volume">
-            <output id="volOut">10%</output></div>
-          <p class="hint" data-t="volHint">Master volume for every sound the dashboard plays (map previews).</p>
-        </div>
-      </span>
-      <select class="langsel" id="langSel" aria-label="Language"><option value="en">English</option><option value="th">ไทย</option></select>
-      <button class="icon" id="setBtn" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
     </div>
-  </header>
 
+    <div class="topacts">
+      <label class="reqtog" for="reqSw">
+        <span class="reqlabel" data-t="requests">Requests</span>
+        <span class="switch"><input type="checkbox" role="switch" switch id="reqSw"></span>
+      </label>
+
+      <button class="pill volbtn" type="button" id="volBtn" data-bs-toggle="menu" data-bs-auto-close="outside" data-bs-placement="bottom-end" aria-expanded="false" data-tl="masterVolume" title="Master volume">
+        <svg viewBox="0 0 24 24" id="volIco"></svg><span id="volTxt">10%</span></button>
+      <div class="menu volpop" id="volPop">
+        <div class="volrow">
+          <button class="btn-outline theme-secondary btn-icon rounded-pill volmute" type="button" id="volMute" aria-label="Mute"><svg viewBox="0 0 24 24" id="volIco2"></svg></button>
+          <div class="form-range"><input type="range" class="form-range-input" id="volRange" min="0" max="100" step="1" value="10" aria-label="Master volume"></div>
+          <output id="volOut">10%</output>
+        </div>
+        <p class="hint" data-t="volHint">Master volume for every sound the dashboard plays (map previews).</p>
+      </div>
+
+      <select class="form-control langsel" id="langSel" aria-label="Language"><option value="en">English</option><option value="th">ไทย</option></select>
+    </div>
+
+    <div class="topbtns">
+      <button class="btn-outline theme-secondary btn-icon rounded-pill" id="setBtn" type="button" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+
+      <button class="btn-outline theme-secondary btn-icon rounded-pill" id="moreBtn" type="button" data-bs-toggle="menu" data-bs-placement="bottom-end" aria-expanded="false" aria-label="More" data-tl="more" title="More"><svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+      <div class="menu moremenu" id="moreMenu">
+        <button class="menu-item" type="button" id="pfMenu" data-t="pfRun">Pre-stream check</button>
+        <button class="menu-item" type="button" id="supportBtn" data-t="supportFile">Save support file</button>
+        <hr class="menu-divider">
+        <button class="menu-item" type="button" id="stopTosuBtn" data-t="closeTosu">Close tosu</button>
+        <button class="menu-item" type="button" id="stopTfBtn" data-t="closeTikfinity">Close TikFinity</button>
+        <hr class="menu-divider">
+        <button class="menu-item" type="button" id="quitBtn" data-t="quit">Quit osureq</button>
+        <button class="menu-item danger" type="button" id="quitAllBtn" data-t="quitAll">Close everything</button>
+        <hr class="menu-divider">
+        <span class="menu-text hint" data-t="supportHint">After a stream with a problem, save this file and send it to whoever helps you.</span>
+        <span class="menu-text hint" data-t="trayHint">osureq runs in its CMD window, which shows the log. Closing that window also stops osureq.</span>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<div id="shell" class="page">
   <div id="banner"></div>
 
   <div class="cols">
@@ -52,77 +87,111 @@
           <button type="button" class="testtoggle" id="testToggle" aria-expanded="false" aria-controls="testBody">
             <span class="chev" aria-hidden="true">▸</span><b id="testTitle" data-t="testPanel">Test</b></button>
           <span class="sp"></span>
-          <button class="btn sm" type="button" id="pfBtn" data-t="pfRun">Pre-stream check</button>
-          <label class="reqtog"><span data-t="dryRun">Dry run</span><input type="checkbox" class="switch" id="dryRunSw"></label>
+          <button class="btn-outline theme-secondary btn-sm" type="button" id="pfBtn" data-t="pfRun">Pre-stream check</button>
+          <label class="reqtog sm" for="dryRunSw"><span data-t="dryRun">Dry run</span><span class="switch"><input type="checkbox" role="switch" switch id="dryRunSw"></span></label>
         </div>
-        <div class="pf" id="pfOut" hidden></div>
         <div id="testBody" hidden>
-        <div class="testh testh2">
-          <div class="seg" id="testMode" role="tablist">
-            <button type="button" data-mode="chat" data-t="modeChat">Simulate chat</button>
-            <button type="button" data-mode="quick" data-t="modeQuick">Quick add</button>
-            <button type="button" data-mode="gift" data-t="modeGift">Gift</button>
+          <div class="testh testh2">
+            <div class="btn-group" id="testMode" role="group">
+              <button type="button" class="btn-outline theme-secondary btn-sm" data-mode="chat" data-t="modeChat">Simulate chat</button>
+              <button type="button" class="btn-outline theme-secondary btn-sm" data-mode="quick" data-t="modeQuick">Quick add</button>
+              <button type="button" class="btn-outline theme-secondary btn-sm" data-mode="gift" data-t="modeGift">Gift</button>
+            </div>
+            <span class="sp"></span>
+            <button class="btn-text theme-secondary btn-sm" type="button" id="clearTestBtn" data-t="clearTest">Clear test data</button>
           </div>
-          <span class="sp"></span>
-          <button class="btn sm ghost" type="button" id="clearTestBtn" data-t="clearTest">Clear test data</button>
-        </div>
-        <form class="searchrow" id="testForm" autocomplete="off">
-          <input class="u" id="testUser" type="text" data-tp="testUserPh" placeholder="@user">
-          <input class="q" id="testIn" type="text" data-tp="testPh" placeholder="!req 2096297">
-          <button class="btn sky" type="submit"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span data-t="testBtn">Send</span></button>
-        </form>
-        <p class="hint" id="testHint"></p>
+          <form class="searchrow" id="testForm" autocomplete="off">
+            <input class="form-control u" id="testUser" type="text" data-tp="testUserPh" placeholder="@user" aria-label="@user">
+            <input class="form-control q mono" id="testIn" type="text" data-tp="testPh" placeholder="!req 2096297" aria-label="!req">
+            <button class="btn-solid theme-primary" type="submit"><svg viewBox="0 0 24 24" class="ico"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span data-t="testBtn">Send</span></button>
+          </form>
+          <p class="hint" id="testHint"></p>
         </div>
       </section>
 
-      <div class="subh"><span data-t="queue">Queue</span><span id="qCount"></span><span class="sp"></span>
-        <button class="btn sm ghost" id="rmLastBtn" data-t="removeLast">Remove last</button>
-        <button class="btn sm ghost" id="clearBtn" data-t="clear">Clear</button>
+      <div class="subh"><span data-t="queue">Queue</span><span class="badge badge-subtle theme-secondary mono" id="qCount"></span>
+        <label class="reqtog sm" id="autoDlWrap" for="autoDlSw"><span data-t="autoDl">Auto download</span><span class="switch"><input type="checkbox" role="switch" switch id="autoDlSw"></span></label>
+        <span class="sp"></span>
+        <button class="btn-outline theme-secondary btn-sm" type="button" id="rmLastBtn" data-t="removeLast">Remove last</button>
+        <button class="btn-outline theme-danger btn-sm" type="button" id="clearBtn" data-t="clear">Clear</button>
       </div>
       <div class="hint" id="resolving" hidden></div>
       <div class="list" id="queue"></div>
     </main>
 
     <aside class="side">
-      <section class="box"><h3 data-t="session">This stream</h3><dl class="kv" id="sumKv"></dl>
-        <div class="closebtns">
-          <button class="btn sm" id="sumShowBtn" data-t="sumShow">Show on overlay</button>
-          <button class="btn sm ghost" id="sumNewBtn" data-t="sumNew">New session</button>
-        </div></section>
-      <section class="box"><h3><span data-t="mirrors">Mirrors</span><button class="btn sm ghost mcheck" id="mirrorBtn" type="button" data-t="mirrorCheck">Check</button></h3>
-        <div class="mirrors" id="mirrorList"></div><p class="hint" data-t="mirrorHint">Checked once after start, then by each download. A mirror that refuses a download (HTTP 403) is also reported in Activity.</p></section>
-      <section class="box"><h3><span data-t="rejections">Rejected</span><small id="rejCount"></small></h3><div class="log" id="rejLog"></div></section>
-      <section class="box"><h3 data-t="activity">Activity</h3><div class="log" id="noteLog"></div></section>
-      <section class="box"><h3 data-t="history">History</h3><div class="log" id="histLog"></div></section>
-      <section class="box"><h3 data-t="tfEvents">LIVE events</h3><div class="log" id="rawLog"></div><p class="hint" data-t="rawHint">The first event of each type is kept so you can check field names. Turn on “Log raw events” in Settings → Connection to see every event.</p></section>
-      <section class="box"><h3 data-t="info">Info</h3><dl class="kv" id="infoKv"></dl>
-        <div class="closebtns">
-          <button class="btn sm ghost" id="stopTosuBtn" data-t="closeTosu">Close tosu</button>
-          <button class="btn sm ghost" id="stopTfBtn" data-t="closeTikfinity">Close TikFinity</button>
-          <button class="btn sm ghost" id="quitBtn" data-t="quit">Quit osureq</button>
-          <button class="btn sm ghost danger" id="quitAllBtn" data-t="quitAll">Close everything</button>
+      <section class="card">
+        <div class="card-body">
+          <h3 class="card-title" data-t="session">This stream</h3><dl class="kv" id="sumKv"></dl>
+          <div class="btnrow">
+            <button class="btn-outline theme-secondary btn-sm" type="button" id="sumShowBtn" data-t="sumShow">Show on overlay</button>
+            <button class="btn-text theme-secondary btn-sm" type="button" id="sumNewBtn" data-t="sumNew">New session</button>
+          </div>
         </div>
-        <button class="btn sm ghost" id="supportBtn" data-t="supportFile" style="width:100%;margin-top:6px">Save support file</button>
-        <p class="hint" data-t="supportHint">After a stream with a problem, save this file and send it to whoever helps you.</p>
-        <p class="hint" data-t="trayHint">osureq runs in its CMD window, which shows the log. Closing that window also stops osureq.</p></section>
+      </section>
+
+      <section class="card feedcard">
+        <div class="card-header">
+          <ul class="nav nav-underline" role="tablist" id="feedTabs">
+            <li class="nav-item" role="presentation"><button class="nav-link active" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#tabRej" aria-selected="true"><span data-t="rejections">Rejected</span> <span class="badge theme-danger mono" id="rejCount" hidden></span></button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#tabAct" aria-selected="false" data-t="activity">Activity</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#tabHist" aria-selected="false" data-t="history">History</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#tabRaw" aria-selected="false" data-t="tfEvents">LIVE events</button></li>
+          </ul>
+        </div>
+        <div class="tab-content">
+          <div class="tab-pane show active" id="tabRej" role="tabpanel"><div class="log" id="rejLog"></div></div>
+          <div class="tab-pane" id="tabAct" role="tabpanel"><div class="log" id="noteLog"></div></div>
+          <div class="tab-pane" id="tabHist" role="tabpanel"><div class="log" id="histLog"></div></div>
+          <div class="tab-pane" id="tabRaw" role="tabpanel"><div class="log" id="rawLog"></div><p class="hint pad" data-t="rawHint">The first event of each type is kept so you can check field names. Turn on “Log raw events” in Settings → Connection to see every event.</p></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-body">
+          <h3 class="card-title"><span data-t="mirrors">Mirrors</span><button class="btn-text theme-secondary btn-sm mcheck" id="mirrorBtn" type="button" data-t="mirrorCheck">Check</button></h3>
+          <div class="mirrors" id="mirrorList"></div><p class="hint" data-t="mirrorHint">Checked once after start, then by each download. A mirror that refuses a download (HTTP 403) is also reported in Activity.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-body">
+          <h3 class="card-title" data-t="info">Info</h3><dl class="kv" id="infoKv"></dl>
+        </div>
+      </section>
     </aside>
   </div>
 </div>
 
-<div id="settings" hidden>
-  <div class="scrim" id="scrim"></div>
-  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle">
-    <div class="sheet-h"><b id="setTitle" data-t="settings">Settings</b>
-      <button class="icon" id="setClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <div class="tabs" id="setTabs" role="tablist"></div>
-    <div class="sbody" id="setBody"></div>
-    <div class="sfoot">
-      <button class="btn ghost" id="setReset" data-t="resetTab">Reset tab</button>
-      <button class="btn main" id="setSave" data-t="save">Save</button>
-    </div>
+<!-- Pre-stream check -->
+<dialog class="drawer drawer-end" tabindex="-1" id="pfDrawer" aria-labelledby="pfTitle">
+  <div class="drawer-header">
+    <h2 class="drawer-title" id="pfTitle" data-t="pfRun">Pre-stream check</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="drawer" aria-label="Close"></button>
   </div>
-</div>
+  <div class="drawer-body">
+    <div class="pf" id="pfOut"></div>
+    <button class="btn-solid theme-primary w-100 mt-3" type="button" id="pfAgain" data-t="pfAgain">Check again</button>
+  </div>
+</dialog>
 
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<!-- Settings -->
+<dialog class="dialog dialog-xl dialog-scrollable" id="settings" aria-labelledby="setTitle">
+  <div class="dialog-header">
+    <h2 class="dialog-title" id="setTitle" data-t="settings">Settings</h2>
+    <button type="button" class="btn-close" id="setClose" aria-label="Close"></button>
+  </div>
+  <div class="dialog-body setbody">
+    <div class="setnav nav nav-pills" id="setTabs" role="tablist" aria-orientation="vertical"></div>
+    <div class="setpane" id="setBody"></div>
+  </div>
+  <div class="dialog-footer">
+    <button class="btn-text theme-secondary me-auto" type="button" id="setReset" data-t="resetTab">Reset tab</button>
+    <button class="btn-outline theme-secondary" type="button" id="setCancel" data-t="cancel">Cancel</button>
+    <button class="btn-solid theme-primary" type="button" id="setSave" data-t="save">Save</button>
+  </div>
+</dialog>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toasts" aria-live="polite"></div>
 </body>
 </html>
