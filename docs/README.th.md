@@ -141,7 +141,7 @@ Windows ไม่มีเสียงไทยมาให้ ตัวเล�
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
 cd tiktoklivereqsong
-.\build.ps1 -Version 1.4.8
+.\build.ps1 -Version 1.4.9
 ```
 
 `build.ps1` จะรัน `go vet` และ `go test` ก่อน สร้างไฟล์ resource ของ Windows (ไอคอน ชื่อ เวอร์ชัน) แล้ว build ออกมาเป็น `dist\osureq.exe`
@@ -149,8 +149,8 @@ cd tiktoklivereqsong
 
 ```powershell
 $env:CGO_ENABLED = "0"
-go run ./tools/winres -version 1.4.8
-go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.9
+go build -trimpath -ldflags "-X main.version=1.4.9" -o dist\osureq.exe .
 ```
 
 ### สำหรับคนที่จะแก้โค้ด
@@ -163,12 +163,12 @@ go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
 
 * ทุกครั้งที่ push เข้า `main` หรือเปิด pull request, GitHub จะ vet, test และ build ให้ ไฟล์ exe อยู่ในหน้า Actions 14 วัน
 * ปล่อยเวอร์ชันใหม่: อัปเดตเลขเวอร์ชันใน `build.ps1` (และ changelog) แล้ว merge เข้า `main` จากนั้นเลือกทางใดทางหนึ่ง
-  * ไม่ต้องใช้ git: เปิด **Actions → build → Run workflow** เลือก `main` ใส่เลขเวอร์ชัน (เช่น `1.4.8`) แล้วกด **Run workflow**
+  * ไม่ต้องใช้ git: เปิด **Actions → build → Run workflow** เลือก `main` ใส่เลขเวอร์ชัน (เช่น `1.4.9`) แล้วกด **Run workflow**
   * หรือ push tag
 
   ```powershell
-  git tag v1.4.8
-  git push origin v1.4.8
+  git tag v1.4.9
+  git push origin v1.4.9
   ```
 
   GitHub จะ build ด้วยเลขเวอร์ชันจาก tag แล้วสร้าง Release พร้อม `osureq-<เวอร์ชัน>-windows-x64.zip` (มี exe, `LICENSE` และ `THIRD_PARTY_LICENSES.txt`) และไฟล์ `.sha256`

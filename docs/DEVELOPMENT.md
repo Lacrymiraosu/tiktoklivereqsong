@@ -49,7 +49,7 @@ Thai: see [README.th.md](README.th.md).
 
 | | |
 |---|---|
-| Version | **1.4.8** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.4.9** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
 | Tests | `go test ./...`: 20 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
@@ -892,15 +892,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.4.8          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.4.9          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.4.8      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
+go run ./tools/winres -version 1.4.9      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.4.9" -o dist\osureq.exe .
 ```
 
 ### Releases (GitHub Actions)
@@ -908,15 +908,15 @@ go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
 `.github/workflows/build.yml` runs on every push to `main` and every pull request: `go vet`, `go test` and a build on
 `windows-latest`; the exe is kept as a workflow artifact for 14 days (version `0.0.0-dev+<commit>`).
 To publish a release, bump the version (Changelog row, Version row, `build.ps1` default) and merge it into `main`, then
-either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.8`) or tag and push:
+either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.9`) or tag and push:
 
 ```powershell
-git tag v1.4.8
-git push origin v1.4.8
+git tag v1.4.9
+git push origin v1.4.9
 ```
 
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
-creates the tag `v1.4.8` on that commit together with the release (a tag made by the workflow does not start another run).
+creates the tag `v1.4.9` on that commit together with the release (a tag made by the workflow does not start another run).
 The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 To fix the text of a release that is already out, change its file, merge it, and run the workflow with **notes** set to the version
 (only `gh release edit --notes-file`, nothing is rebuilt). Every build runs `.github/check-release-notes.sh`, which fails on a bare `@word`
@@ -1032,7 +1032,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
-| unreleased | branches `ui-bootstrap6`, `auto-download-switch` | **Auto download switch** above the queue on the dashboard (`import.preload`; `POST /api/action/toggleAutoDownload`; `State.autoDownload`, `autoDownloadN`); the setting is renamed Auto download. **New dashboard on Bootstrap 6** (6.0.0-alpha.1, vendored): sticky top bar with the requests switch, volume, language, settings and a ⋮ menu (pre-stream check, support file, close tosu/TikFinity, quit); light and dark by the browser; now playing and queue rows with the cover as a soft banner inside the box (drawn with a CSS mask, so it fades into the box colour in light and dark; strongest on the right, fading out towards the text and at the edges), play and remove buttons and a ⋮ menu (move, skip, preview, open elsewhere, bans); rejected / activity / history / LIVE events as tabs; settings as a dialog with a side menu (a full-screen page on phones); the pre-stream check in a drawer; Bootstrap toasts. The server sets the content type of `.js`, `.css` and `.svg` itself. Needs Chrome/Edge 130, Firefox 132 or Safari 18 or newer. Bootstrap, Floating UI and Vanilla Calendar Pro licences added |
+| 1.4.9 | PR #18 | **Auto download switch** above the queue on the dashboard (`import.preload`; `POST /api/action/toggleAutoDownload`; `State.autoDownload`, `autoDownloadN`); the setting is renamed Auto download. **New dashboard on Bootstrap 6** (6.0.0-alpha.1, vendored): sticky top bar with the requests switch, volume, language, settings and a ⋮ menu (pre-stream check, support file, close tosu/TikFinity, quit); light and dark by the browser; now playing and queue rows with the cover as a soft banner inside the box (drawn with a CSS mask, so it fades into the box colour in light and dark; strongest on the right, fading out towards the text and at the edges), play and remove buttons and a ⋮ menu (move, skip, preview, open elsewhere, bans); rejected / activity / history / LIVE events as tabs; settings as a dialog with a side menu (a full-screen page on phones); the pre-stream check in a drawer; Bootstrap toasts. The server sets the content type of `.js`, `.css` and `.svg` itself. Needs Chrome/Edge 130, Firefox 132 or Safari 18 or newer. Bootstrap, Floating UI and Vanilla Calendar Pro licences added |
 | 1.4.8 | PR #13 | **TikTok direct**: chat and gifts straight from TikTok without TikFinity (`connection.source` `tiktok`, `tiktokUser`, optional `eulerApiKey`; new package `internal/tiktok`, signed by Euler Stream, keyless or with a key; switch back to TikFinity any time). Status pill, pre-stream check, mod panel and support file (key hidden) know the source. Only one dashboard page reads TTS (`POST /api/tts/speaker`, `State.ttsSpeaker`): the last one started, the others say **TTS in another window**. `osu.viewerUrl` can be a template with `{set}`, `{map}`, `{file}` |
 | 1.4.7 | PR #11 | TTS starts by itself when the dashboard loads (`ttsAutoStart`); when the browser wants an interaction first, the first click or key anywhere starts it. Switching it off is remembered per browser (`osureq.ttsOff`). New `queue.autoNeedsPass` ("Auto: only after a clear", off by default): a fail or quit waits for a retry or Next; the tracker now goes from `ended` back to `playing` when the same map is played again. README credits chaiwat2183 for the idea |
 | 1.4.6 | PR #10 | Auto mode no longer stalls: a failed first request is passed over (as Next does), and the tracker also matches by artist and title when tosu reports another set ID (osu! says -1 for maps without one in the .osu). **Previous** on the dashboard and the mod panel (`App.Previous`, `Queue.Back`, the last 10 now-playing maps in `recent`): osu! opens the map played before again and the current one returns to the front of the queue. History rows have **Open in osu!** (`POST /api/jump`, `osu://b/<id>`; history now records `beatmapId`). Mirrors are probed once after start instead of every 30 min, show OK, and a mirror refusing a download with HTTP 403 is reported in Activity (once per mirror until it works again) |
