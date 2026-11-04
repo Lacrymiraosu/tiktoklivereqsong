@@ -12,7 +12,7 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 
 **Dashboard**: the map being played, the queue with one-click controls, rejected requests, history and a summary of the stream.
 
-![osureq dashboard: now playing, the request queue, rejected requests and the stream summary](docs/images/dashboard-en.png)
+![osureq dashboard: now playing, the request queue, rejected requests and the stream summary](docs/images/dashboard-en.jpg)
 
 | OBS overlay | Mod panel on a phone |
 |---|---|

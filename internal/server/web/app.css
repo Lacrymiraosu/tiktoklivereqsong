@@ -152,7 +152,15 @@ button.pill:hover, a.pill:hover { background: var(--surface-2); }
 .np.empty .card-body { text-align: center; display: flex; flex-direction: column; align-items: center; gap: .9rem; padding-block: 1.6rem; }
 .np.empty small { color: var(--muted); }
 .np-top { display: flex; gap: 1rem; }
-.cover { width: 8rem; aspect-ratio: 1; flex: none; border-radius: .6rem; background: var(--surface-3) center / cover no-repeat; }
+/* The cover is a wide banner behind a box. It is drawn with a mask, so it fades into whatever the box colour is (light or dark):
+   strongly on the text side (left), softly at the other edges. */
+.cover-bg { position: relative; isolation: isolate; overflow: hidden; }
+.cover-bg::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--cover) right center / cover no-repeat; opacity: var(--cover-opacity, .6);
+  mask-image: linear-gradient(to right, transparent 8%, #000 70%, #000 92%, transparent 100%), linear-gradient(to bottom, transparent 0, #000 22%, #000 78%, transparent 100%);
+  mask-composite: intersect; }
+:root { --cover-opacity: .5; }
+@media (prefers-color-scheme: dark) { :root { --cover-opacity: .6; } }
 .npt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
 .npt .lab { font-size: .72rem; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--brand-fg); }
 .npt .np-title { margin: 0; font-size: clamp(1.4rem, 2.6vw, 2rem); line-height: 1.15; overflow-wrap: anywhere; }
@@ -172,7 +180,6 @@ button.pill:hover, a.pill:hover { background: var(--surface-2); }
 .modewarn { display: block; margin-top: .5rem; padding: .45rem .75rem; border-radius: .6rem; background: color-mix(in oklch, var(--warn) 14%, var(--surface)); border: 1px solid color-mix(in oklch, var(--warn) 45%, transparent); color: var(--warn); font-size: .82rem; line-height: 1.4; }
 @media (max-width: 575.98px) {
   .np-top { flex-direction: column; }
-  .cover { width: 100%; aspect-ratio: 3 / 1; }
   .npa { flex-wrap: nowrap; }
   .npa .btn-solid { flex: 1; min-width: 0; }
 }
@@ -214,7 +221,7 @@ button.pill:hover, a.pill:hover { background: var(--surface-2); }
 
 /* ---------- queue ---------- */
 .list { display: flex; flex-direction: column; gap: .6rem; }
-.qi { position: relative; display: grid; grid-template-columns: 2rem 3.5rem minmax(0, 1fr) auto; gap: .2rem .85rem; align-items: center; padding: .75rem .9rem; border: 1px solid var(--line); border-radius: var(--bs-radius-7, .75rem); background: var(--surface); animation: qIn .35s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(min(var(--i, 0), 8) * 30ms); }
+.qi { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: .2rem .85rem; align-items: center; padding: .75rem .9rem; border: 1px solid var(--line); border-radius: var(--bs-radius-7, .75rem); background: var(--surface); animation: qIn .35s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(min(var(--i, 0), 8) * 30ms); }
 .qi.seen { animation: none; }
 @keyframes qIn { from { opacity: 0; transform: translateY(10px); } }
 .qi:hover { border-color: var(--brand); }
@@ -224,14 +231,13 @@ button.pill:hover, a.pill:hover { background: var(--surface-2); }
 .qi.pv-on { border-color: var(--sky); }
 .pos { width: 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); font-family: var(--font-data); font-weight: 500; font-size: .85rem; cursor: grab; }
 .qi.pv-on .pos { background: var(--sky); color: var(--surface); }
-.thumb { width: 3.5rem; aspect-ratio: 1; border-radius: .45rem; background: var(--surface-3) center / cover no-repeat; }
 .ci { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .ci b { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ci span { color: var(--muted); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ci small { color: var(--muted); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cact { display: flex; gap: .35rem; align-items: center; }
 .banwrap { display: inline-flex; }
-.att { grid-column: 3 / -1; display: flex; flex-direction: column; gap: .25rem; margin-top: .35rem; }
+.att { grid-column: 2 / -1; display: flex; flex-direction: column; gap: .25rem; margin-top: .35rem; }
 .arow { display: grid; grid-template-columns: 5.5rem 1fr auto; gap: .6rem; align-items: center; font-size: .75rem; color: var(--muted); }
 .arow b { font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .arow i { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 16rem; }
@@ -240,14 +246,12 @@ button.pill:hover, a.pill:hover { background: var(--surface-2); }
 .bar.ok > div { background: var(--ok); } .bar.bad > div { background: var(--bad); } .bar.mm > div { background: var(--warn); }
 .bar.run.indet > div { width: 35% !important; animation: indet 1.1s ease-in-out infinite; }
 @keyframes indet { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
-.warnline, .errline { grid-column: 3 / -1; font-size: .78rem; }
+.warnline, .errline { grid-column: 2 / -1; font-size: .78rem; }
 .warnline { color: var(--warn); } .errline { color: var(--bad); }
 .empty { color: var(--muted); text-align: center; padding: 2rem 1rem; border: 1px dashed var(--line); border-radius: var(--bs-radius-7, .75rem); }
 @media (max-width: 640px) {
-  .qi { grid-template-columns: 2rem 3rem minmax(0, 1fr); }
-  .thumb { width: 3rem; }
+  .qi { grid-template-columns: 2rem minmax(0, 1fr); }
   .cact { grid-column: 2 / -1; margin-top: .4rem; }
-  .att, .warnline, .errline { grid-column: 2 / -1; }
 }
 
 /* ---------- side: summary, feeds, mirrors, info ---------- */
@@ -355,3 +359,10 @@ label.frow { cursor: pointer; }
 /* titles inside dialogs and drawers, and the settings navigation (Bootstrap's pills sit in a rounded tray) */
 .dialog-title, .drawer-title { margin: 0; font-size: 1.15rem; }
 .setnav.nav-pills { background: none; border-radius: 0; padding: .6rem; box-shadow: none; }
+
+/* buttons that sit on the cover keep a soft backing so they stay readable */
+.cover-bg .btn-outline, .cover-bg .pos { background: color-mix(in oklch, var(--surface) 72%, transparent); }
+
+/* queue rows hold more text and buttons than now playing, so their cover is a little quieter */
+.qi { --cover-opacity: .42; }
+@media (prefers-color-scheme: dark) { .qi { --cover-opacity: .5; } }

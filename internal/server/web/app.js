@@ -414,8 +414,8 @@ const MODE = { osu: "osu!", taiko: "taiko", fruits: "catch", mania: "mania" };
 const MODE_KEY = { osu: 1, taiko: 2, fruits: 3, mania: 4 }; // Ctrl+N switches mode in osu!
 // modeText: "osu!", "taiko", "catch", "mania 7K", with "· convert" for a converted osu! map.
 const modeText = it => (MODE[it.mode] || it.mode) + (it.mode === "mania" && it.keys ? " " + it.keys + "K" : "") + (it.convert ? " · " + t("convert") : "");
-// thumbOf: the small square picture osu! keeps for every set (the same host as the cover in the metadata).
-const thumbOf = it => `https://assets.ppy.sh/beatmaps/${it.setId}/covers/list@2x.jpg`;
+// coverOf: the wide banner osu! keeps for every set; it sits behind a box and fades out towards the text (.cover-bg).
+const coverOf = it => it.cover || `https://assets.ppy.sh/beatmaps/${it.setId}/covers/cover.jpg`;
 const setLink = it => `https://osu.ppy.sh/beatmapsets/${it.setId}` + (it.beatmapId ? `#${it.mode || "osu"}/${it.beatmapId}` : "");
 
 /* ---------- state & rendering ---------- */
@@ -649,9 +649,8 @@ function renderNow(n) {
       h("small", {}, t("nothingPlaying")), h("div", { class: "npa", style: "border:0;margin:0;padding:0" }, prev, next))));
     return;
   }
-  box.append(h("section", { class: "card np", "aria-label": t("nowPlaying") }, h("div", { class: "card-body" },
+  box.append(h("section", { class: "card np", "aria-label": t("nowPlaying") }, h("div", { class: "card-body cover-bg", style: `--cover:url("${coverOf(n)}")` },
     h("div", { class: "np-top" },
-      h("div", { class: "cover", style: `background-image:url("${thumbOf(n)}")`, role: "img", "aria-label": n.title }),
       h("div", { class: "npt" },
         h("span", { class: "lab" }, t("nowPlaying")),
         h("h2", { class: "np-title" }, n.title),
@@ -711,9 +710,8 @@ function renderQueue(items) {
 function buildCard(it, i, total) {
   const q = (op, body) => act(`/api/queue/${it.id}/${op}`, body);
   const btn = (ico, title, f, cls, dis) => h("button", { class: (cls || "btn-outline theme-secondary") + " btn-icon rounded-pill", type: "button", title, "aria-label": title, disabled: dis, onclick: e => busy(e.currentTarget, f) }, svg(ico));
-  const card = h("div", { class: "qi" + (it.state === "failed" ? " failed" : "") + (seen.has(it.id) ? " seen" : ""), style: `--i:${i}`, draggable: "true", "data-id": it.id, "data-set": it.setId },
+  const card = h("div", { class: "qi cover-bg" + (it.state === "failed" ? " failed" : "") + (seen.has(it.id) ? " seen" : ""), style: `--i:${i};--cover:url("${coverOf(it)}")`, draggable: "true", "data-id": it.id, "data-set": it.setId },
     h("span", { class: "pos", title: "drag" }, i + 1),
-    h("div", { class: "thumb", style: `background-image:url("${thumbOf(it)}")`, "aria-hidden": "true" }),
     h("div", { class: "ci" },
       h("b", { title: it.title }, it.title),
       h("span", { title: `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}` }, `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}`),
