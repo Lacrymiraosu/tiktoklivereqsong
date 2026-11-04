@@ -48,6 +48,7 @@ osureq ตรวจกฎ ดาวน์โหลดแมพ ตรวจไ�
   **หรือ**ไม่ต้องมีเลยถ้าเลือก **TikTok โดยตรง** (ตั้งค่า → การเชื่อมต่อ ดู [รับแชทโดยไม่ใช้ TikFinity](#รับแชทโดยไม่ใช้-tikfinity))
 * [**tosu**](https://github.com/tosuapp/tosu/releases/latest) เปิดไว้ตอนไลฟ์ (ใช้ดูว่าเพลงเล่นจบหรือยัง และเก็บผลการเล่น)
 * OBS หรือ TikTok LIVE Studio ถ้าจะใช้ overlay
+* เบราว์เซอร์รุ่นใหม่สำหรับแดชบอร์ด: Chrome หรือ Edge 130, Firefox 132 หรือ Safari 18 ขึ้นไป
 
 ## เริ่มใช้งาน
 
@@ -185,7 +186,8 @@ go build -trimpath -ldflags "-X main.version=1.4.8" -o dist\osureq.exe .
 * Mirror ดาวน์โหลดไฟล์ `.osz`: [hinai](https://mirror.hinamizawa.ai), [Nekoha](https://mirror.nekoha.moe), [beatconnect](https://beatconnect.io), [osu.direct](https://osu.direct), [catboy.best](https://catboy.best) และ [Sayobot](https://osu.sayobot.cn) (hinai, Nekoha, osu.direct และ catboy.best ใช้ค้นหาเพลงด้วย)
 * ไลบรารี Go: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys), [protobuf-go](https://github.com/protocolbuffers/protobuf-go),
   [tc-hib/winres](https://github.com/tc-hib/winres), [nfnt/resize](https://github.com/nfnt/resize), [golang.org/x/image](https://pkg.go.dev/golang.org/x/image)
-* ฟอนต์: [Varela Round](https://fonts.google.com/specimen/Varela+Round) และ [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) จาก Google Fonts
+* [Bootstrap](https://getbootstrap.com) 6 (พร้อม [Floating UI](https://floating-ui.com) และ [Vanilla Calendar Pro](https://github.com/uvarov-frontend/vanilla-calendar-pro)): ส่วนประกอบของแดชบอร์ด
+* ฟอนต์: [Kanit](https://fonts.google.com/specimen/Kanit), [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai), [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) และ [Varela Round](https://fonts.google.com/specimen/Varela+Round) (overlay) จาก Google Fonts
 
 osureq เป็นโปรเจกต์ของแฟนเกม ไม่มีส่วนเกี่ยวข้องและไม่ได้รับการรับรองจาก ppy Pty Ltd, TikTok, TikFinity, Euler Stream หรือ tosu
 osu! เป็นเครื่องหมายการค้าของ ppy Pty Ltd และ TikTok เป็นเครื่องหมายการค้าของเจ้าของ

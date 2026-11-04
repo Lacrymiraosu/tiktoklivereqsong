@@ -48,6 +48,7 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
   **or** nothing at all with **TikTok direct** (Settings → Connection, see [Chat without TikFinity](#chat-without-tikfinity))
 * [**tosu**](https://github.com/tosuapp/tosu/releases/latest), running while you are live (tells when a song has ended and records results)
 * OBS or TikTok LIVE Studio, for the overlay
+* A recent browser for the dashboard: Chrome or Edge 130, Firefox 132 or Safari 18, or newer
 
 ## Getting started
 
@@ -181,7 +182,8 @@ Beatmap data, covers and audio previews come from osu! (ppy Pty Ltd). Beatmaps b
 * Beatmap mirrors, where the `.osz` files are downloaded from: [hinai](https://mirror.hinamizawa.ai), [Nekoha](https://mirror.nekoha.moe), [beatconnect](https://beatconnect.io), [osu.direct](https://osu.direct), [catboy.best](https://catboy.best) and [Sayobot](https://osu.sayobot.cn) (hinai, Nekoha, osu.direct and catboy.best also power the song search)
 * Go libraries: [coder/websocket](https://github.com/coder/websocket), [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys), [protobuf-go](https://github.com/protocolbuffers/protobuf-go),
   [tc-hib/winres](https://github.com/tc-hib/winres), [nfnt/resize](https://github.com/nfnt/resize), [golang.org/x/image](https://pkg.go.dev/golang.org/x/image)
-* Fonts: [Varela Round](https://fonts.google.com/specimen/Varela+Round) and [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai) from Google Fonts
+* [Bootstrap](https://getbootstrap.com) 6 (with [Floating UI](https://floating-ui.com) and [Vanilla Calendar Pro](https://github.com/uvarov-frontend/vanilla-calendar-pro)): the dashboard's components
+* Fonts: [Kanit](https://fonts.google.com/specimen/Kanit), [IBM Plex Sans Thai](https://fonts.google.com/specimen/IBM+Plex+Sans+Thai), [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) and [Varela Round](https://fonts.google.com/specimen/Varela+Round) (overlay) from Google Fonts
 
 osureq is a fan project and is not affiliated with or endorsed by ppy Pty Ltd, TikTok, TikFinity, Euler Stream or tosu.
 osu! is a trademark of ppy Pty Ltd. TikTok is a trademark of its respective owner.

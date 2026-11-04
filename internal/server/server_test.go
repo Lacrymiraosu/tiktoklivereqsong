@@ -128,9 +128,26 @@ func TestStateAndHeaders(t *testing.T) {
 
 func TestPagesServed(t *testing.T) {
 	_, h := newTestServer(t)
-	for _, p := range []string{"/", "/overlay", "/assets/app.js", "/assets/app.css"} {
+	for _, p := range []string{"/", "/overlay", "/assets/app.js", "/assets/app.css", "/assets/bootstrap.min.css", "/assets/bootstrap.bundle.min.js"} {
 		if w := do(h, http.MethodGet, p, ""); w.Code != http.StatusOK || w.Body.Len() == 0 {
 			t.Errorf("%s: got %d (%d bytes)", p, w.Code, w.Body.Len())
+		}
+	}
+}
+
+// The dashboard loads app.js as a module, which browsers only run with a
+// JavaScript type; the files must not depend on what the PC registers for .js.
+func TestAssetTypes(t *testing.T) {
+	_, h := newTestServer(t)
+	for p, want := range map[string]string{
+		"/assets/app.js":                  "text/javascript",
+		"/assets/bootstrap.bundle.min.js": "text/javascript",
+		"/assets/app.css":                 "text/css",
+		"/assets/bootstrap.min.css":       "text/css",
+		"/assets/icon.svg":                "image/svg+xml",
+	} {
+		if got := do(h, http.MethodGet, p, "").Header().Get("Content-Type"); !strings.HasPrefix(got, want) {
+			t.Errorf("%s: Content-Type %q, want %s", p, got, want)
 		}
 	}
 }

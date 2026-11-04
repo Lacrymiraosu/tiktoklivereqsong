@@ -1,5 +1,6 @@
-"use strict";
 // Dashboard for the osu! request helper. Talks to the helper on 127.0.0.1 only.
+// A module (strict by itself) so it can use Bootstrap 6's menus, dialogs and toasts.
+import * as bootstrap from "/assets/bootstrap.bundle.min.js";
 
 const $ = s => document.querySelector(s);
 const h = (tag, attrs = {}, ...kids) => {
@@ -27,6 +28,11 @@ const ICON = {
   note: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   pause: '<path d="M8 5v14M16 5v14"/>',
   prev: '<path d="M19 5l-9 7 9 7zM6 5v14"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>',
+  alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/>',
+  ban: '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1"/>',
 };
 
 /* ---------- i18n (en / th) ---------- */
@@ -45,6 +51,7 @@ const T = {
   info: ["Info", "ข้อมูล"],
   settings: ["Settings", "ตั้งค่า"],
   save: ["Save", "บันทึก"],
+  cancel: ["Cancel", "ยกเลิก"], pfAgain: ["Check again", "เช็กอีกครั้ง"],
   resetTab: ["Reset tab", "คืนค่าแท็บนี้"],
   testPanel: ["Test", "ทดสอบ"],
   modeChat: ["Simulate chat", "จำลองแชท"],
@@ -367,11 +374,17 @@ async function api(method, path, body) {
   if (!r.ok && j.ok === undefined) j = { ok: false, error: "HTTP " + r.status };
   return j;
 }
-let toastT;
+// toast: a Bootstrap toast in the corner; errors stay longer.
 function toast(msg, bad) {
-  const e = $("#toast");
-  e.textContent = msg; e.classList.toggle("bad", !!bad); e.classList.add("on");
-  clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove("on"), bad ? 4200 : 2400);
+  const box = $("#toasts");
+  const el = h("div", { class: "toast " + (bad ? "bad" : "ok"), role: bad ? "alert" : "status", "aria-atomic": "true", "data-bs-delay": bad ? 4200 : 2400 },
+    h("div", { class: "toast-body" },
+      h("span", { class: "toast-ico" }, svg(bad ? ICON.alert : ICON.check)),
+      h("span", {}, msg)));
+  while (box.children.length >= 4) box.firstChild.remove();
+  box.append(el);
+  el.addEventListener("hidden.bs.toast", () => el.remove());
+  bootstrap.Toast.getOrCreateInstance(el).show();
 }
 // errText shows a coded error in the dashboard's language, else the English text.
 const errText = j => j.code && T["e_" + j.code] ? t("e_" + j.code, j.vars || {}) : (j.error || "error");
@@ -401,7 +414,8 @@ const MODE = { osu: "osu!", taiko: "taiko", fruits: "catch", mania: "mania" };
 const MODE_KEY = { osu: 1, taiko: 2, fruits: 3, mania: 4 }; // Ctrl+N switches mode in osu!
 // modeText: "osu!", "taiko", "catch", "mania 7K", with "· convert" for a converted osu! map.
 const modeText = it => (MODE[it.mode] || it.mode) + (it.mode === "mania" && it.keys ? " " + it.keys + "K" : "") + (it.convert ? " · " + t("convert") : "");
-const coverOf = it => it.cover || `https://assets.ppy.sh/beatmaps/${it.setId}/covers/cover.jpg`;
+// thumbOf: the small square picture osu! keeps for every set (the same host as the cover in the metadata).
+const thumbOf = it => `https://assets.ppy.sh/beatmaps/${it.setId}/covers/list@2x.jpg`;
 const setLink = it => `https://osu.ppy.sh/beatmapsets/${it.setId}` + (it.beatmapId ? `#${it.mode || "osu"}/${it.beatmapId}` : "");
 
 /* ---------- state & rendering ---------- */
@@ -466,7 +480,7 @@ function renderStatus(tf, ts) {
   if (same(b, JSON.stringify([shownTf, ts.level, ts.code, ts.running, ts.connected, !!ts.path, ts.error, LANG, statusOpen]))) return;
   b.replaceChildren();
   const chk = (ok, k) => h("em", { class: ok ? "ok" : "no" }, (ok ? "✓ " : "✕ ") + t(k));
-  const button = (main, label, path) => h("button", { class: "btn sm" + (main ? " main" : ""), type: "button", onclick: () => act(path) }, label);
+  const button = (main, label, path) => h("button", { class: (main ? "btn-solid theme-primary" : "btn-outline theme-secondary") + " btn-sm", type: "button", onclick: () => act(path) }, label);
   const row = (level, title, hint, error, chips, acts) => h("div", { class: "srow" },
     h("i", { class: "dot " + level }),
     h("div", { class: "stext" }, h("b", {}, title),
@@ -494,7 +508,7 @@ function renderStatus(tf, ts) {
   }
   if (!rows.length) return;
   const red = tf.level === "red" || ts.level === "red";
-  b.append(h("section", { class: "status " + (red ? "red" : "yellow"), "aria-label": t("setupTitle") },
+  b.append(h("section", { class: "alert status " + (red ? "theme-danger" : "theme-warning"), role: "alert", "aria-label": t("setupTitle") },
     h("div", { class: "status-h" }, h("span", {}, t("setupTitle")),
       h("button", { class: "mlink", type: "button", "aria-expanded": String(statusOpen), onclick: () => {
         statusOpen = !statusOpen;
@@ -530,14 +544,7 @@ function syncPreview() {
     b.textContent = on ? "❚❚ " + t("pvStop") : "♪ " + t("pvPlay");
     b.classList.toggle("on", on);
   });
-  document.querySelectorAll("[data-pvb]").forEach(b => { // the round ♪ button on a card
-    const on = +b.dataset.pvb === previewSet && !preview.paused;
-    if (b.classList.contains("on") !== on || !b.firstChild) b.replaceChildren(svg(on ? ICON.pause : ICON.note));
-    b.classList.toggle("on", on);
-    b.title = t(on ? "pvStop" : "pvPlay");
-    b.setAttribute("aria-label", b.title);
-  });
-  document.querySelectorAll(".card[data-set]").forEach(c => c.classList.toggle("pv-on", +c.dataset.set === previewSet && !preview.paused));
+  document.querySelectorAll(".qi[data-set]").forEach(c => c.classList.toggle("pv-on", +c.dataset.set === previewSet && !preview.paused));
 }
 ["play", "pause", "ended"].forEach(ev => preview.addEventListener(ev, syncPreview));
 // tell osureq which preview plays, for the mod panel's ♪ buttons
@@ -633,28 +640,29 @@ function renderNow(n) {
   const prevTitle = S.queue.prev || "";
   if (same(box, JSON.stringify([n, LANG, S.viewerUrl, prevTitle]))) return;
   box.replaceChildren();
-  const next = h("button", { class: "btn main", onclick: e => busy(e.currentTarget, () => act("/api/action/next")) }, svg(ICON.next), t("next"));
+  const next = h("button", { class: "btn-solid theme-primary", type: "button", onclick: e => busy(e.currentTarget, () => act("/api/action/next")) }, svg(ICON.next), t("next"));
   // back to the map played before: osu! jumps to it again
-  const prev = prevTitle ? h("button", { class: "btn", title: t("prevTitle", { title: prevTitle }), "aria-label": t("prevTitle", { title: prevTitle }),
+  const prev = prevTitle ? h("button", { class: "btn-outline theme-secondary", type: "button", title: t("prevTitle", { title: prevTitle }), "aria-label": t("prevTitle", { title: prevTitle }),
     onclick: e => busy(e.currentTarget, () => act("/api/action/previous")) }, svg(ICON.prev), t("prev")) : null;
   if (!n) {
-    box.append(h("div", { class: "np empty" }, h("div", { class: "npi", style: "justify-content:center;text-align:center" },
-      h("div", { class: "npt", style: "align-items:center" }, h("small", {}, t("nothingPlaying"))), h("div", { class: "npa" }, prev, next))));
+    box.append(h("section", { class: "card np empty" }, h("div", { class: "card-body" },
+      h("small", {}, t("nothingPlaying")), h("div", { class: "npa", style: "border:0;margin:0;padding:0" }, prev, next))));
     return;
   }
-  box.append(h("div", { class: "np", style: `background-image:url("${coverOf(n)}")` },
-    h("div", { class: "npi" },
+  box.append(h("section", { class: "card np", "aria-label": t("nowPlaying") }, h("div", { class: "card-body" },
+    h("div", { class: "np-top" },
+      h("div", { class: "cover", style: `background-image:url("${thumbOf(n)}")`, role: "img", "aria-label": n.title }),
       h("div", { class: "npt" },
         h("span", { class: "lab" }, t("nowPlaying")),
-        h("b", {}, n.title),
-        h("span", {}, `${n.artist} · [${n.version}] · ${t("mappedBy")} ${n.creator}`),
+        h("h2", { class: "np-title" }, n.title),
+        h("span", { class: "sub" }, `${n.artist} · [${n.version}] · ${t("mappedBy")} ${n.creator}`),
         h("small", {}, t("reqBy") + " ", h("span", { class: "req" }, "@" + n.user), n.nick && n.nick !== n.user ? ` (${n.nick})` : "", " · ", h("a", { class: "mlink", href: setLink(n), target: "_blank", rel: "noopener" }, "osu.ppy.sh"), mapLinks(n)),
         tagsFor(n),
         h("span", { class: "phase", id: "phase" }, h("i"), h("span")),
-        h("span", { class: "modewarn", id: "modeWarn", hidden: true })),
-      h("div", { class: "npa" }, prev,
-        h("button", { class: "btn", onclick: e => busy(e.currentTarget, () => act("/api/action/skip")) }, svg(ICON.skip), t("skip")),
-        next))));
+        h("span", { class: "modewarn", id: "modeWarn", hidden: true }))),
+    h("div", { class: "npa" }, prev,
+      h("button", { class: "btn-outline theme-secondary", type: "button", onclick: e => busy(e.currentTarget, () => act("/api/action/skip")) }, svg(ICON.skip), t("skip")),
+      next))));
 }
 
 async function busy(btn, f) {
@@ -667,7 +675,8 @@ const cards = new Map(); // item id -> card element currently shown
 const seen = new Set();  // ids whose card already played its entrance animation
 function renderQueue(items) {
   const list = $("#queue");
-  $("#qCount").textContent = items.length ? `(${items.length})` : "";
+  $("#qCount").textContent = items.length || "";
+  $("#qCount").hidden = !items.length;
   const res = $("#resolving");
   res.hidden = !(S.resolving > 0);
   res.textContent = S.resolving > 0 ? t("resolving", { n: S.resolving }) : "";
@@ -681,7 +690,8 @@ function renderQueue(items) {
     const { attempts: _, ...rest } = it;
     const key = JSON.stringify([rest, i, items.length, LANG, ago(it.addedAt), S.viewerUrl]);
     let card = cards.get(it.id);
-    if (!card || card.dataset.key !== key) {
+    // a card whose menu is open is kept as it is: rebuilding it would pull the menu away from its button
+    if (!card || (card.dataset.key !== key && !card.dataset.menuOpen)) {
       card = buildCard(it, i, items.length);
       card.dataset.key = key;
     }
@@ -700,23 +710,19 @@ function renderQueue(items) {
 
 function buildCard(it, i, total) {
   const q = (op, body) => act(`/api/queue/${it.id}/${op}`, body);
-  const btn = (ico, title, f, cls, dis) => h("button", { class: "cbtn " + (cls || ""), title, "aria-label": title, disabled: dis, onclick: e => busy(e.currentTarget, f) }, svg(ico));
-  const card = h("div", { class: "card" + (it.state === "failed" ? " failed" : "") + (seen.has(it.id) ? " seen" : ""), style: `--i:${i};background-image:url("${coverOf(it)}")`, draggable: "true", "data-id": it.id, "data-set": it.setId },
+  const btn = (ico, title, f, cls, dis) => h("button", { class: (cls || "btn-outline theme-secondary") + " btn-icon rounded-pill", type: "button", title, "aria-label": title, disabled: dis, onclick: e => busy(e.currentTarget, f) }, svg(ico));
+  const card = h("div", { class: "qi" + (it.state === "failed" ? " failed" : "") + (seen.has(it.id) ? " seen" : ""), style: `--i:${i}`, draggable: "true", "data-id": it.id, "data-set": it.setId },
     h("span", { class: "pos", title: "drag" }, i + 1),
+    h("div", { class: "thumb", style: `background-image:url("${thumbOf(it)}")`, "aria-hidden": "true" }),
     h("div", { class: "ci" },
       h("b", { title: it.title }, it.title),
       h("span", { title: `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}` }, `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}`),
       h("small", { title: "@" + it.user }, h("span", { class: "s-" + it.state }, t("st_" + it.state)), " · " + ago(it.addedAt) + " · ", h("span", { class: "req" }, "@" + it.user)),
       tagsFor(it)),
     h("div", { class: "cact" },
-      it.state === "failed" ? btn(ICON.retry, L("Retry", "ลองใหม่"), () => q("retry")) : btn(ICON.play, L("Play now", "เล่นเลย"), () => q("play"), "go"),
-      h("button", { class: "cbtn pvb", type: "button", "data-pvb": it.setId, title: t("pvPlay"), "aria-label": t("pvPlay"),
-        onclick: e => { e.stopPropagation(); togglePreview(it.setId); } }, svg(ICON.note)),
-      btn(ICON.up, L("Move up", "เลื่อนขึ้น"), () => q("move", { to: i - 1 }), "", i === 0),
-      btn(ICON.down, L("Move down", "เลื่อนลง"), () => q("move", { to: i + 1 }), "", i === total - 1),
-      btn(ICON.skip, t("skip"), () => q("skip")),
+      it.state === "failed" ? btn(ICON.retry, L("Retry", "ลองใหม่"), () => q("retry"), "btn-solid theme-primary") : btn(ICON.play, L("Play now", "เล่นเลย"), () => q("play"), "btn-solid theme-primary"),
       btn(ICON.x, L("Remove", "ลบ"), () => q("remove")),
-      cardMenu(it)));
+      cardMenu(it, i, total, q)));
   if (it.warning) card.append(h("div", { class: "warnline" }, "⚠ " + it.warning));
   if (it.error) card.append(h("div", { class: "errline" }, it.error));
   card.addEventListener("dragstart", e => { dragId = it.id; card.classList.add("drag"); e.dataTransfer.effectAllowed = "move"; });
@@ -757,50 +763,35 @@ function attemptView(a) {
   return { pct, text: a.message ? `${right} · ${a.message}` : right };
 }
 
-// cardMenu is the "⋯" button on a card: preview, open the map elsewhere, ban.
-function cardMenu(it) {
-  const close = () => closeBanMenus();
+// cardMenu is the "⋮" button on a card: move, skip, preview, open the map elsewhere, ban.
+// A Bootstrap menu, moved to <body> while open so no card can cover it.
+function cardMenu(it, i, total, q) {
   const viewer = viewerHref(it);
-  const pop = h("div", { class: "banpop", hidden: true, role: "menu" },
-    h("button", { type: "button", role: "menuitem", "data-pv": it.setId, onclick: e => { e.stopPropagation(); togglePreview(it.setId); } }),
-    viewer ? h("a", { role: "menuitem", href: viewer, target: "_blank", rel: "noopener", onclick: close }, t("viewerTitle") + " ↗") : null,
-    h("a", { role: "menuitem", href: setLink(it), target: "_blank", rel: "noopener", onclick: close }, "osu.ppy.sh · " + it.setId + " ↗"),
-    h("hr"),
-    h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("user", it.user) }, "⛔ " + t("banUser", { u: it.user })),
-    h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("set", String(it.setId)) }, "⛔ " + t("banMap")),
-    h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("song", it.artist + " - " + it.title) }, "⛔ " + t("banSong")),
-    it.artist ? h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("artist", it.artist) }, "⛔ " + t("banArtist", { a: it.artist })) : null,
-    it.creator ? h("button", { type: "button", role: "menuitem", class: "danger", onclick: () => ban("mapper", it.creator) }, "⛔ " + t("banMapper", { m: it.creator })) : null);
-  const b = h("button", { class: "cbtn more", type: "button", title: t("more"), "aria-label": t("more"), "aria-haspopup": "menu",
-    onclick: e => {
-      e.stopPropagation(); closeBanMenus(pop);
-      // fixed position next to the button, and moved to <body> while open: a card can trap it under the cards below
-      const r = e.currentTarget.getBoundingClientRect();
-      pop.hidden = !pop.hidden;
-      if (pop.hidden) { pop.remove(); return; }
-      document.body.append(pop);
-      syncPreview();
-      // below the button, or above it when there is no room; never off-screen
-      pop.style.right = "auto";
-      const w = pop.offsetWidth, ht = pop.offsetHeight;
-      let top = r.bottom + 6;
-      if (top + ht > innerHeight - 8) top = Math.max(8, r.top - 6 - ht);
-      pop.style.top = top + "px";
-      pop.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + "px";
-    } }, "⋯");
-  return h("span", { class: "banwrap" }, b, pop);
+  const item = (ico, label, onclick, cls, dis) => h("button", { type: "button", class: "menu-item" + (cls ? " " + cls : ""), disabled: dis, onclick }, ico ? svg(ICON[ico]) : null, label);
+  const link = (label, href) => h("a", { class: "menu-item", href, target: "_blank", rel: "noopener" }, svg(ICON.link), label);
+  const menu = h("div", { class: "menu" },
+    h("button", { type: "button", class: "menu-item", "data-pv": it.setId, onclick: () => togglePreview(it.setId) }),
+    item("up", L("Move up", "เลื่อนขึ้น"), () => q("move", { to: i - 1 }), "", i === 0),
+    item("down", L("Move down", "เลื่อนลง"), () => q("move", { to: i + 1 }), "", i === total - 1),
+    item("skip", t("skip"), () => q("skip")),
+    h("hr", { class: "menu-divider" }),
+    viewer ? link(t("viewerTitle"), viewer) : null,
+    link("osu.ppy.sh · " + it.setId, setLink(it)),
+    h("hr", { class: "menu-divider" }),
+    item("ban", t("banUser", { u: it.user }), () => ban("user", it.user), "danger"),
+    item("ban", t("banMap"), () => ban("set", String(it.setId)), "danger"),
+    item("ban", t("banSong"), () => ban("song", it.artist + " - " + it.title), "danger"),
+    it.artist ? item("ban", t("banArtist", { a: it.artist }), () => ban("artist", it.artist), "danger") : null,
+    it.creator ? item("ban", t("banMapper", { m: it.creator }), () => ban("mapper", it.creator), "danger") : null);
+  const b = h("button", { class: "btn-outline theme-secondary btn-icon rounded-pill", type: "button", title: t("more"), "aria-label": t("more"), "aria-haspopup": "menu",
+    "data-bs-toggle": "menu", "data-bs-container": "body", "data-bs-strategy": "fixed", "data-bs-placement": "bottom-end", "aria-expanded": "false" }, svg('<circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/>'));
+  b.addEventListener("show.bs.menu", () => { b.closest(".qi").dataset.menuOpen = "1"; });
+  b.addEventListener("shown.bs.menu", syncPreview);
+  b.addEventListener("hidden.bs.menu", () => { const c = b.closest(".qi"); if (c) delete c.dataset.menuOpen; });
+  queueMicrotask(syncPreview);
+  return h("span", { class: "banwrap" }, b, menu);
 }
-function closeBanMenus(except) {
-  document.querySelectorAll(".banpop").forEach(p => {
-    if (p === except) return;
-    p.hidden = true;
-    if (p.parentNode === document.body) p.remove(); // an open menu lives in <body> (cardMenu)
-  });
-}
-document.addEventListener("click", e => { if (!e.target.closest(".banwrap, .banpop")) closeBanMenus(); });
-addEventListener("scroll", () => closeBanMenus(), { passive: true });
 async function ban(kind, value) {
-  closeBanMenus();
   if (!confirm(t("confirmBan_" + kind, { v: value }))) return;
   const j = await api("POST", "/api/ban", { kind, value });
   if (j.ok) toast(t("banned", { v: kind === "user" ? "@" + value : value, n: j.removed }));
@@ -855,6 +846,7 @@ function renderSide() {
   renderMirrors();
   const rej = S.queue.rejected || [];
   $("#rejCount").textContent = rej.length || "";
+  $("#rejCount").hidden = !rej.length;
   const notes = (S.notices || []).slice(0, 30), hist = S.queue.history || [];
   const raw = (S.raw && S.raw.length ? S.raw : Object.values(S.firstRaw || {})).slice(0, 30);
   const banned = new Set((S.blacklistUsers || []).map(u => u.replace(/^@/, "").toLowerCase()));
@@ -1114,7 +1106,7 @@ function ttsAutoStart() {
 }
 ttsAutoStart();
 $("#ttsSkip").addEventListener("click", ttsStop);
-if ("speechSynthesis" in window) speechSynthesis.addEventListener("voiceschanged", () => { if (!$("#settings").hidden && tab === "tts") renderSettings(); });
+if ("speechSynthesis" in window) speechSynthesis.addEventListener("voiceschanged", () => { if ($("#settings").open && tab === "tts") renderSettings(); });
 
 /* ---------- master volume ---------- */
 // One volume (0-100, default 10%) for every sound the dashboard plays. It is
@@ -1144,18 +1136,11 @@ function setVolume(v) {
     volEditing = false;
   }, 300);
 }
-$("#volBtn").addEventListener("click", e => {
-  e.stopPropagation();
-  const pop = $("#volPop");
-  pop.hidden = !pop.hidden;
-  $("#volBtn").setAttribute("aria-expanded", String(!pop.hidden));
-});
 $("#volRange").addEventListener("input", e => setVolume(+e.target.value));
 $("#volMute").addEventListener("click", () => {
   const v = +$("#volRange").value;
   if (v > 0) { volBeforeMute = v; setVolume(0); } else setVolume(volBeforeMute || 10);
 });
-document.addEventListener("click", e => { if (!e.target.closest(".volwrap")) { $("#volPop").hidden = true; $("#volBtn").setAttribute("aria-expanded", "false"); } });
 showVolume(10);
 
 /* ---------- test panel ---------- */
@@ -1176,32 +1161,35 @@ $("#testMode").addEventListener("click", e => {
 });
 $("#dryRunSw").addEventListener("change", () => act("/api/action/toggleDryRun"));
 /* ---------- pre-stream check ---------- */
-// Runs app.Preflight and lists the result; problems first. Stays until closed.
-let pfChecks = null;
+// Runs app.Preflight and lists the result in a drawer; problems first.
+let pfChecks = null, pfRunning = false;
 function renderPreflight() {
   const out = $("#pfOut");
-  out.hidden = !pfChecks;
-  if (!pfChecks) return;
+  if (pfRunning) { out.replaceChildren(h("div", { class: "wait" }, h("span", { class: "spinner-border spinner-sm", "aria-hidden": "true" }), t("pfRunning"))); return; }
+  if (!pfChecks) { out.replaceChildren(); return; }
   const rank = { fail: 0, warn: 1, ok: 2, off: 3 };
   const list = [...pfChecks].sort((a, b) => rank[a.status] - rank[b.status]);
   const bad = list.filter(c => c.status === "fail" || c.status === "warn").length;
   const worst = list.some(c => c.status === "fail") ? "fail" : bad ? "warn" : "ok";
   out.replaceChildren(
-    h("div", { class: "pfh " + worst }, bad ? t("pfIssues", { n: bad }) : t("pfAllOk"), h("span", { class: "sp" }),
-      h("button", { class: "icon", type: "button", "aria-label": "Close", style: "width:32px;height:32px", onclick: () => { pfChecks = null; renderPreflight(); } }, svg(ICON.x))),
+    h("div", { class: "pfh " + worst }, bad ? t("pfIssues", { n: bad }) : t("pfAllOk")),
     ...list.map(c => h("div", { class: "pfr " + c.status, title: c.detail || "" },
       h("i", {}, { ok: "✓", warn: "!", fail: "✕", off: "–" }[c.status]),
       h("span", {}, T["pf_" + c.key] ? t("pf_" + c.key, c.vars || {}) : c.key),
       c.detail && c.status !== "ok" ? h("small", {}, c.detail) : null)));
 }
-$("#pfBtn").addEventListener("click", async e => {
-  const btn = e.currentTarget;
-  btn.disabled = true; btn.textContent = t("pfRunning");
+async function runPreflight() {
+  if (pfRunning) return;
+  bootstrap.Drawer.getOrCreateInstance($("#pfDrawer")).show();
+  pfRunning = true; $("#pfAgain").disabled = true; renderPreflight();
   try {
     const j = await api("POST", "/api/preflight");
-    if (j.ok) { pfChecks = j.checks; renderPreflight(); } else toast(t("pfFailed") + ": " + errText(j), true);
-  } finally { btn.disabled = false; btn.textContent = t("pfRun"); }
-});
+    if (j.ok) pfChecks = j.checks; else toast(t("pfFailed") + ": " + errText(j), true);
+  } finally { pfRunning = false; $("#pfAgain").disabled = false; renderPreflight(); }
+}
+$("#pfBtn").addEventListener("click", runPreflight);
+$("#pfMenu").addEventListener("click", runPreflight);
+$("#pfAgain").addEventListener("click", runPreflight);
 $("#langSel").addEventListener("change", () => renderPreflight());
 // The test panel is folded away by default: it is rarely needed during a stream.
 function setTestOpen(open) {
@@ -1428,10 +1416,13 @@ const lbl = x => Array.isArray(x) ? L(x[0], x[1]) : x;
 async function openSettings() {
   const j = await api("GET", "/api/config");
   draft = j.config; defaults = j.defaults;
-  $("#settings").hidden = false;
   renderSettings();
+  settingsDialog().show();
 }
-function closeSettings() { $("#settings").hidden = true; draft = null; }
+// A Bootstrap dialog (a native <dialog>): Esc and the close button hide it; the draft is dropped when it has gone.
+const settingsDialog = () => bootstrap.Dialog.getOrCreateInstance($("#settings"));
+function closeSettings() { settingsDialog().hide(); }
+$("#settings").addEventListener("hidden.bs.dialog", () => { draft = null; });
 
 // whenOK reads a field's "when": "path" (on) or "path=value".
 function whenOK(when) {
@@ -1441,9 +1432,9 @@ function whenOK(when) {
 
 function renderSettings() {
   const tabs = $("#setTabs");
-  tabs.replaceChildren(...Object.keys(SCHEMA).map(k => h("button", { class: "tab" + (k === tab ? " on" : ""), role: "tab", "aria-selected": k === tab ? "true" : "false", onclick: () => { tab = k; renderSettings(); } }, t("tab_" + k))));
+  tabs.replaceChildren(...Object.keys(SCHEMA).map(k => h("button", { class: "nav-link" + (k === tab ? " active" : ""), type: "button", role: "tab", "aria-selected": k === tab ? "true" : "false", onclick: () => { tab = k; renderSettings(); $("#setBody").scrollTop = 0; } }, t("tab_" + k))));
   const body = $("#setBody");
-  const box = h("div", { class: "card2" });
+  const box = h("div", { class: "fgroup" });
   for (const f of SCHEMA[tab]) {
     if (f.when && !whenOK(f.when)) continue; // e.g. announcement lines only while announcements are on
     box.append(field(f));
@@ -1459,125 +1450,125 @@ function field(f) {
     case "group":
       return h("div", { class: "sgroup" }, t(f.label[0]));
     case "time": {
-      const i = h("input", { type: "time", value: v || "", "aria-label": lbl(f.label) });
-      const clear = h("button", { class: "btn sm ghost", type: "button", onclick: () => { i.value = ""; set(""); } }, "✕");
+      const i = h("input", { type: "time", class: "form-control", value: v || "", "aria-label": lbl(f.label) });
+      const clear = h("button", { class: "btn-text theme-secondary btn-sm", type: "button", "aria-label": L("Clear", "ล้าง"), onclick: () => { i.value = ""; set(""); } }, "✕");
       i.addEventListener("input", () => set(i.value));
-      return h("div", { class: "row" }, text, h("div", { class: "ovlink" }, i, clear));
+      return h("div", { class: "frow" }, text, h("div", { class: "ovlink" }, i, clear));
     }
     case "switch": {
-      const i = h("input", { type: "checkbox", class: "switch", "aria-label": lbl(f.label) }); i.checked = !!v;
+      const i = h("input", { type: "checkbox", role: "switch", switch: true, "aria-label": lbl(f.label) }); i.checked = !!v;
       i.addEventListener("change", () => { set(i.checked); if (f.rerender) renderSettings(); });
-      return h("label", { class: "row", style: "cursor:pointer" }, text, i);
+      return h("label", { class: "frow" }, text, h("span", { class: "switch" }, i));
     }
     case "text": case "hotkey": {
-      const i = h("input", { type: "text", value: v ?? "", title: v ?? "", "aria-label": lbl(f.label), spellcheck: "false" });
+      const i = h("input", { type: "text", class: "form-control", value: v ?? "", title: v ?? "", "aria-label": lbl(f.label), spellcheck: "false" });
       i.addEventListener("input", () => { set(i.value); i.title = i.value; });
       const err = f.type === "hotkey" && S && S.extra && S.extra.hotkeyErrors && S.extra.hotkeyErrors[f.path.split(".")[1]];
-      if (err) text.append(h("small", { style: "color:#ff9aa6" }, err));
-      return h("div", { class: f.type === "text" && String(v || "").length > 30 ? "row stack" : "row" }, text, i);
+      if (err) text.append(h("small", { style: "color:var(--bad)" }, err));
+      return h("div", { class: f.type === "text" && String(v || "").length > 30 ? "frow stack" : "frow" }, text, i);
     }
     case "secret": { // an API key: hidden until shown, never autofilled
-      const i = h("input", { type: "password", value: v ?? "", autocomplete: "off", "aria-label": lbl(f.label), spellcheck: "false" });
+      const i = h("input", { type: "password", class: "form-control", value: v ?? "", autocomplete: "off", "aria-label": lbl(f.label), spellcheck: "false" });
       i.addEventListener("input", () => set(i.value.trim()));
-      const show = h("button", { class: "btn sm ghost", type: "button", onclick: () => { i.type = i.type === "password" ? "text" : "password"; } }, "👁");
-      return h("div", { class: "row" }, text, h("div", { class: "ovlink" }, i, show));
+      const show = h("button", { class: "btn-outline theme-secondary btn-icon rounded-pill sm", type: "button", "aria-label": L("Show", "แสดง"), onclick: () => { i.type = i.type === "password" ? "text" : "password"; } }, svg(ICON.eye));
+      return h("div", { class: "frow" }, text, h("div", { class: "ovlink" }, i, show));
     }
     case "number": {
-      const i = h("input", { type: "number", value: v ?? 0, step: f.step || 1, min: f.min, max: f.max, "aria-label": lbl(f.label) });
+      const i = h("input", { type: "number", class: "form-control", value: v ?? 0, step: f.step || 1, min: f.min, max: f.max, "aria-label": lbl(f.label) });
       i.addEventListener("input", () => set(i.value === "" ? 0 : Number(i.value)));
-      return h("div", { class: "row" }, text, i);
+      return h("div", { class: "frow" }, text, i);
     }
     case "list": case "numlist": {
-      const i = h("input", { type: "text", value: (v || []).join(", "), "aria-label": lbl(f.label), spellcheck: "false" });
+      const i = h("input", { type: "text", class: "form-control", value: (v || []).join(", "), "aria-label": lbl(f.label), spellcheck: "false" });
       i.addEventListener("input", () => {
         const parts = i.value.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
         set(f.type === "numlist" ? parts.map(Number).filter(n => Number.isInteger(n) && n > 0) : parts);
       });
-      return h("div", { class: "row stack" }, text, i);
+      return h("div", { class: "frow stack" }, text, i);
     }
     case "lines": { // one entry per line, for values that may contain commas
-      const i = h("textarea", { rows: 3, "aria-label": lbl(f.label), spellcheck: "false" });
+      const i = h("textarea", { class: "form-control mono", rows: 3, "aria-label": lbl(f.label), spellcheck: "false" });
       i.value = (v || []).join("\n");
       i.addEventListener("input", () => set(i.value.split("\n").map(s => s.trim()).filter(Boolean)));
-      return h("div", { class: "row stack" }, text, i);
+      return h("div", { class: "frow stack" }, text, i);
     }
     case "seg": {
-      const seg = h("div", { class: "seg" });
-      const draw = () => seg.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: getP(draft, f.path) === val ? "on" : "", onclick: () => { set(val); f.rerender ? renderSettings() : draw(); } }, lbl(name))));
+      const seg = h("div", { class: "btn-group", role: "group", "aria-label": lbl(f.label) });
+      const draw = () => seg.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: "btn-outline theme-secondary" + (getP(draft, f.path) === val ? " on" : ""), "aria-pressed": String(getP(draft, f.path) === val), onclick: () => { set(val); f.rerender ? renderSettings() : draw(); } }, lbl(name))));
       draw();
-      return h("div", { class: "row stack" }, text, seg);
+      return h("div", { class: "frow stack" }, text, seg);
     }
     case "select": {
-      const s = h("select", { "aria-label": lbl(f.label) }, f.options.map(([val, name]) => h("option", { value: val }, lbl(name))));
+      const s = h("select", { class: "form-control", "aria-label": lbl(f.label) }, f.options.map(([val, name]) => h("option", { value: val }, lbl(name))));
       s.value = v; s.addEventListener("change", () => set(s.value));
-      return h("div", { class: "row" }, text, s);
+      return h("div", { class: "frow" }, text, s);
     }
     case "multi": {
-      const c = h("div", { class: "chips" + (f.bad ? " bad" : "") });
+      const c = h("div", { class: "opts" + (f.bad ? " bad" : "") });
       const draw = () => {
         const cur = getP(draft, f.path) || [];
-        c.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: "chip" + (cur.includes(val) ? " on" : ""), onclick: () => {
+        c.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: "opt" + (cur.includes(val) ? " on" : ""), "aria-pressed": String(cur.includes(val)), onclick: () => {
           set(cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val]); draw();
         } }, lbl(name))));
       };
       draw();
-      return h("div", { class: "row stack" }, text, c);
+      return h("div", { class: "frow stack" }, text, c);
     }
     case "button":
-      return h("div", { class: "row" }, text, h("button", { class: "btn sm", type: "button", onclick: () => act("/api/action/" + f.action) }, lbl(f.label)));
+      return h("div", { class: "frow" }, text, h("button", { class: "btn-outline theme-secondary btn-sm", type: "button", onclick: () => act("/api/action/" + f.action) }, lbl(f.label)));
     case "overlaylink": {
       const url = location.origin + "/overlay";
-      return h("div", { class: "row stack" }, text, h("div", { class: "ovlink" }, h("input", { type: "text", value: url, readonly: true }),
-        h("button", { class: "icon", type: "button", "aria-label": "Copy", onclick: () => copy(url) }, svg(ICON.copy)),
-        h("a", { class: "btn sm", href: "/overlay", target: "_blank" }, L("Preview", "ดูตัวอย่าง"))));
+      return h("div", { class: "frow stack" }, text, h("div", { class: "ovlink" }, h("input", { type: "text", class: "form-control mono", value: url, readonly: true, "aria-label": lbl(f.label) }),
+        h("button", { class: "btn-outline theme-secondary btn-icon rounded-pill sm", type: "button", "aria-label": "Copy", onclick: () => copy(url) }, svg(ICON.copy)),
+        h("a", { class: "btn-outline theme-secondary btn-sm", href: "/overlay", target: "_blank" }, L("Preview", "ดูตัวอย่าง"))));
     }
     case "sources": return sourcesField(f, text);
     case "pin": {
-      const i = h("input", { type: "text", inputmode: "numeric", value: v ?? "", maxlength: 12, "aria-label": lbl(f.label), spellcheck: "false", autocomplete: "off" });
+      const i = h("input", { type: "text", class: "form-control mono", inputmode: "numeric", value: v ?? "", maxlength: 12, "aria-label": lbl(f.label), spellcheck: "false", autocomplete: "off" });
       i.addEventListener("input", () => set(i.value.replace(/\D/g, "")));
-      const gen = h("button", { class: "btn sm", type: "button", onclick: () => { i.value = newPin(); set(i.value); } }, t("genPin"));
-      return h("div", { class: "row" }, text, h("div", { class: "ovlink" }, i, gen));
+      const gen = h("button", { class: "btn-outline theme-secondary btn-sm", type: "button", onclick: () => { i.value = newPin(); set(i.value); } }, t("genPin"));
+      return h("div", { class: "frow" }, text, h("div", { class: "ovlink" }, i, gen));
     }
     case "voice": {
       const voices = "speechSynthesis" in window ? speechSynthesis.getVoices() : [];
-      const s = h("select", { "aria-label": lbl(f.label) }, h("option", { value: "" }, t("ttsAuto")),
+      const s = h("select", { class: "form-control", "aria-label": lbl(f.label) }, h("option", { value: "" }, t("ttsAuto")),
         ...voices.filter(x => /^(th|en)/i.test(x.lang)).map(x => h("option", { value: x.name }, `${x.name} (${x.lang})`)));
       s.value = v || ""; s.addEventListener("change", () => set(s.value));
-      return h("div", { class: "row stack" }, text, s);
+      return h("div", { class: "frow stack" }, text, s);
     }
     case "tplpreset": {
       const preset = which => api("GET", "/api/config").then(j => { draft.tts.templates = structuredClone(j.announcements[which]); renderSettings(); });
-      return h("div", { class: "row stack" }, h("div", { class: "swt" }, h("b", {}, lbl(f.label)), h("small", {}, t(f.hint[0]))),
-        h("div", { class: "ovlink" }, h("button", { class: "btn sm", type: "button", onclick: () => preset("th") }, t("tplThai")),
-          h("button", { class: "btn sm", type: "button", onclick: () => preset("en") }, t("tplEnglish"))));
+      return h("div", { class: "frow stack" }, h("div", { class: "swt" }, h("b", {}, lbl(f.label)), h("small", {}, t(f.hint[0]))),
+        h("div", { class: "ovlink" }, h("button", { class: "btn-outline theme-secondary btn-sm", type: "button", onclick: () => preset("th") }, t("tplThai")),
+          h("button", { class: "btn-outline theme-secondary btn-sm", type: "button", onclick: () => preset("en") }, t("tplEnglish"))));
     }
     case "template": {
       const ev = f.path.split(".").pop();
       draft.tts.templates = draft.tts.templates || {};
-      const i = h("input", { type: "text", value: draft.tts.templates[ev] ?? "", placeholder: t("tplSilent"), "aria-label": t("tpl_" + ev), spellcheck: "false" });
+      const i = h("input", { type: "text", class: "form-control", value: draft.tts.templates[ev] ?? "", placeholder: t("tplSilent"), "aria-label": t("tpl_" + ev), spellcheck: "false" });
       i.addEventListener("input", () => { draft.tts.templates[ev] = i.value; });
-      return h("div", { class: "row stack" }, h("div", { class: "swt" }, h("b", {}, t("tpl_" + ev))), i);
+      return h("div", { class: "frow stack" }, h("div", { class: "swt" }, h("b", {}, t("tpl_" + ev))), i);
     }
     case "ttstest": {
       // reads what is typed (Thai or English, picked like chat), or the sample when empty
-      const i = h("input", { type: "text", placeholder: t("ttsSample"), maxlength: "500", "aria-label": lbl(f.label) });
+      const i = h("input", { type: "text", class: "form-control", placeholder: t("ttsSample"), maxlength: "500", "aria-label": lbl(f.label) });
       const say = () => { ttsStop(); ttsSay(i.value.trim() || t("ttsSample"), "osureq", draft.tts, () => {}); };
       i.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); say(); } });
-      return h("div", { class: "row stack" }, text, h("div", { class: "ovlink" }, i, h("button", { class: "btn sm", type: "button", onclick: say }, "▶ " + lbl(f.label))));
+      return h("div", { class: "frow stack" }, text, h("div", { class: "ovlink" }, i, h("button", { class: "btn-outline theme-secondary btn-sm", type: "button", onclick: say }, "▶ " + lbl(f.label))));
     }
     case "remoteinfo": {
       const r = S && S.extra && S.extra.remote;
       const body = !r || !r.enabled ? h("small", { class: "hint" }, r && r.error ? r.error : t("modNoUrl"))
         : r.urls && r.urls.length ? h("div", {}, h("small", { class: "hint" }, t("modUrls")), ...r.urls.map(u => h("div", {}, h("button", { class: "mlink", type: "button", onclick: () => copy(u) }, u))))
         : h("small", { class: "hint" }, t("modNoLan"));
-      return h("div", { class: "row stack" }, text, body);
+      return h("div", { class: "frow stack" }, text, body);
     }
     case "modestars": {
       const grid = h("div", { class: "modestars" }, h("span"), h("small", {}, t("min")), h("small", {}, t("max")));
       for (const [mode, name] of MODES) {
         const num = key => {
           const cur = ((draft.rules.modeStars || {})[mode] || {})[key];
-          const i = h("input", { type: "number", min: 0, step: 0.1, value: cur > 0 ? cur : "", placeholder: t("global"), "aria-label": name + " " + key });
+          const i = h("input", { type: "number", class: "form-control", min: 0, step: 0.1, value: cur > 0 ? cur : "", placeholder: t("global"), "aria-label": name + " " + key });
           i.addEventListener("input", () => {
             const ms = draft.rules.modeStars = draft.rules.modeStars || {};
             const r = ms[mode] = ms[mode] || { min: 0, max: 0 };
@@ -1588,25 +1579,25 @@ function field(f) {
         };
         grid.append(h("b", {}, name), num("min"), num("max"));
       }
-      return h("div", { class: "row stack" }, text, grid);
+      return h("div", { class: "frow stack" }, text, grid);
     }
   }
   return h("div");
 }
 
 function sourcesField(f, text) {
-  const wrap = h("div", { class: "row stack" }, text);
+  const wrap = h("div", { class: "frow stack" }, text);
   const list = h("div");
   const draw = () => {
     const src = draft.download.sources;
     list.replaceChildren(...src.map((s, i) => {
-      const en = h("input", { type: "checkbox", class: "switch", "aria-label": s.name }); en.checked = s.enabled;
+      const en = h("input", { type: "checkbox", role: "switch", switch: true, "aria-label": s.name }); en.checked = s.enabled;
       en.addEventListener("change", () => s.enabled = en.checked);
-      const to = h("input", { type: "number", class: "num", value: s.timeoutSec, min: 5, title: L("timeout (s)", "หมดเวลา (วินาที)") });
+      const to = h("input", { type: "number", class: "form-control num", value: s.timeoutSec, min: 5, title: L("timeout (s)", "หมดเวลา (วินาที)") });
       to.addEventListener("input", () => s.timeoutSec = Number(to.value));
-      const mv = (d, ico, dis) => h("button", { type: "button", class: "cbtn", disabled: dis, "aria-label": d < 0 ? "up" : "down", onclick: () => { src.splice(i + d, 0, src.splice(i, 1)[0]); draw(); } }, svg(ico));
-      const url = (k, ph) => { const x = h("input", { type: "text", value: s[k] || "", placeholder: ph, spellcheck: "false" }); x.addEventListener("input", () => s[k] = x.value); return x; };
-      return h("div", { class: "src" }, en, h("b", {}, s.name + (s.official ? " ★" : "")), to, mv(-1, ICON.up, i === 0), mv(1, ICON.down, i === src.length - 1),
+      const mv = (d, ico, dis) => h("button", { type: "button", class: "btn-outline theme-secondary btn-icon rounded-pill sm", disabled: dis, "aria-label": d < 0 ? "up" : "down", onclick: () => { src.splice(i + d, 0, src.splice(i, 1)[0]); draw(); } }, svg(ico));
+      const url = (k, ph) => { const x = h("input", { type: "text", class: "form-control mono", value: s[k] || "", placeholder: ph, spellcheck: "false" }); x.addEventListener("input", () => s[k] = x.value); return x; };
+      return h("div", { class: "src" }, h("span", { class: "switch" }, en), h("b", {}, s.name + (s.official ? " ★" : "")), to, mv(-1, ICON.up, i === 0), mv(1, ICON.down, i === src.length - 1),
         h("div", { class: "urls" }, url("url", "https://…/{id}"), url("noVideoUrl", L("no-video URL (optional)", "URL ไม่เอาวิดีโอ (ไม่บังคับ)"))));
     }));
   };
@@ -1617,8 +1608,7 @@ function sourcesField(f, text) {
 
 $("#setBtn").addEventListener("click", openSettings);
 $("#setClose").addEventListener("click", closeSettings);
-$("#scrim").addEventListener("click", closeSettings);
-document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#settings").hidden) closeSettings(); });
+$("#setCancel").addEventListener("click", closeSettings);
 $("#setReset").addEventListener("click", () => {
   const key = { connection: "connection", osu: "osu", command: "command", rules: "rules", queue: "queue", download: "download", md5: "md5", import: "import", overlay: "overlay", remote: "remote", tts: "tts", hotkeys: "hotkeys" }[tab];
   draft[key] = structuredClone(defaults[key]);

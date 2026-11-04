@@ -489,9 +489,11 @@ tiktoklivereqsong/
     ├── platform/     platform_windows.go, hotkey.go (+_test)  Win32: ShellExecute, processes, registry, hotkeys
     └── server/       server.go (+_test)    HTTP routes, guard, state snapshot, WebSocket push, pre-stream check endpoint
         └── web/                            embedded into the exe with go:embed
-            ├── index.html                  dashboard markup
-            ├── app.js                      dashboard logic (no framework, no build step)
-            ├── app.css                     dashboard styles (design tokens)
+            ├── index.html                  dashboard markup (Bootstrap 6 components)
+            ├── app.js                      dashboard logic (ES module, no build step)
+            ├── app.css                     dashboard styles: brand tokens and what Bootstrap lacks
+            ├── bootstrap.min.css           Bootstrap 6.0.0-alpha.1, unmodified (MIT)
+            ├── bootstrap.bundle.min.js     Bootstrap 6 JavaScript with Floating UI and Vanilla Calendar Pro (MIT)
             ├── overlay.html                OBS overlay (self-contained HTML+CSS+JS)
             └── icon.svg                    favicon
 ```
@@ -531,9 +533,10 @@ tiktoklivereqsong/
 | `internal/platform/platform_windows.go` | ~280 | `ShellExecuteW` open, Toolhelp process list, process image path, TikFinity lookup (path + Uninstall registry), osu! stable lookup (`HKCR\osustable.File.osz\shell\open\command`), launch in a new console window, close by exe name (`WM_CLOSE`, then `TerminateProcess` after 3 s), `RegisterHotKey` message loop, console window title | `ShellOpen`, `ProcessRunning`, `ProcessPath`, `FindTikFinity`, `FindOsuStable`, `Launch`, `Close`, `Hotkeys`, `SetConsoleTitle` |
 | `internal/platform/hotkey.go` | ~50 | Parses `Ctrl+Alt+N`, `Shift+F5`, `F9`, `Win+Num5`… into modifier + virtual key | `ParseHotkey` |
 | `internal/server/server.go` | ~420 | Routes, `guard` (Host + `X-Osureq` header), `State` snapshot, coalesced WebSocket push + 20 s keepalive state, config GET/PUT, actions (incl. quit and closing tosu/TikFinity), queue operations, test/simulate/simulateGift, ban | `Server`, `State`, `Handler`, `Push`, `Listen`, `Quit` |
-| `internal/server/web/index.html` | ~90 | Dashboard skeleton: top bar (status pills, requests switch, language, settings), banners, now playing, test panel, queue, side logs, settings sheet, toast | |
-| `internal/server/web/app.js` | ~860 | Everything on the dashboard: `T` i18n table (en/th), API helper, WebSocket client, incremental rendering, queue cards, drag & drop, ban menu, audio preview + viewer links, results, test panel (chat / quick / gift), settings `SCHEMA` → form | `render`, `renderBanner`, `renderTosuBanner`, `renderNow`, `updatePhase`, `resultShort`, `renderQueue`, `buildCard`, `banMenu`, `mapLinks`, `updateAttempts`, `renderSide`, `same`, `SCHEMA`, `field` |
-| `internal/server/web/app.css` | ~230 | Design tokens and components copied from the owner's osu! beatmap viewer: pills, banners, cover cards, star chips, switches, tabs, sheet, toast | `:root` tokens |
+| `internal/server/web/index.html` | ~190 | Dashboard skeleton: sticky top bar (status pills, requests switch, volume menu, language, settings, ⋮ menu), status box, now playing, test panel, queue, side column (summary, tabbed feeds, mirrors, info), pre-stream check drawer, settings dialog, toast container | |
+| `internal/server/web/app.js` | ~860 | Everything on the dashboard: `T` i18n table (en/th), API helper, WebSocket client, incremental rendering, queue cards, drag & drop, ban menu, audio preview + viewer links, results, test panel (chat / quick / gift), settings `SCHEMA` → form | `render`, `renderBanner`, `renderTosuBanner`, `renderNow`, `updatePhase`, `resultShort`, `renderQueue`, `buildCard`, `cardMenu`, `mapLinks`, `updateAttempts`, `renderSide`, `same`, `SCHEMA`, `field` |
+| `internal/server/web/app.css` | ~380 | Brand tokens (light and dark, fed into Bootstrap's `--bs-*` tokens) and the parts Bootstrap lacks: top bar pills, status box, now playing, queue rows, map tags, download bars, side logs, settings layout | `:root` tokens |
+| `internal/server/web/bootstrap.min.css`, `bootstrap.bundle.min.js` | | Bootstrap 6.0.0-alpha.1 as published on npm (source map comments removed); the licences of Bootstrap, Floating UI and Vanilla Calendar Pro are in `THIRD_PARTY_LICENSES.txt` | |
 | `internal/server/web/overlay.html` | ~160 | OBS page: transparent, now playing + upcoming (priority ★), pop-ups from the feed with their own en/th text table `TX`, theme/scale/position/language from config, reconnecting WebSocket | `render`, `showToasts`, `toastHTML` |
 | `internal/verifier/testdata/*.osz` | | `set_good`, `set_outdated` (old Hard diff), `set_extra` (extra `.osu`), `set_no_osu`, `not_zip` (HTML) | regenerate: `go test ./internal/verifier -update` |
 | `*_test.go` | | parser (link forms, hostile inputs), validator (every rule, exempt users), verifier (fixtures, levels), downloader (fake mirrors: fallthrough, cache, skip/warn, MD5 off, cleanup), importer (traversal, Songs dir, osu!.db scan), queue (limits, ClearTest, gift credits and ordering), app (chat commands, play results, bans), osumeta (page JSON, .osu header), tikfinity (chat parsing, roles, gifts, levels), tosu (payload incl. scores, Tracker paths, client vs fake server), platform (hotkey parsing) | |
@@ -689,7 +692,7 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 |---|---|
 | `GET /` | dashboard |
 | `GET /overlay` | OBS overlay |
-| `GET /assets/{file}` | embedded `app.js`, `app.css`, `icon.svg` |
+| `GET /assets/{file}` | embedded `app.js`, `app.css`, `bootstrap.min.css`, `bootstrap.bundle.min.js`, `icon.svg`; the content type of `.js`, `.css` and `.svg` is set by the server (`assetTypes`), not taken from the Windows registry, because a module script needs a JavaScript type |
 | `GET /ws` | WebSocket; pushes the full `State` JSON on every change (and every 20 s). The overlay adds `?client=overlay` so the pre-stream check can count it; a dashboard page adds `?page=<id>` (who reads TTS) |
 | `GET /api/state` | the same `State` once |
 | `GET /api/config` | `{config, defaults}` |
@@ -728,7 +731,13 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:21280/api/simulate -Headers
 
 ## Dashboard internals
 
-* **No framework, no build step.** `app.js` uses a tiny `h(tag, attrs, ...children)` helper. Edit the files and rebuild the exe (they are embedded with `go:embed`).
+* **Bootstrap 6, no build step.** The components (buttons `btn-solid theme-primary`, `menu`, `dialog`, `drawer`, tabs, toasts, `switch`, `form-control`, alerts, avatars) come from the vendored
+  `bootstrap.min.css` and `bootstrap.bundle.min.js`; `app.js` is an ES module that imports the bundle and uses a tiny `h(tag, attrs, ...children)` helper to build the DOM.
+  Edit the files and rebuild the exe (they are embedded with `go:embed`, so a running copy does not see edits). Bootstrap 6 is an alpha and its class names differ from v5
+  (`btn-solid theme-primary` for `btn btn-primary`, `<dialog class="dialog">` for the modal, `drawer` for the offcanvas, `menu` for the dropdown, `md:col-6` for `col-md-6`);
+  the migration guide is at getbootstrap.com/docs/6.0/guides/migration. To update it, replace the two files from the npm package, keep the licence block in `THIRD_PARTY_LICENSES.txt` current and run the dashboard in a browser.
+* **Browsers:** Bootstrap 6 needs Chrome or Edge 130, Firefox 132 or Safari 18 or newer (`light-dark()`, `:has()`, native `<dialog>`). Older browsers show a broken page. The overlay and the mod panel do not use Bootstrap.
+* **Menus on queue cards** are Bootstrap menus (`data-bs-container="body"`, `data-bs-strategy="fixed"`). A card whose menu is open is not rebuilt (`data-menu-open`), otherwise a state push would pull the menu away from its button.
 * **Rendering rule (important):** state arrives up to ~4 times per second during downloads. Never rebuild a section unconditionally.
   `same(el, key)` skips a section whose input did not change; queue cards are kept in a `Map` by item id and rebuilt only when their own data changes;
   download bars are updated in place (`updateAttempts`); cards that were already shown get the `seen` class so their entrance animation does not replay.
@@ -737,9 +746,9 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:21280/api/simulate -Headers
 * **Settings form** is generated from `SCHEMA` (`F(path, type, labelEn, labelTh, hintEn, hintTh, extra)`). Types: `switch`, `text`, `hotkey`, `number`,
   `list`, `numlist`, `seg`, `select`, `multi`, `button`, `overlaylink`, `sources`. A new config field needs: Go struct field + default + validation (if any) +
   a `SCHEMA` entry + a row in the [Settings reference](#settings-reference-configjson).
-* **Design language** comes from the owner's osu! beatmap viewer (`F:\osubeatmapviewer\assets\app.css`): tokens
-  `--bg #1c1726, --bg2 #241d33, --panel #2d2540, --line #443a5a, --ink #f3eefb, --dim #b3a8cc, --pink #ff66aa, --pinkdk #2a0f1f, --sky #66ccff`,
-  fonts Varela Round + IBM Plex Sans Thai, pill buttons, cover-art cards, the osu! star colour ramp (`starColor`). Keep new UI consistent with it.
+* **Design language:** osu! pink as the one accent on a violet-tinted neutral ground, light and dark by the browser's setting (`prefers-color-scheme`). All colours are tokens in `:root` of `app.css`
+  (`--brand`, `--bg`, `--surface`, `--ink`, `--muted`, `--line`, `--ok`, `--warn`, `--bad`, `--info`) and Bootstrap's `--bs-*` tokens are set from them, so Bootstrap components follow both themes.
+  Fonts: Kanit (headings), IBM Plex Sans Thai (text), IBM Plex Mono (numbers). The osu! star colour ramp (`starColor`) and the mod colours stay the same in both themes. Keep new UI on the tokens; no literal colours.
 
 ---
 
@@ -1022,6 +1031,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
+| unreleased | branch `ui-bootstrap6` | **New dashboard on Bootstrap 6** (6.0.0-alpha.1, vendored): sticky top bar with the requests switch, volume, language, settings and a ⋮ menu (pre-stream check, support file, close tosu/TikFinity, quit); light and dark by the browser; now playing with a cover picture; queue rows with a picture, play and remove buttons and a ⋮ menu (move, skip, preview, open elsewhere, bans); rejected / activity / history / LIVE events as tabs; settings as a dialog with a side menu (a full-screen page on phones); the pre-stream check in a drawer; Bootstrap toasts. The server sets the content type of `.js`, `.css` and `.svg` itself. Needs Chrome/Edge 130, Firefox 132 or Safari 18 or newer. Bootstrap, Floating UI and Vanilla Calendar Pro licences added |
 | 1.4.8 | PR #13 | **TikTok direct**: chat and gifts straight from TikTok without TikFinity (`connection.source` `tiktok`, `tiktokUser`, optional `eulerApiKey`; new package `internal/tiktok`, signed by Euler Stream, keyless or with a key; switch back to TikFinity any time). Status pill, pre-stream check, mod panel and support file (key hidden) know the source. Only one dashboard page reads TTS (`POST /api/tts/speaker`, `State.ttsSpeaker`): the last one started, the others say **TTS in another window**. `osu.viewerUrl` can be a template with `{set}`, `{map}`, `{file}` |
 | 1.4.7 | PR #11 | TTS starts by itself when the dashboard loads (`ttsAutoStart`); when the browser wants an interaction first, the first click or key anywhere starts it. Switching it off is remembered per browser (`osureq.ttsOff`). New `queue.autoNeedsPass` ("Auto: only after a clear", off by default): a fail or quit waits for a retry or Next; the tracker now goes from `ended` back to `playing` when the same map is played again. README credits chaiwat2183 for the idea |
 | 1.4.6 | PR #10 | Auto mode no longer stalls: a failed first request is passed over (as Next does), and the tracker also matches by artist and title when tosu reports another set ID (osu! says -1 for maps without one in the .osu). **Previous** on the dashboard and the mod panel (`App.Previous`, `Queue.Back`, the last 10 now-playing maps in `recent`): osu! opens the map played before again and the current one returns to the front of the queue. History rows have **Open in osu!** (`POST /api/jump`, `osu://b/<id>`; history now records `beatmapId`). Mirrors are probed once after start instead of every 30 min, show OK, and a mirror refusing a download with HTTP 403 is reported in Activity (once per mirror until it works again) |

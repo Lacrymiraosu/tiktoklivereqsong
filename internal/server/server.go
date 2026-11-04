@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -184,8 +185,7 @@ func (s *Server) Push() {
 func (s *Server) Handler(port int) http.Handler {
 	mux := http.NewServeMux()
 	sub, _ := fs.Sub(webFS, "web")
-	files := http.FileServerFS(sub)
-	mux.Handle("GET /assets/", http.StripPrefix("/assets/", files))
+	mux.Handle("GET /assets/", http.StripPrefix("/assets/", assetTypes(http.FileServerFS(sub))))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) { serveFile(w, sub, "index.html") })
 	mux.HandleFunc("GET /overlay", func(w http.ResponseWriter, r *http.Request) { serveFile(w, sub, "overlay.html") })
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, s.state()) })
@@ -209,6 +209,23 @@ func (s *Server) Handler(port int) http.Handler {
 	mux.HandleFunc("POST /api/tts", s.tts)
 	mux.HandleFunc("POST /api/tts/speaker", s.ttsSpeaker)
 	return guard(port, mux)
+}
+
+// assetTypes sets the content type of the dashboard's files itself. The
+// standard library asks the Windows registry for it, and on a PC where .js
+// is registered as text/plain a browser refuses to run a module script.
+func assetTypes(next http.Handler) http.Handler {
+	types := map[string]string{
+		".js":  "text/javascript; charset=utf-8",
+		".css": "text/css; charset=utf-8",
+		".svg": "image/svg+xml",
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if t, ok := types[path.Ext(r.URL.Path)]; ok {
+			w.Header().Set("Content-Type", t)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func serveFile(w http.ResponseWriter, sub fs.FS, name string) {
