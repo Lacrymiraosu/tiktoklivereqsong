@@ -1438,6 +1438,11 @@ function whenOK(when) {
 function renderSettings() {
   const tabs = $("#setTabs");
   tabs.replaceChildren(...Object.keys(SCHEMA).map(k => h("button", { class: "nav-link" + (k === tab ? " active" : ""), type: "button", role: "tab", "aria-selected": k === tab ? "true" : "false", onclick: () => { tab = k; renderSettings(); $("#setBody").scrollTop = 0; } }, t("tab_" + k))));
+  const on = tabs.querySelector(".active");
+  if (on && tabs.scrollWidth > tabs.clientWidth) { // phone layout: the tabs are one scrolling row, keep the open one in view
+    const a = on.getBoundingClientRect(), n = tabs.getBoundingClientRect();
+    tabs.scrollLeft += a.left - n.left - (n.width - a.width) / 2;
+  }
   const body = $("#setBody");
   const box = h("div", { class: "fgroup" });
   for (const f of SCHEMA[tab]) {
@@ -1598,12 +1603,15 @@ function sourcesField(f, text) {
     list.replaceChildren(...src.map((s, i) => {
       const en = h("input", { type: "checkbox", role: "switch", switch: true, "aria-label": s.name }); en.checked = s.enabled;
       en.addEventListener("change", () => s.enabled = en.checked);
-      const to = h("input", { type: "number", class: "form-control num", value: s.timeoutSec, min: 5, title: L("timeout (s)", "หมดเวลา (วินาที)") });
+      const toTitle = L("timeout (seconds)", "หมดเวลา (วินาที)");
+      const to = h("input", { type: "number", class: "form-control num", value: s.timeoutSec, min: 5, "aria-label": s.name + " " + toTitle });
       to.addEventListener("input", () => s.timeoutSec = Number(to.value));
-      const mv = (d, ico, dis) => h("button", { type: "button", class: "btn-outline theme-secondary btn-icon rounded-pill sm", disabled: dis, "aria-label": d < 0 ? "up" : "down", onclick: () => { src.splice(i + d, 0, src.splice(i, 1)[0]); draw(); } }, svg(ico));
-      const url = (k, ph) => { const x = h("input", { type: "text", class: "form-control mono", value: s[k] || "", placeholder: ph, spellcheck: "false" }); x.addEventListener("input", () => s[k] = x.value); return x; };
-      return h("div", { class: "src" }, h("span", { class: "switch" }, en), h("b", {}, s.name + (s.official ? " ★" : "")), to, mv(-1, ICON.up, i === 0), mv(1, ICON.down, i === src.length - 1),
-        h("div", { class: "urls" }, url("url", "https://…/{id}"), url("noVideoUrl", L("no-video URL (optional)", "URL ไม่เอาวิดีโอ (ไม่บังคับ)"))));
+      const mvTitle = d => s.name + ": " + (d < 0 ? L("move up (try it earlier)", "เลื่อนขึ้น (ลองก่อน)") : L("move down (try it later)", "เลื่อนลง (ลองทีหลัง)"));
+      const mv = (d, ico, dis) => h("button", { type: "button", class: "btn-outline theme-secondary btn-icon rounded-pill sm", disabled: dis, title: mvTitle(d), "aria-label": mvTitle(d), onclick: () => { src.splice(i + d, 0, src.splice(i, 1)[0]); draw(); } }, svg(ico));
+      const url = (k, cap, ph) => { const x = h("input", { type: "text", class: "form-control mono", value: s[k] || "", placeholder: ph, spellcheck: "false", "aria-label": s.name + " " + cap }); x.addEventListener("input", () => s[k] = x.value); return h("label", { class: "urow" }, h("small", {}, cap), x); };
+      return h("div", { class: "src" }, h("span", { class: "switch" }, en), h("b", {}, s.name + (s.official ? " ★" : "")),
+        h("label", { class: "srcto", title: toTitle }, to, h("small", {}, L("sec", "วินาที"))), mv(-1, ICON.up, i === 0), mv(1, ICON.down, i === src.length - 1),
+        h("div", { class: "urls" }, url("url", L("download", "ดาวน์โหลด"), "https://…/{id}"), url("noVideoUrl", L("no video", "ไม่เอาวิดีโอ"), L("optional", "ไม่บังคับ"))));
     }));
   };
   draw();
