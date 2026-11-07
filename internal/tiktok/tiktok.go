@@ -241,6 +241,15 @@ func handle(m *pb.WebcastResponse_Message, since int64, ev tikfinity.DirectEvent
 			ev.Gift(g)
 		}
 		return nil
+	case "WebcastRoomUserSeqMessage":
+		var x pb.WebcastRoomUserSeqMessage
+		if proto.Unmarshal(m.GetPayload(), &x) != nil {
+			return nil
+		}
+		if n := x.GetTotal(); n >= 0 && n <= 1e9 && ev.Viewers != nil {
+			ev.Viewers(int(n))
+			return nil
+		}
 	case "WebcastControlMessage":
 		var x pb.WebcastControlMessage
 		if proto.Unmarshal(m.GetPayload(), &x) == nil {

@@ -62,6 +62,20 @@ button,input{font:inherit;color:inherit}
 .toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 16px;font-size:14px;transition:.25s;max-width:calc(100vw - 32px)}
 .toast.on{opacity:1;transform:translate(-50%,0)}.toast.bad{border-color:var(--err)}
 h2{font-size:14px;color:var(--pink);margin:6px 0 0}
+/* ▶ view map: KIKI's beatmap player folds out under the row, full width, 16:10, one at a time */
+.row .acts{flex-wrap:wrap;justify-content:space-between}
+.row .acts .grp{display:flex;gap:6px;margin-left:auto}
+.kk{min-height:36px;padding:0 12px;border-radius:18px;border:1px solid var(--line);background:transparent;color:var(--pink);font-size:14px;cursor:pointer;white-space:nowrap}
+.kk.on{background:var(--pink);border-color:var(--pink);color:var(--pinkdk);font-weight:600}
+.np .kk{margin-top:10px}
+.kiki{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s ease,margin .25s ease}
+.kiki.open{grid-template-rows:1fr}
+.kiki-in{min-height:0;overflow:hidden}
+.kiki-frame{position:relative;width:100%;aspect-ratio:16/10;border-radius:14px;border:1px solid var(--line);overflow:hidden;background:#000}
+.kiki-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+.list>.kiki{margin-top:-8px}.list>.kiki.open{margin-top:-4px}
+#np+.kiki.open{margin-top:8px}
+@media (prefers-reduced-motion:reduce){.kiki{transition:none}}
 </style>
 </head>
 <body>
@@ -78,7 +92,7 @@ h2{font-size:14px;color:var(--pink);margin:6px 0 0}
   </form>
 
   <div id="main" hidden>
-    <div class="card req"><div><b id="reqLabel"></b><div class="pills"><span><i class="dot" id="tfDot"></i> <span id="tfName">TikFinity</span></span><span><i class="dot" id="tosuDot"></i> tosu</span></div></div>
+    <div class="card req"><div><b id="reqLabel"></b><div class="pills"><span><i class="dot" id="tfDot"></i> <span id="tfName">TikFinity</span> <span id="tfViewers" hidden></span></span><span><i class="dot" id="tosuDot"></i> tosu</span></div></div>
       <input type="checkbox" class="switch" id="reqSw" aria-labelledby="reqLabel"></div>
     <div class="card np" id="np"></div>
     <h2 id="queueTitle"></h2>
@@ -101,7 +115,8 @@ const TX = {
   confirmRemove: ["Remove {t} (@{u})?", "ลบ {t} (@{u})?"], confirmSkip: ["Skip the song being played?", "ข้ามเพลงที่กำลังเล่น?"],
   st_queued: ["waiting", "รอดาวน์โหลด"], st_downloading: ["downloading", "กำลังดาวน์โหลด"], st_ready: ["ready", "พร้อมเล่น"], st_failed: ["failed", "ล้มเหลว"],
   ph_waiting: ["waiting to be played", "รอเริ่มเล่น"], ph_playing: ["playing", "กำลังเล่น"], ph_results: ["results screen", "หน้าผลคะแนน"], ph_ended: ["finished", "เล่นจบแล้ว"],
-  votes: ["skip votes {v}/{n}", "โหวตข้าม {v}/{n}"], offline: ["Lost connection to osureq", "ขาดการเชื่อมต่อกับ osureq"],
+  kikiOpen: ["view map", "ดูแมพ"], kikiClose: ["close map viewer", "ปิดตัวดูแมพ"], kikiTitle: ["Beatmap player (KIKI Beatmap Viewer)", "ตัวดูแมพ (KIKI Beatmap Viewer)"],
+  viewers: ["people watching the LIVE", "ผู้ชมที่กำลังดูไลฟ์"], votes: ["skip votes {v}/{n}", "โหวตข้าม {v}/{n}"], offline: ["Lost connection to osureq", "ขาดการเชื่อมต่อกับ osureq"],
   e_queue_empty: ["The queue is empty", "คิวว่างอยู่"], e_busy: ["Already opening a map", "กำลังเปิดแมพอยู่"], e_not_found: ["That request is gone", "คำขอนี้ไม่อยู่แล้ว"], e_no_previous: ["No map was played before this one", "ยังไม่มีแมพก่อนหน้า"],
 };
 let LANG = (navigator.language || "").startsWith("th") ? "th" : "en";
@@ -158,6 +173,7 @@ $("#lang").addEventListener("click", () => { LANG = LANG === "th" ? "en" : "th";
 
 function showLogin() {
   S = null;
+  kikiClose();
   $("#main").hidden = true; $("#logout").hidden = true; $("#loginForm").hidden = false;
   setTimeout(() => $("#pin").focus(), 50);
 }
@@ -173,6 +189,106 @@ $("#logout").addEventListener("click", async () => { await api("POST", "/m/logou
 $("#reqSw").addEventListener("change", () => act("/m/api/action/toggleRequests"));
 
 let S = null, lastKey = "";
+
+// ▶ view map opens KIKI Beatmap Viewer's player under a row: a plain iframe of player.kiki-bm.app
+// (the page's CSP allows framing only that site), which fetches the map from the community
+// mirrors by its id. No script from KIKI runs here and nothing is sent to it but the address.
+// One player at a time; it stays where it is while the rows around it are redrawn (place).
+const KIKI = "https://player.kiki-bm.app";
+let kiki = null; // the open player: { key, box, frame }
+// kikiMods keeps the mods the player knows (EZ HD HR DT NC HT FL) and, like the player,
+// drops the later one of EZ+HR and of DT/NC/HT. "" = no mods.
+function kikiMods(mods) {
+  const out = [], speed = ["DT", "NC", "HT"];
+  for (const m of String(mods || "").toUpperCase().match(/[A-Z0-9]{2}/g) || []) {
+    if (!["EZ", "HD", "HR", "FL", ...speed].includes(m) || out.includes(m)) continue;
+    if ((m === "EZ" || m === "HR") && out.some(x => x === "EZ" || x === "HR")) continue;
+    if (speed.includes(m) && out.some(x => speed.includes(x))) continue;
+    out.push(m);
+  }
+  return out.join("");
+}
+const okID = n => Number.isInteger(n) && n > 0;
+// kikiShows: the button is on (Settings → osu!) and the map is osu!standard, the only mode the player plays.
+const kikiShows = it => !!(S && S.kikiPlayer) && it.mode === "osu" && (okID(it.setId) || okID(it.beatmapId));
+// kikiURL: /s/{set}?diff={map} (or /b/{map} without a set) with the request's mods, the page's language and osureq's pink.
+function kikiURL(it, lang) {
+  const q = new URLSearchParams();
+  let path = "/b/" + it.beatmapId;
+  if (okID(it.setId)) {
+    path = "/s/" + it.setId;
+    if (okID(it.beatmapId)) q.set("diff", it.beatmapId);
+  }
+  const mods = kikiMods(it.mods);
+  if (mods) q.set("mods", mods);
+  const pink = getComputedStyle(document.documentElement).getPropertyValue("--pink").trim();
+  q.set("lang", lang);
+  q.set("accent", /^#[0-9a-f]{6}$/i.test(pink) ? pink : "#ff66aa");
+  q.set("label", "osureq");
+  return KIKI + path + "?" + q;
+}
+function kkBtn(key) {
+  const open = !!kiki && kiki.key === key;
+  return `<button class="kk${open ? " on" : ""}" type="button" data-kiki-btn="${esc(key)}" aria-expanded="${open}">${open ? "▴ " + tx("kikiClose") : "▶ " + tx("kikiOpen")}</button>`;
+}
+function syncKiki() {
+  document.querySelectorAll("[data-kiki-btn]").forEach(b => {
+    const open = !!kiki && kiki.key === b.dataset.kikiBtn;
+    b.textContent = open ? "▴ " + tx("kikiClose") : "▶ " + tx("kikiOpen");
+    b.setAttribute("aria-expanded", String(open));
+    b.classList.toggle("on", open);
+  });
+}
+function kikiToggle(b) {
+  const key = b.dataset.kikiBtn, again = !!kiki && kiki.key === key;
+  kikiClose();
+  if (again || !S) return;
+  const id = key.slice(2), now = key.startsWith("n:");
+  const it = now ? (S.now && S.now.id === id ? S.now : null) : S.items.find(x => x.id === id);
+  const anchor = now ? $("#np") : b.closest(".row");
+  if (!it || !anchor || !kikiShows(it)) return;
+  const frame = document.createElement("iframe");
+  frame.src = kikiURL(it, LANG);
+  frame.title = tx("kikiTitle");
+  frame.setAttribute("allow", "autoplay; fullscreen");
+  frame.setAttribute("loading", "lazy");
+  const box = document.createElement("div");
+  box.className = "kiki";
+  box.innerHTML = '<div class="kiki-in"><div class="kiki-frame"></div></div>';
+  box.querySelector(".kiki-frame").append(frame);
+  anchor.after(box);
+  kiki = { key, box, frame };
+  box.addEventListener("transitionend", () => { if (kiki && kiki.box === box) box.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, { once: true });
+  requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add("open")));
+  syncKiki();
+}
+function kikiClose() {
+  const k = kiki;
+  if (!k) return;
+  kiki = null;
+  k.frame.remove(); // the sound stops at once
+  k.box.classList.remove("open");
+  setTimeout(() => k.box.remove(), 300);
+  syncKiki();
+}
+// place puts new rows in a list but keeps the open player where it is (moving an iframe reloads
+// it): the rows go around it while its own row is still there; otherwise the player closes.
+function place(el, html) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  const nodes = [...tpl.content.children], k = kiki;
+  if (k && k.box.parentNode === el) {
+    const at = nodes.findIndex(n => n.dataset.kiki === k.key);
+    if (at >= 0) {
+      for (const c of [...el.children]) if (c !== k.box) c.remove();
+      k.box.before(...nodes.slice(0, at + 1));
+      k.box.after(...nodes.slice(at + 1));
+      return;
+    }
+    kikiClose();
+  }
+  el.replaceChildren(...nodes);
+}
 // pvBtn plays (or stops) the map's preview on the stream PC, through the dashboard there.
 function pvBtn(it, playing) {
   const on = it.setId > 0 && it.setId === playing;
@@ -183,32 +299,40 @@ function render(s) {
   $("#reqSw").checked = s.requests;
   $("#tfDot").className = "dot " + s.tikfinity;
   $("#tfName").textContent = s.chatSource === "tiktok" ? "TikTok" : "TikFinity";
+  const vw = $("#tfViewers"), viewers = s.viewers > 0 ? s.viewers : 0;
+  vw.hidden = !viewers;
+  vw.textContent = viewers ? "👁 " + viewers.toLocaleString() : "";
+  vw.title = viewers ? tx("viewers") : "";
   $("#tosuDot").className = "dot " + s.tosu;
-  const key = JSON.stringify([s.now, s.items, s.voteSkip, s.previewing, s.prev, LANG]);
+  const key = JSON.stringify([s.now, s.items, s.voteSkip, s.previewing, s.prev, s.kikiPlayer, LANG]);
   if (key === lastKey) return; // nothing changed: keep the page still under the thumb
   lastKey = key;
   const n = s.now, vs = s.voteSkip || {};
+  // the player of now playing sits after the card (a redraw of the card leaves it alone) until another map plays
+  if (kiki && kiki.key.startsWith("n:") && (!n || kiki.key !== "n:" + n.id)) kikiClose();
   $("#np").innerHTML = `<div class="lab">${tx("nowPlaying")}</div>` + (n
     ? `<b>${esc(n.title)}</b><div class="sub">${star(n)}${modsTag(n)}${esc(n.artist)} · [${esc(n.version)}]</div>
-       <div class="sub">${tx("by")} @${esc(n.user)} · ${tx("ph_" + (n.phase || "waiting"))}${vs.needed > 0 && vs.votes > 0 ? " · " + tx("votes", { v: vs.votes, n: vs.needed }) : ""}</div>`
+       <div class="sub">${tx("by")} @${esc(n.user)} · ${tx("ph_" + (n.phase || "waiting"))}${vs.needed > 0 && vs.votes > 0 ? " · " + tx("votes", { v: vs.votes, n: vs.needed }) : ""}</div>${kikiShows(n) ? kkBtn("n:" + n.id) : ""}`
     : `<div class="sub" style="margin-top:6px">${tx("nothing")}</div>`) +
     `<div class="acts" data-id="${n ? esc(n.id) : ""}">${s.prev ? `<button class="btn prev" type="button" data-act="previous" title="${esc(tx("prev", { t: s.prev }))}" aria-label="${esc(tx("prev", { t: s.prev }))}">◀</button>` : ""}${n ? pvBtn(n, s.previewing) : ""}<button class="btn" type="button" data-act="skip"${n ? "" : " disabled"}>${tx("skip")}</button><button class="btn main" type="button" data-act="next">${tx("next")} →</button></div>`;
   $("#queueTitle").textContent = tx("queue", { n: s.items.length });
-  $("#queue").innerHTML = s.items.length ? s.items.map((it, i) => `<div class="row" data-id="${esc(it.id)}">
+  place($("#queue"), s.items.length ? s.items.map((it, i) => `<div class="row" data-id="${esc(it.id)}" data-kiki="q:${esc(it.id)}">
       <span class="n${it.priority ? " prio" : ""}">${it.priority ? "★" : i + 1}</span>
       <span class="t">${star(it)}${modsTag(it)}${esc(it.artist)} - ${esc(it.title)}</span>
       <span class="m">@${esc(it.user)} · ${tx("st_" + it.state)} · [${esc(it.version)}]</span>
-      <div class="acts">
+      <div class="acts">${kikiShows(it) ? kkBtn("q:" + it.id) : ""}<span class="grp">
         ${pvBtn(it, s.previewing)}
         <button class="btn sm" type="button" data-op="up" data-i="${i}"${i === 0 ? " disabled" : ""} aria-label="${tx("up")}">▲</button>
         <button class="btn sm" type="button" data-op="down" data-i="${i}"${i === s.items.length - 1 ? " disabled" : ""} aria-label="${tx("down")}">▼</button>
         <button class="btn sm" type="button" data-op="skip">${tx("skip")}</button>
-        <button class="btn sm" type="button" data-op="remove">${tx("remove")}</button></div></div>`).join("")
-    : `<div class="empty">${tx("empty")}</div>`;
+        <button class="btn sm" type="button" data-op="remove">${tx("remove")}</button></span></div></div>`).join("")
+    : `<div class="empty">${tx("empty")}</div>`);
+  if (kiki && (!s.kikiPlayer || !kiki.box.isConnected)) kikiClose(); // switched off in Settings, or its row is gone
 }
 document.addEventListener("click", async e => {
   const b = e.target.closest("button");
   if (!b || b.disabled) return;
+  if (b.dataset.kikiBtn) { kikiToggle(b); return; }
   if (b.dataset.act) {
     if (b.dataset.act === "skip" && !confirm(tx("confirmSkip"))) return;
     b.disabled = true;

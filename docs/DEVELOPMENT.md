@@ -9,7 +9,8 @@ TikTok LIVE viewers request osu! beatmaps in chat. The helper:
 4. confirms the `.osu` files match what osu! currently serves (MD5),
 5. opens the map in osu! when the streamer presses **Next**, or automatically once **tosu** sees the previous song has ended.
 
-A local dashboard (English/Thai) and a transparent OBS overlay run inside the same exe.
+A local dashboard (English/Thai) and a transparent OBS overlay run inside the same exe. The overlay can also be loaded from a second PC
+through the mod panel's port with a secret link ([Overlay link](#overlay-link)).
 
 > **This guide is also the handoff document.** It is written so that another developer can continue the project
 > from it alone. Start with [Project status](#project-status), then [Architecture](#architecture),
@@ -49,7 +50,7 @@ Thai: see [README.th.md](README.th.md).
 
 | | |
 |---|---|
-| Version | **1.4.9** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.5.0** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
 | Tests | `go test ./...`: 20 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
@@ -64,6 +65,11 @@ audio preview and one-click bans. Auto mode and play results were verified again
 (live TikTok chat, gift, role and profile-picture fields, real tosu + osu! gameplay, opening `.osz` into osu! via Next, hotkeys, official-download fallback, lazer).
 The 1.4.0 features were tested with unit tests and a Linux harness (dashboard and overlay screenshots); song search, the
 pre-stream check, the osu.direct fix and the update check were also run against the live services.
+
+The 1.5.0 changes (viewer count, KIKI map player, several maps per message, overlay link for a second PC, the Map rules drawer, the kiki-bm.app
+default viewer) are covered by unit tests and were tried together in a browser against a test server on one PC (the overlay link through its LAN
+address; the rules merge also with a node script). They were not yet tried on a real stream, on a second PC or in OBS. What is still unverified is in
+[Known limitations and open items](#known-limitations-and-open-items).
 
 ---
 
@@ -90,22 +96,30 @@ pre-stream check, the osu.direct fix and the update check were also run against 
 * **Gift priority** (opt-in): gift coins add up per viewer; each full amount moves their oldest waiting request to the top or is saved for the next one.
 * **Gift-only requests** (opt-in): each request costs gift coins; a rejected map costs nothing.
 * **Requests with mods** (`!req 2096297 HDHR`, `!req freedom dive +DT`): shown as a tag everywhere; rules for allowed mods and a star cap for DT/NC/HR.
+* **Several maps per message** (opt-in, `command.maxPerMessage` 1-5): `!req 2096297 1859353 HDHR 1521430` is three requests, each through every rule;
+  see [Several maps in one message](#several-maps-in-one-message).
 * **Fair queue** (opt-in): a viewer's second request waits behind everyone's first, and so on.
 * **Automatic open/close**: requests close at a queue size and reopen when it is short again, and close at a set time.
 * **Song and artist bans**: rules like `artist="a_hisa"`, `title="Ghost"` or both; every set of a song (TV size, cut, remaps) is caught, also by Japanese/Thai names.
 * **Mod panel** (opt-in): a PIN-protected phone page on the home network for Next, Skip, moving/removing requests and requests on/off.
+* **Overlay on a second PC** (opt-in, `overlay.remote`): the mod panel's listener serves the overlay and a read-only state feed under a secret link `/o/<token>`; see [Overlay link](#overlay-link).
 * **Chat TTS** (opt-in): reads chat aloud in the dashboard and never reads commands (`!req …`), links or emoji; replaces TikFinity's TTS, which cannot skip them.
 * **Spoken announcements** (opt-in): "test1 ขอเพลง …", "เพลง … ยากเกินไป 7.25 ดาว", next map, results, gifts, from templates the streamer edits.
 * **Support file**: one zip (log, raw TikFinity events, settings, state) to send after a stream with a problem.
 * **Viewer roles**: followers-only mode and a higher per-user limit for subscribers (when TikFinity sends these flags).
 * **One-click bans** of a requester, map or mapper from a queue card or the rejection log.
+* **Map rules on the dashboard**: the **Map rules** button above the queue opens a drawer with every map rule (stars, length, modes, statuses, mods,
+  followers only, blacklists); it is no longer a Settings tab. See [Map rules drawer](#map-rules-drawer).
 * **Audio preview** of queued maps and a link to open them in the owner's **beatmap viewer**.
+* **Map player** (`osu.kikiPlayer`, `osu.kikiPlayerMod`): **▶ view map** on queue, now-playing and history cards (and on the mod panel) opens
+  [KIKI Beatmap Viewer](https://api.kiki-bm.app/)'s player under the card, osu!standard maps only; see [KIKI Beatmap Viewer player](#kiki-beatmap-viewer-player).
 * **CMD window** with the live log (titled `osureq <version>`); closing it stops the helper cleanly. A second launch opens the running copy's dashboard.
 * **Dashboard** (EN/TH): status of TikFinity and tosu, now playing, queue with drag-to-reorder, per-source download
-  progress, MD5 result, rejection log, activity, history, raw TikFinity events, full settings editor.
+  progress, MD5 result, rejection log, activity, history, raw TikFinity events, full settings editor (map rules in their own drawer).
 * **Test panel**: simulated chat through the real rules (requests and commands), quick add, simulated gifts, dry run (never touches osu!), clear test data.
 * **Pre-stream check**: one button checks TikFinity, tosu, the Songs folder, hotkeys, the overlay connection, osu.ppy.sh and every mirror.
 * **Session summary** ("This stream"): maps played and cleared, best play, top requesters; shown on the overlay on request.
+* **Viewer count**: "👁 1,234" in the dashboard's connection pill and next to the connection name on the mod panel, only when known (TikTok direct; TikFinity when it sends it).
 * **stable/lazer detection** from tosu, and **automatic updates** from GitHub releases: downloaded and SHA-256 checked in the background, installed the next time osureq starts (or right away from the button at the top).
 * **OBS overlay**: transparent page with now playing, requester (with TikTok picture), upcoming queue (priority marked), pop-ups and the session summary (themes, size, corner, language).
 * **Global hotkeys**: next, skip, remove last, toggle requests.
@@ -174,6 +188,7 @@ Command-line flags: `-dir <folder>` keeps config, queue, cache and log somewhere
 !req freedom dive                                         ← a song name (command.searchByName, on by default)
 !req 2096297 HDHR                                         ← with mods (also +HDHR, "hd hr", "hd,dt")
 !req freedom dive +DT                                     ← a song name with mods: "+" (or capitals) at the end
+!req 2096297 1859353 HDHR 1521430                         ← several maps (command.maxPerMessage ≥ 2); mods go with the ID before them
 ```
 
 Mods (`internal/mods`): NF EZ HD HR SD DT HT NC FL SO PF FI MR, written back in osu!'s order (`HDHR`, `HDDT`). NC includes DT and PF includes SD.
@@ -184,6 +199,9 @@ name is part of the name.
 
 An ID or osu! link in the first word wins and anything after it is ignored. Otherwise the text (3-80 characters) is a song name;
 anything that looks like a link to another site is never searched and is ignored, as is everything when search is off.
+
+With `command.maxPerMessage` above 1, a message made only of IDs, osu! links and mods that names two or more different maps is several requests
+(see [Several maps in one message](#several-maps-in-one-message)); every other message is read as described above.
 
 Other chat commands (names are configurable; an empty name turns one off):
 
@@ -204,6 +222,7 @@ Mods are the users in **Settings → Command → Mods**, plus TikTok moderators 
 ## How a request is handled
 
 1. **Parse** (`internal/parser`): the chat message must start with the command or an alias, followed by an ID, a link or a song name (`KindSearch`).
+   With `command.maxPerMessage` above 1, `parser.ParseAll` first tries to read the message as several maps (see below).
 2. **User checks** (`validator.CheckUser`, no network): blacklisted user, queue full, followers-only, per-user limit (higher for subscribers if set), cooldown.
    Exempt users skip everything after "queue full". With gift-only requests a paid request is taken here (and given back if the map is rejected later).
 3. **Metadata** (`internal/osumeta`): `GET https://osu.ppy.sh/beatmapsets/{setId}` (or `/beatmaps/{id}`, which redirects to the set) and parse
@@ -243,7 +262,7 @@ Mods are the users in **Settings → Command → Mods**, plus TikTok moderators 
 Rejection reason codes (shown translated on the dashboard): `user_blacklisted`, `queue_full`, `user_limit`, `cooldown`, `set_blacklisted`,
 `mapper_blacklisted`, `status`, `duplicate`, `recently_played`, `not_found`, `mode`, `stars_low`, `stars_high`, `too_long`, `meta_error`,
 `bad_input`, `requests_off`, `followers_only`, `now_playing`, `no_convert` (a taiko/catch/mania map requested in another mode: only osu! maps convert),
-`search_none`, `search_error`, `needs_gift`, `song_blacklisted`, `artist_blacklisted`, `bad_mods`, `mods_off`, `mod_not_allowed`, `mod_stars`.
+`search_none`, `search_error`, `needs_gift`, `song_blacklisted`, `artist_blacklisted`, `bad_mods`, `mods_off`, `mod_not_allowed`, `mod_stars`, `too_many_maps` (more maps in one message than `command.maxPerMessage`; shown on the overlay, never spoken).
 
 **Mods and stars:** star ratings with mods are only available from osu!'s authenticated API (catboy's `/api/meta` says it is not implemented,
 osu.direct has none), so every star check uses the real **no-mod** rating. `rules.hardModMaxStars` is a separate no-mod cap for requests with
@@ -264,6 +283,33 @@ after the pairs is refused when saving (`song_rule`). Titles are compared after 
 trailing version tags such as `(TV Size)`, `[Extended Mix]`, `～Short ver.～`, `-Cut Ver.-` removed). Artists match as whole words in a row,
 so `artist="xi"` also bans "xi remixed by cosMo" but not "xinxin". Both are tried against `artist`/`title` and `artist_unicode`/`title_unicode`
 from the osu! page (**verified** field names).
+
+### Several maps in one message
+
+`command.maxPerMessage` (1-5, default 1 = one map per message as before; `max_per_message` when out of range; configs without the key get 1)
+switches `parser.ParseAll` on. Settings → Command → **Maps per message**.
+
+* **Parsing** (`parser.ParseAll(comment, Options{MaxMaps})`): used only when `MaxMaps` > 1, the message has more than two words and starts with the command.
+  Every word after it must be an ID or osu! link (`ParseArg`) or a mods word, and the words must name two or more different maps. A mods word is read as belonging to
+  the map before it: `+…` always (so `+HDXX` is a wrong mod, not chat), capitals made only of mod codes (`EZHR`), or words that parse as mods in any case (`hd`, `hdhr`).
+  Anything else (a song name, chat after the ID, a mods word first) falls back to `Parse`, so `!req 123 please` and song searches behave as before. A bare ID and a link to the
+  same map are one map; a map named twice counts once (the first, with its mods). Maps past `MaxMaps` are not requested and are counted in `extra`. All words after a map are
+  parsed as its mods (`mods.Parse`); a clash or unknown code sets that map's `Request.ModsErr`, so only that map is rejected (`bad_mods`). Result: `[]Part{Request, Text}`.
+* **Handling** (`App.submitAll`, one goroutine for the message, maps one after another, with a per-message `batch`): `HandleChat` and `SimulateMessage` call `ParseAll`; one part goes to
+  `submit` as before. Each map runs through the same `resolve` (`CheckUser`, metadata, `CheckMap`), sees the maps before it in the queue (so each counts against `queue.perUserLimit`, and a set
+  named twice is a duplicate), and with gift-only requests takes one paid request in order (a rejected map gives its request back, as for a single request).
+* **Cooldown**: `resolve` clears `LastRequest` once the message's first map has been through the viewer checks (`batch.checked`), so only the first map is held to the cooldown and the maps do not block each other;
+  the next message waits from the last map added (`queue.add` records it).
+* **Viewer rejections** (`viewerCodes`: `user_blacklisted`, `queue_full`, `followers_only`, `user_limit`, `cooldown`, `needs_gift`, `requests_off`, also when requests were closed in the
+  middle of the message) end the message: one rejection record stands for this map and the ones after it (its `input` lists them: `batch.rest`). Map rejections (stars, mode, duplicate, `bad_mods` …)
+  do not stop the message.
+* **Over the limit**: one `too_many_maps` rejection for the message (`short` `asked > allowed`, vars `n`, `max`), logged in the rejection list and shown on the overlay; marked as already spoken.
+* **TTS**: `batch.quiet(outcome)` lets each outcome (`added`, `rejected_<code>`) be spoken once per message and at most `spokenPerMessage` (2) lines in all; the dashboard keeps only 5 lines waiting.
+  The unexported `FeedEvent.quiet` keeps an event off `announce`; the overlay still gets every map.
+* **API**: `/api/simulate` for several maps answers `ok` (at least one added), `item` (the first added), `code`/`short`/`error` (the first rejection, also when others were added), `maps` (asked),
+  `count` (added), `rejected` and `ignored` (maps over the limit); single-map answers are unchanged. The dashboard's Test box adds the command in front of IDs/links that may be followed by mods
+  (`123 HDHR`) and in front of several IDs; quick add (`TestRequest`, `POST /api/test`) stays one map.
+* **Known gap**: `PUT /api/config` from a Settings dialog opened before the update would send 0 for the new key and fail validation (like other range fields); reload the dashboard.
 
 ### Automatic open/close
 
@@ -318,8 +364,8 @@ and announced on the overlay: `98.52% S · 812x · 2 miss · 301pp · HDHR`.
 The **Test** panel on the dashboard works while TikFinity is offline:
 
 * **Simulate chat** (`POST /api/simulate`): a message as any `@user`, through the real chat path (command, aliases, requests on/off,
-  per-user limit, cooldown, map rules). Non-requests are reported as "ignored", or "spoken" when chat TTS reads them. Only a bare ID or osu! link gets the command prepended;
-  other text is sent as plain chat, so TTS can be tried from the panel.
+  per-user limit, cooldown, map rules). Non-requests are reported as "ignored", or "spoken" when chat TTS reads them. The dashboard prepends the command only to text made of IDs or osu! links, each maybe followed by mods (`123 HDHR`, `123 456`);
+  other text is sent as plain chat, so TTS can be tried from the panel. Several maps: see [Several maps in one message](#several-maps-in-one-message).
 * **Quick add** (`POST /api/test`): straight into the queue, map rules only.
 * **Gift** (`POST /api/simulateGift`): pretends `@user` sent a gift worth N coins (gift priority or gift-only requests must be on).
 * **Pre-stream check** (`POST /api/preflight`, button next to Dry run): see [Pre-stream check](#pre-stream-check).
@@ -423,8 +469,12 @@ tosu ─────ws───────────►│                   
 * `tikfinity.Client.Run` and `tosu.Client.Run`: one goroutine each; reconnect every `reconnectSec`. In TikTok direct mode
   `tikfinity.Client.Run` calls `tiktok.Client.Stream` instead (checks every 30 s while offline; failed connections back off up to 5 min).
 * `app.Run`: a loop woken by queue changes (`App.Wake`) or a 2 s ticker; starts **one download at a time** and drives auto mode.
-* Every chat request is resolved in its own goroutine (`App.submit`), because metadata lookups take network time.
+* Every chat request is resolved in its own goroutine (`App.submit`), because metadata lookups take network time. A message with several maps is one goroutine
+  (`App.submitAll`): its maps are resolved one after another so each sees the ones before it, sharing one `batch` (cooldown, spoken lines).
 * `server`: `net/http` on 127.0.0.1; state pushes are coalesced (120 ms) and sent to every WebSocket client.
+* `remote` (mod panel listener, only when `remote.enabled`): each overlay connected through the overlay link (`/o/<token>/ws`) has its own loop in the handler (`overlayWS`): a 200 ms ticker builds
+  `OverlayState`, sends it when the JSON changed (and at least every 20 s), and re-checks the link on every tick, so switching it off or **New link** closes open overlays at once.
+  `Server.overlays` counts them for the pre-stream check.
 * Hotkeys: a locked OS thread with a Win32 message loop (`platform.Hotkeys`).
 * Overlay pop-ups: `App.emit` appends to a 30-entry feed (`App.Feed`) that is part of every state push; the overlay shows entries newer than the last one it saw.
 * `update.Run`: one goroutine; checks GitHub 10 s after start and then every 12 h (skipped for dev builds).
@@ -434,7 +484,8 @@ tosu ─────ws───────────►│                   
 
 **Dependency direction:** `main` → `app` → (`parser`, `osumeta`, `search`, `validator`, `queue`, `downloader`, `verifier`, `importer`, `tikfinity`, `tosu`, `update`) → `config`.
 `tiktok` depends on `tikfinity` (it produces `tikfinity.Chat`/`Gift`); `main` wires `tiktok.New().Stream` into `tikfinity.Client.Direct`.
-`server` depends on `app`. Only `main` imports `platform` (Windows APIs are injected into `tikfinity`, `tosu`, `downloader`, `importer` as functions,
+`server` depends on `app`. `remote` depends on `app`, `config` and `queue` but not on `server`: `main` hands it the overlay page (`server.OverlayPage()`) and the version, and hands `server`
+the overlay count (`srv.RemoteOverlays = mods.Overlays`), which the pre-stream check adds to its own. Only `main` imports `platform` (Windows APIs are injected into `tikfinity`, `tosu`, `downloader`, `importer` as functions,
 which keeps those packages testable).
 
 ---
@@ -466,36 +517,37 @@ tiktoklivereqsong/
     │                 preflight.go (+_test) pre-stream check
     │                 results_test.go       tosu → play result tests, stable/lazer detection
     │                 search_test.go        song-name and gift-only requests against a fake mirror + osu!
+    │                 multi_test.go         several maps per message (batch rules, cooldown, limits, TTS, gift-only)
     ├── config/       config.go             config.json schema, defaults, validation, store with change subscribers
-    ├── parser/       parser.go (+_test)    "!req …" → Request{Kind, SetID, BeatmapID, Mode, Bare}
+    ├── parser/       parser.go (+_test)    "!req …" → Request{Kind, SetID, BeatmapID, Mode, Bare}; ParseAll → []Part
     ├── osumeta/      osumeta.go (+_test)   osu.ppy.sh scraping: set metadata, reference MD5, beatmap→set, raw .osu fallback
     ├── mods/         mods.go (+_test)      mod parsing, clashes, speed, "played without"
     ├── search/       search.go (+_test)    song search on the mirrors, re-ranking by title match and plays
     │   └── testdata/                       a real (trimmed) search response
     ├── update/       update.go (+_test)    GitHub "latest release" check
     ├── support/      support.go (+_test)   the support zip
-    ├── remote/       remote.go (+_test)    mod panel: second listener, PIN sessions, private-network guard
-    │   └── web/mod.html                    the phone page (embedded)
+    ├── remote/       remote.go (+_test)    mod panel: second listener, PIN sessions, private-network guard, overlay link (`/o/{token}`)
+    │   └── web/mod.html                    the phone page (embedded), with the ▶ KIKI player
     ├── validator/    validator.go (+_test) CheckUser / CheckMap → *Rejection{Code, Detail}
     ├── queue/        queue.go (+_test)     items, now playing, history, rejections, cooldowns; queue.json persistence
     │                 gifts.go (+_test)     gift credits, priority tokens, prioritise, paid requests
     │                 summary.go (+_test)   stream session and its summary
-    ├── downloader/   downloader.go (+_test) sources, timeouts, ZIP sniffing, official browser flow, cache, cleanup
+    ├── downloader/   downloader.go (+_test) sources, timeouts, ZIP sniffing, official browser flow, cache, cleanup, CachedFile (the map player)
     ├── verifier/     verifier.go (+_test)  in-memory unzip + MD5 compare (strict / requested)
     │   └── testdata/                       .osz fixtures (regenerate with -update)
     ├── importer/     importer.go, osudb.go (+_test)  open / copy / extract, Songs dir, safe paths, osu!.db hash scan
-    ├── tikfinity/    tikfinity.go (+_test, direct_test) TikFinity detection + WebSocket client + chat parsing; direct mode loop
-    ├── tiktok/       tiktok.go (+_test)    TikTok direct: room lookup, Euler Stream signing, LIVE WebSocket, chat/gift mapping
+    ├── tikfinity/    tikfinity.go (+_test, direct_test) TikFinity detection + WebSocket client + chat parsing; direct mode loop; viewer count
+    ├── tiktok/       tiktok.go (+_test)    TikTok direct: room lookup, Euler Stream signing, LIVE WebSocket, chat/gift mapping, viewer count
     ├── tosu/         tosu.go (+_test)      tosu WebSocket client + song-end Tracker
     ├── platform/     platform_windows.go, hotkey.go (+_test)  Win32: ShellExecute, processes, registry, hotkeys
-    └── server/       server.go (+_test)    HTTP routes, guard, state snapshot, WebSocket push, pre-stream check endpoint
+    └── server/       server.go (+_test)    HTTP routes, guard, state snapshot, WebSocket push, pre-stream check endpoint, cached .osz for the player, overlay token
         └── web/                            embedded into the exe with go:embed
             ├── index.html                  dashboard markup (Bootstrap 6 components)
             ├── app.js                      dashboard logic (ES module, no build step)
             ├── app.css                     dashboard styles: brand tokens and what Bootstrap lacks
             ├── bootstrap.min.css           Bootstrap 6.0.0-alpha.1, unmodified (MIT)
             ├── bootstrap.bundle.min.js     Bootstrap 6 JavaScript with Floating UI and Vanilla Calendar Pro (MIT)
-            ├── overlay.html                OBS overlay (self-contained HTML+CSS+JS)
+            ├── overlay.html                OBS overlay (self-contained HTML+CSS+JS) (also served by `remote` at /o/{token})
             └── icon.svg                    favicon
 ```
 
@@ -504,8 +556,8 @@ tiktoklivereqsong/
 | File | Lines | What is in it | Key symbols |
 |---|---:|---|---|
 | `main.go` | ~250 | Parses `-dir` / `-no-browser`, titles the CMD window, picks the base folder (exe folder, or cwd under `go run`), sets up `osureq.log` (rotates at 5 MB), loads config, fixes the osu! folder from the registry, builds every module, wires callbacks (chat/gift → app, tosu → app, status → push, config changes → hotkeys/reconnects), hands off to an already running copy, starts the goroutines, waits for Ctrl+C / window close / Quit | `main`, `exeDir`, `setupLog`, `fatal`, `alreadyRunning` |
-| `internal/app/app.go` | ~750 | The brain. Turns chat into queue items, runs downloads/preload, handles Next/Play/Skip/Remove/Retry, auto mode and play results via tosu, dry run, test panel, notices | `App`, `HandleChat`, `SimulateChat`, `TestRequest`, `submit`/`resolve`/`lookup`, `Run`/`tick`, `OnGame`, `ResultShort`, `startDownload`/`download`, `preImport`, `Next`, `Play`/`play`, `Skip`, `ClearTest`, `ToggleDryRun`, `Hotkey`, `warnOnce`; `origin` (`fromChat`/`fromSim`/`fromQuick`) |
-| `internal/app/feed.go` | ~50 | Events for the overlay pop-ups (added, rejected, command, gift, result), newest first, 30 kept | `FeedEvent`, `emit`, `Feed` |
+| `internal/app/app.go` | ~750 | The brain. Turns chat into queue items (a message with several maps: `submitAll`, one `batch` per message), runs downloads/preload, handles Next/Play/Skip/Remove/Retry, auto mode and play results via tosu, dry run, test panel, notices | `App`, `HandleChat`, `SimulateChat`, `TestRequest`, `submit`/`submitAll`/`resolve`/`lookup`, `SimulateMessage`, `batch`, `Run`/`tick`, `OnGame`, `ResultShort`, `startDownload`/`download`, `preImport`, `Next`, `Play`/`play`, `Skip`, `ClearTest`, `ToggleDryRun`, `Hotkey`, `warnOnce`; `origin` (`fromChat`/`fromSim`/`fromQuick`) |
+| `internal/app/feed.go` | ~50 | Events for the overlay pop-ups (added, rejected, command, gift, result), newest first, 30 kept; the unexported `quiet` keeps an event off TTS | `FeedEvent`, `emit`, `Feed` |
 | `internal/app/commands.go` | ~100 | Chat commands other than requests; `IsMod` (Mods list or TikTok moderator flag) | `command`, `IsMod` |
 | `internal/app/gifts.go` | ~60 | Gift coins → priority tokens → prioritised requests; simulated gifts | `HandleGift`, `SimulateGift`, `applyCredit` |
 | `internal/app/ban.go` | ~70 | Adds to a blacklist and removes matching waiting requests | `Ban` |
@@ -515,32 +567,33 @@ tiktoklivereqsong/
 | `internal/update/update.go` | ~150 | Release check: `Newer` compares x.y.z, dev builds and pre-releases are never offered, links and zip/sha256 assets only from this repo's releases | `Run`, `Latest`, `Newer`, `Release` |
 | `internal/update/install.go` | ~200 | Automatic update: download the zip, check SHA-256, stage `osureq.update-<v>.exe` next to the exe, swap it in (`osureq.exe.old` kept until the next start), start the new copy in the same console | `Download`, `Staged`, `Install`, `Cleanup`, `Relaunch` |
 | `internal/mods/mods.go` | ~120 | Mod words → canonical string, clash rules, `Rate`, `Harder` (DT/NC/HR), `Missing` | `Parse`, `Has`, `Rate`, `Harder`, `Missing`, `Error` |
-| `internal/remote/remote.go` | ~440 | Mod panel: `Apply` starts/stops the listener on config changes; `guard` (private addresses, local Host names, header, CSP); PIN login with lockouts; limited state and actions | `Server`, `Apply`, `Status`, `Handler` |
+| `internal/remote/remote.go` | ~800 | Mod panel: `Apply` starts/stops the listener on config changes; `guard` (private addresses, local Host names, header, CSP); PIN login with lockouts; limited state and actions; the overlay link (`/o/{token}`, `/o/{token}/ws`: `overlayOK`, `overlayWS`, `OverlayState`); `viewers`, `kikiPlayer` and `beatmapId` for the phone page | `Server`, `Apply`, `Status`, `Handler`, `Overlays`, `OverlayState` |
+| `internal/remote/web/mod.html` | ~370 | The phone page (embedded): queue, now playing, actions, PIN login, viewer count; **▶ view map** puts KIKI's player (an iframe straight at `player.kiki-bm.app`, maps from the mirrors only) under a row | `kikiURL`, `kikiToggle`, `kikiMods` |
 | `internal/support/support.go` | ~130 | Support zip, home-folder redaction, log tail | `Write`, `Input` |
 | `internal/queue/summary.go` | ~110 | Session start (kept across restarts, new after 6 idle hours) and the summary | `Summary`, `NewSession` |
-| `internal/config/config.go` | ~310 | All settings structs with JSON names, `Default()`, `Validate()`, download host whitelist, `Store` (atomic save via `.tmp` + rename, `OnChange` subscribers). Unknown/missing fields fall back to defaults because the file is unmarshalled over `Default()` | `Config`, `Connection`, `Osu`, `Command`, `Rules`, `Queue`, `Source`, `Download`, `MD5`, `Import`, `Overlay`, `Hotkeys`, `Test`, `HostAllowed`, `Store` |
-| `internal/parser/parser.go` | ~150 | Command matching (case-insensitive, aliases), ID and link parsing, `#mode/id` fragments, rejects foreign hosts and non-numeric IDs. `Bare` marks plain numbers so the app can retry as the other kind | `Parse`, `ParseArg`, `Request`, `Request.Flip`, `Kind` |
+| `internal/config/config.go` | ~310 | All settings structs with JSON names, `Default()`, `Validate()`, download host whitelist, `Store` (atomic save via `.tmp` + rename, `OnChange` subscribers). Unknown/missing fields fall back to defaults because the file is unmarshalled over `Default()` | `Config`, `Connection`, `Osu`, `Command`, `Rules`, `Queue`, `Source`, `Download`, `MD5`, `Import`, `Overlay`, `Hotkeys`, `Test`, `HostAllowed`, `Store`, `NewOverlayToken`, `GoodOverlayToken` |
+| `internal/parser/parser.go` | ~150 | Command matching (case-insensitive, aliases), ID and link parsing, `#mode/id` fragments, rejects foreign hosts and non-numeric IDs. `Bare` marks plain numbers so the app can retry as the other kind. `ParseAll` reads a message with several maps (`Options.MaxMaps`) into `Part`s | `Parse`, `ParseAll`, `Part`, `ParseArg`, `Request`, `Request.Flip`, `Kind` |
 | `internal/osumeta/osumeta.go` | ~290 | **The only code that talks to osu.ppy.sh for metadata.** Rate-limited (700 ms between requests), 10 min cache, `json-beatmapset` extraction, beatmap→set resolution, raw `.osu` fallback (`Partial` sets) | `Client`, `Get`, `ResolveSet`, `ParsePageJSON`, `ParseOsuHeader`, `Set`, `Diff`, `ErrNotFound` |
 | `internal/validator/validator.go` | ~210 | Pure functions, no I/O. User checks (cheap, before any network: blacklist, queue size, followers-only, per-user/subscriber limit, cooldown) and map checks; picks the diff for whole-set requests (main mode first) | `CheckUser`, `CheckMap`, `State`, `Roles`, `Input`, `Rejection` (`Code`, `Detail`, `Short`) |
-| `internal/queue/queue.go` | ~550 | Thread-safe queue + now playing + history (200) + rejections (100) + per-user last request; debounced save to `queue.json`; on load, unfinished downloads and ready items go back to `queued` so files are re-verified | `Queue`, `Item`, `State` (`queued`/`downloading`/`ready`/`failed`/`playing`), `Attempt`, `Played`, `Rejected`, `ValidationState`, `Promote`, `Drop`, `Move`, `RemoveLatestBy`, `Position`, `ClearTest`, `Snapshot`; `Result` (play result) |
+| `internal/queue/queue.go` | ~550 | Thread-safe queue + now playing + history (200, `Played.Mode` for the ▶ button) + rejections (100) + per-user last request; debounced save to `queue.json`; on load, unfinished downloads and ready items go back to `queued` so files are re-verified | `Queue`, `Item`, `State` (`queued`/`downloading`/`ready`/`failed`/`playing`), `Attempt`, `Played`, `Rejected`, `ValidationState`, `Promote`, `Drop`, `Move`, `RemoveLatestBy`, `Position`, `ClearTest`, `Snapshot`; `Result` (play result) |
 | `internal/queue/gifts.go` | ~100 | Per-user gift coins and priority tokens (with expiry); moving a request behind the other priority requests | `Credit`, `AddCoins`, `UseToken`, `Tokens` |
-| `internal/downloader/downloader.go` | ~450 | Cache lookup, source loop, streaming download with progress, early "not a ZIP" detection, official browser flow (watches Downloads, waits for the size to settle, ignores `.crdownload`/`.part`), verified-file registry (`Trusted`), LRU-ish cleanup | `Downloader`, `Get`, `Job`, `Outcome`, `Trusted`, `Cleanup`, `CacheSize` |
+| `internal/downloader/downloader.go` | ~450 | Cache lookup, source loop, streaming download with progress, early "not a ZIP" detection, official browser flow (watches Downloads, waits for the size to settle, ignores `.crdownload`/`.part`), verified-file registry (`Trusted`; `CachedFile` serves the map player), LRU-ish cleanup | `Downloader`, `Get`, `Job`, `Outcome`, `Trusted`, `CachedFile`, `Cleanup`, `CacheSize` |
 | `internal/verifier/verifier.go` | ~140 | ZIP magic check, in-memory unzip (64 MB per `.osu` cap), MD5 per `.osu`, comparison at `strict`/`requested` level | `Verify`, `Compare`, `OsuHashes`, `LooksLikeZip`, `Reference`, `Result` |
 | `internal/importer/importer.go` | ~210 | Refuses untrusted files, `open`/`copy`/`extract`, Songs folder from `osu!.<user>.cfg` `BeatmapDirectory`, Windows-safe names, traversal-safe joins | `Importer.Import`, `SongsDir`, `CopyToSongs`, `ExtractToSongs`, `SafeJoin`, `SafeName` |
 | `internal/importer/osudb.go` | ~70 | Finds beatmap MD5s in `osu!.db` by scanning for `0x0b 0x20 <32 hex>` instead of parsing the versioned format | `OsuDB.Has`, `ScanHashes` |
-| `internal/tikfinity/tikfinity.go` | ~690 | Install/process checks, WebSocket loop, `config` handshake, live detection (any event; times out after 5 min of silence), raw event log (first event of each type kept), chat field extraction with fallbacks, viewer roles (yes/no/unknown), gift parsing (streaks counted once), TikTok direct loop (`Settings.Direct`: status codes `no_user`/`no_account`, back-off) | `Client`, `Status` (`red`/`yellow`/`green`, codes), `Chat`, `Tri`, `ParseChat`, `Gift`, `ParseGift`, `Accepting` |
-| `internal/tiktok/tiktok.go` | ~450 | TikTok direct: live check, Euler Stream signing, LIVE WebSocket (enter room, heartbeat, ack, gzip), chat/gift/role/picture mapping, stream end | `Client`, `New`, `Stream` (a `tikfinity.Direct`), `RoomID`, `CleanUser` |
+| `internal/tikfinity/tikfinity.go` | ~690 | Install/process checks, WebSocket loop, `config` handshake, live detection (any event; times out after 5 min of silence), raw event log (first event of each type kept), chat field extraction with fallbacks, viewer roles (yes/no/unknown), gift parsing (streaks counted once), viewer count (`Status.Viewers`, `OnViewers`, `ParseViewers`), TikTok direct loop (`Settings.Direct`: status codes `no_user`/`no_account`, back-off) | `Client`, `Status` (`red`/`yellow`/`green`, codes), `Chat`, `Tri`, `ParseChat`, `Gift`, `ParseGift`, `ParseViewers`, `Accepting` |
+| `internal/tiktok/tiktok.go` | ~450 | TikTok direct: live check, Euler Stream signing, LIVE WebSocket (enter room, heartbeat, ack, gzip), chat/gift/role/picture mapping, viewer count (`WebcastRoomUserSeqMessage.Total` → `DirectEvents.Viewers`), stream end | `Client`, `New`, `Stream` (a `tikfinity.Direct`), `RoomID`, `CleanUser` |
 | `internal/tosu/tosu.go` | ~420 | tosu WebSocket loop (`/websocket/v2`), payload parsing (state, beatmap, live `play` numbers, `resultsScreen`), status levels (only the short `Brief` state drives pushes), remembers `tosu.exe` path, song-end state machine | `Client`, `Status`, `Game`, `Brief`, `Score`, `Parse`, `Tracker`, `Phase` (`waiting`/`playing`/`results`/`ended`) |
 | `internal/platform/platform_windows.go` | ~280 | `ShellExecuteW` open, Toolhelp process list, process image path, TikFinity lookup (path + Uninstall registry), osu! stable lookup (`HKCR\osustable.File.osz\shell\open\command`), launch in a new console window, close by exe name (`WM_CLOSE`, then `TerminateProcess` after 3 s), `RegisterHotKey` message loop, console window title | `ShellOpen`, `ProcessRunning`, `ProcessPath`, `FindTikFinity`, `FindOsuStable`, `Launch`, `Close`, `Hotkeys`, `SetConsoleTitle` |
 | `internal/platform/hotkey.go` | ~50 | Parses `Ctrl+Alt+N`, `Shift+F5`, `F9`, `Win+Num5`… into modifier + virtual key | `ParseHotkey` |
-| `internal/server/server.go` | ~420 | Routes, `guard` (Host + `X-Osureq` header), `State` snapshot, coalesced WebSocket push + 20 s keepalive state, config GET/PUT, actions (incl. quit and closing tosu/TikFinity), queue operations, test/simulate/simulateGift, ban | `Server`, `State`, `Handler`, `Push`, `Listen`, `Quit` |
-| `internal/server/web/index.html` | ~190 | Dashboard skeleton: sticky top bar (status pills, requests switch, volume menu, language, settings, ⋮ menu), status box, now playing, test panel, queue, side column (summary, tabbed feeds, mirrors, info), pre-stream check drawer, settings dialog, toast container | |
-| `internal/server/web/app.js` | ~860 | Everything on the dashboard: `T` i18n table (en/th), API helper, WebSocket client, incremental rendering, queue cards, drag & drop, ban menu, audio preview + viewer links, results, test panel (chat / quick / gift), settings `SCHEMA` → form | `render`, `renderBanner`, `renderTosuBanner`, `renderNow`, `updatePhase`, `resultShort`, `renderQueue`, `buildCard`, `cardMenu`, `mapLinks`, `updateAttempts`, `renderSide`, `same`, `SCHEMA`, `field` |
+| `internal/server/server.go` | ~420 | Routes, `guard` (Host + `X-Osureq` header), `State` snapshot, coalesced WebSocket push + 20 s keepalive state, config GET/PUT, actions (incl. quit and closing tosu/TikFinity), queue operations, test/simulate/simulateGift, ban, `GET /api/osz/{setId}` (cached `.osz` for the map player), `POST /api/overlay/token`, `OverlayPage` (the overlay page for the overlay link) | `Server`, `State`, `Handler`, `Push`, `Listen`, `Quit`, `osz`, `overlayToken` |
+| `internal/server/web/index.html` | ~190 | Dashboard skeleton: sticky top bar (status pills, requests switch, volume menu, language, settings, ⋮ menu), status box, now playing, test panel, queue, side column (summary, tabbed feeds, mirrors, info), pre-stream check drawer, Map rules drawer, settings dialog, toast container | |
+| `internal/server/web/app.js` | ~860 | Everything on the dashboard: `T` i18n table (en/th), API helper, WebSocket client, incremental rendering, queue cards, drag & drop, ban menu, audio preview + viewer links, results, test panel (chat / quick / gift), settings `SCHEMA` → form, the KIKI map player (iframe + `postMessage`, see [KIKI Beatmap Viewer player](#kiki-beatmap-viewer-player)) | `render`, `renderBanner`, `renderTosuBanner`, `renderNow`, `updatePhase`, `resultShort`, `renderQueue`, `buildCard`, `cardMenu`, `mapLinks`, `updateAttempts`, `renderSide`, `same`, `SCHEMA`, `field`, `kikiBtn`, `kikiToggle`, `kikiLoad` |
 | `internal/server/web/app.css` | ~380 | Brand tokens (light and dark, fed into Bootstrap's `--bs-*` tokens) and the parts Bootstrap lacks: top bar pills, status box, now playing, queue rows, map tags, download bars, side logs, settings layout | `:root` tokens |
 | `internal/server/web/bootstrap.min.css`, `bootstrap.bundle.min.js` | | Bootstrap 6.0.0-alpha.1 as published on npm (source map comments removed); the licences of Bootstrap, Floating UI and Vanilla Calendar Pro are in `THIRD_PARTY_LICENSES.txt` | |
-| `internal/server/web/overlay.html` | ~160 | OBS page: transparent, now playing + upcoming (priority ★), pop-ups from the feed with their own en/th text table `TX`, theme/scale/position/language from config, reconnecting WebSocket | `render`, `showToasts`, `toastHTML` |
+| `internal/server/web/overlay.html` | ~160 | OBS page: transparent, now playing + upcoming (priority ★), pop-ups from the feed with their own en/th text table `TX`, theme/scale/position/language from config, reconnecting WebSocket (`/ws?client=overlay`; loaded from `/o/{token}` it uses `<that path>/ws`) | `render`, `showToasts`, `toastHTML` |
 | `internal/verifier/testdata/*.osz` | | `set_good`, `set_outdated` (old Hard diff), `set_extra` (extra `.osu`), `set_no_osu`, `not_zip` (HTML) | regenerate: `go test ./internal/verifier -update` |
-| `*_test.go` | | parser (link forms, hostile inputs), validator (every rule, exempt users), verifier (fixtures, levels), downloader (fake mirrors: fallthrough, cache, skip/warn, MD5 off, cleanup), importer (traversal, Songs dir, osu!.db scan), queue (limits, ClearTest, gift credits and ordering), app (chat commands, play results, bans), osumeta (page JSON, .osu header), tikfinity (chat parsing, roles, gifts, levels), tosu (payload incl. scores, Tracker paths, client vs fake server), platform (hotkey parsing) | |
+| `*_test.go` | | parser (link forms, hostile inputs, `ParseAll`), validator (every rule, exempt users), verifier (fixtures, levels), downloader (fake mirrors: fallthrough, cache, skip/warn, MD5 off, cleanup), importer (traversal, Songs dir, osu!.db scan), queue (limits, ClearTest, gift credits and ordering), app (chat commands, play results, bans, several maps per message), osumeta (page JSON, .osu header), tikfinity (chat parsing, roles, gifts, levels, viewer count), tosu (payload incl. scores, Tracker paths, client vs fake server), platform (hotkey parsing) | |
 
 ---
 
@@ -563,6 +616,9 @@ These are the assumptions most likely to break when a third party changes someth
   Only `https` URLs on `*.tiktokcdn.com`, `*.tiktokcdn-us.com`, `*.tiktokcdn-eu.com` and `*.ibyteimg.com` are kept.
 * Gifts (**unverified**): `{"event":"gift","data":{"uniqueId","nickname","giftName","giftType","repeatCount","repeatEnd","diamondCount"}}`.
   Coins = `diamondCount × repeatCount`; for `giftType` 1 (streakable) only the event with `repeatEnd: true` counts.
+* Viewer count (**unverified**, `tikfinity.ParseViewers`): events named `roomUser` (TikTok-Live-Connector's name for TikTok's room user message), `viewerCount` or `viewer` (case-insensitive;
+  the last two are guesses), with the number in `data.viewerCount`, else `viewers`, `total` or `totalUser`: a non-negative whole number up to 1e9, anything else is ignored.
+  Check the raw events of a real LIVE. The count goes to `Status.Viewers`; it is reset to 0 when the connection or the LIVE drops.
 * The dashboard keeps the first event of every type, and with `logRawEvents` the last 100 events, so field names can be checked without a debugger.
 
 ### TikTok direct (`internal/tiktok`)
@@ -588,6 +644,8 @@ Used when `connection.source` is `tiktok`. Every request sends osureq's own User
   `urlList` (same host filter as TikFinity). Chat older than 10 s before connecting and `isHistory` messages are skipped, so a reconnect does
   not replay requests. (**verified** on a real LIVE: chat with @name, nickname and picture.)
 * Gifts: `WebcastGiftMessage` → coins = `gift.diamondCount × repeatCount`; `gift.type` 1 (streakable) counts only with `repeatEnd` 1.
+* Viewer count: `WebcastRoomUserSeqMessage.Total` (0 to 1e9) → `DirectEvents.Viewers` → `Status.Viewers` (json `viewers`, omitted when 0 = unknown; reset to 0 when the connection drops).
+  It also counts as the LIVE being alive. `Client.OnViewers` reports a change without going through `OnStatus`, which would log a line for every number; `main.go` only pushes the state.
 * `WebcastControlMessage` action 3/4 (stream ended / ended by ban) → `tikfinity.ErrOffline`, back to checking every 30 s.
 * gotiktoklive's own client is not used: it fills the user name with the numeric ID and reads some fields without nil checks.
 
@@ -614,12 +672,42 @@ Used when `connection.source` is `tiktok`. Every request sends osureq's own User
 | Covers (browser only) | `https://assets.ppy.sh/beatmaps/{setId}/covers/cover.jpg` | |
 | Audio preview (browser only) | `https://b.ppy.sh/preview/{setId}.mp3` | played by the dashboard, not the helper |
 
-**Beatmap viewer link:** `osu.viewerUrl` (default `https://osu-beatmap-viewer.vercel.app/`) + `?s={setId}&b={beatmapId}`. It is only a link opened in the
+**Beatmap viewer link:** `osu.viewerUrl` (default `https://kiki-bm.app/`, KIKI Beatmap Viewer) + `?s={setId}&b={beatmapId}`. It is only a link opened in the
 browser; the helper sends nothing to the viewer. The viewer loads map files from public mirrors itself.
+The default was `https://osu-beatmap-viewer.vercel.app/` before; `config.Load` turns exactly that value into the new default (kept in memory and written
+with the next save). An empty value, any other URL and templates are left alone.
 If `osu.viewerUrl` contains `{set}`, `{map}` or `{file}` it is used as a template instead: `{file}` becomes the URL-encoded hinai download
 (`https://mirror.hinamizawa.ai/api/v1/hinai/d/{setId}`), e.g. `https://player.kiki-bm.app/s/{set}?file={file}&diff={map}`.
+The embedded **▶ view map** player is separate from this link (see [KIKI Beatmap Viewer player](#kiki-beatmap-viewer-player)); both can be on.
 
 User-Agent `osureq/1.0 (TikTok LIVE request helper)`. Never embed osu! OAuth secrets.
+
+### KIKI Beatmap Viewer player
+
+The **▶ view map** button embeds the player of [KIKI Beatmap Viewer](https://api.kiki-bm.app/) (`https://player.kiki-bm.app`; free, no key). osureq loads **no script** from KIKI:
+it shows an `<iframe>` and talks to it with `postMessage` (code in `internal/server/web/app.js` for the dashboard and `internal/remote/web/mod.html` for the phone page).
+
+* **osu!standard only** (`it.mode === "osu"`, `kikiShows`). History entries need `Played.Mode`, which older entries lack, so they get no ▶. The switches are `osu.kikiPlayer` (dashboard;
+  `State.kikiPlayer`) and `osu.kikiPlayerMod` (mod panel; remote `State.kikiPlayer`); configs without the keys get `true`. `State.noVideo` (`download.noVideo`) says which cached file to ask for first.
+* **Dashboard** (`kikiToggle`): a `.kiki` box is put right after the card (queue, now playing, history), one open at a time (module variable `kiki`). The iframe address is
+  `https://player.kiki-bm.app/embed?lang=<th|en>&accent=%23<hex>&label=osureq` (`allow="autoplay; fullscreen"`, `loading="lazy"`; the accent is osureq's pink for the current theme).
+  Messages are `{kiki: 1, v: 1, type, …}`; osureq accepts them only when `event.origin` is `https://player.kiki-bm.app` **and** `event.source` is that iframe's window, and sends with that origin as `targetOrigin`.
+* **Flow**: the player sends `ready`; osureq sends `load` with `set` (`id`, `title`, `artist`, `creator`), `diff` (the beatmap id), `mods` (only EZ HD HR DT NC HT FL, with EZ+HR and DT/NC/HT clashes resolved
+  as the player does: `kikiMods`), `lang`, `accent`, `label` and, when osureq has the map cached, `file: {ask: true}`. The player then asks (`need-file`, kind `map`) and osureq fetches
+  `GET /api/osz/{setId}` and answers with the `.osz` as a `Blob`. Whether a file exists is found out once when the player opens (`kikiCached`: `HEAD /api/osz/{setId}[?novideo=1]`, which needs `X-Osureq: 1`
+  like any non-GET), and it is offered only when the answer is 200 with a size of at most 100 MiB (`KIKI_MAX`). Without a file the player takes the map from the community mirrors itself (it chooses the mirror).
+* **Failures**: on the player's `error` `fetch_failed`, `file_too_large` or `bad_file` (when osureq's file was used), osureq sends `cache-clear` for that set and `load` again without a file (`kikiMirrors`, once);
+  the viewer presses ▶ in the player again.
+* **One sound at a time**: the player's `play` pauses the ♪ preview, and starting a preview sends `pause` to the player.
+* **Redraws**: the box is not a card: list rendering skips it (`.kiki`), it is never moved or rebuilt while open (an iframe that moves reloads), and it closes when its card goes away, the History tab is hidden,
+  or the setting is turned off.
+* **Mod panel**: no cached file (the phone cannot reach `/api/osz`), always the mirrors: the iframe points straight at `https://player.kiki-bm.app/s/{setId}?diff={beatmapId}&mods=…&lang=…&accent=%23ff66aa&label=osureq`
+  (or `/b/{beatmapId}?…` without a set id; the accent is the page's `--pink`, `#ff66aa` as fallback). The mod panel's CSP gets exactly `frame-src https://player.kiki-bm.app`; the dashboard sets no CSP header.
+* **`GET /api/osz/{setId}`** (and `HEAD`, `?novideo=1`) is in the API table: same origin only (no CORS headers), the path comes from the number, only `Downloader.CachedFile` archives (exist **and** `Trusted`).
+  Trust is in memory, so after an osureq restart nothing is served until the set goes through the downloader again; the player then uses the mirrors.
+* **Third-party: KIKI player.** Nothing from KIKI is bundled in `osureq.exe`, so `THIRD_PARTY_LICENSES.txt` has no entry for it; it is credited in both READMEs. The player's own ⓘ credits must stay visible
+  (KIKI's terms; its default skin and hitsounds are by ppy, CC BY-NC 4.0). The message names and the `v: 1` envelope are KIKI's embed protocol as used here; if KIKI changes it, only the two pages above change
+  (see [Known limitations and open items](#known-limitations-and-open-items)).
 
 ### Mirrors (`internal/downloader`, URL templates in config)
 
@@ -697,11 +785,12 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 | `GET /ws` | WebSocket; pushes the full `State` JSON on every change (and every 20 s). The overlay adds `?client=overlay` so the pre-stream check can count it; a dashboard page adds `?page=<id>` (who reads TTS) |
 | `GET /api/state` | the same `State` once |
 | `GET /api/config` | `{config, defaults}` |
-| `PUT /api/config` | replace the whole config (validated); `{ok, restartNeeded}` |
+| `PUT /api/config` | replace the whole config (validated); `{ok, restartNeeded}`. `overlay.remoteToken` in the body is ignored: the stored token is kept, and one is made when `overlay.remote` is switched on for the first time. Everything else is stored as sent, so the dashboard builds the body from a fresh GET (see [Map rules drawer](#map-rules-drawer)) |
+| `POST /api/overlay/token` | **New link**: makes a new secret for the overlay link (`overlay.remoteToken`) → `{ok, token}`. The old link stops working at once, also for open overlays (their connection re-checks every tick). The only way to replace the token |
 | `POST /api/action/{name}` | `next`, `previous` (back to the map played before: osu! opens it again, the current map returns to the front of the queue), `skip`, `removeLast`, `toggleRequests`, `clear`, `cleanup`, `toggleDryRun`, `toggleAutoDownload`, `clearTest`, `launchTikfinity`, `reconnect`, `openTikfinityDownload`, `launchTosu`, `reconnectTosu`, `openTosuDownload`, `stopTosu`, `stopTikfinity`, `quit`, `quitAll` (closes tosu and TikFinity, then quits), `installUpdate` (only when a downloaded update is ready: quits, installs and starts the new version), `showSummary`, `newSession`, `checkMirrors` (probes every download mirror now; otherwise they are probed once, 15 s after start, and downloads keep the panel current) |
 | `POST /api/queue/{id}/{op}` | `remove`, `skip`, `play`, `retry`, `move` (body `{"to": <index>}`) |
 | `POST /api/test` | quick add: `{"input": "<id or link>", "user": "<name>"}` → `{ok, item}` or `{ok:false, code, error}` |
-| `POST /api/simulate` | simulated chat: `{"message": "!req …", "user": "<name>"}`; `code: "ignored"` when it is not a request; for a chat command `{ok, command: "cmd_done" \| "cmd_not_mod" \| "cmd_nothing"}` |
+| `POST /api/simulate` | simulated chat: `{"message": "!req …", "user": "<name>"}`; `code: "ignored"` when it is not a request; for a chat command `{ok, command: "cmd_done" \| "cmd_not_mod" \| "cmd_nothing"}`; a message with several maps (see [Several maps in one message](#several-maps-in-one-message)) answers `{ok, item, code, short, error, maps, count, rejected, ignored}` |
 | `POST /api/simulateGift` | `{"user": "<name>", "coins": 30}` → `{ok, earned, requests}` (priorities and paid requests earned) |
 | `POST /api/support` | the support zip (`application/zip`, attachment) |
 | `POST /api/preflight` | runs the pre-stream check (a few seconds) → `{ok, checks: [{id, status, key, vars, detail}]}` |
@@ -711,22 +800,54 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 | `PUT /api/preview` | `{"setId": n}`: the set the dashboard is playing a preview of (0 = none), shown on the mod panel |
 | `POST /api/jump` | `{"setId": n, "beatmapId": n}`: osu! jumps to a history map (`osu://b/<beatmapId>`; without `beatmapId`, the set's first difficulty from osu!); the queue is not touched |
 | `POST /api/ban` | `{"kind": "user" \| "set" \| "mapper", "value": "…"}` → `{ok, removed}` |
+| `GET /api/osz/{setId}` (and `HEAD`) | the cached `.osz` for the map player, `?novideo=1` asks for the no-video file first (else the other one). Only a file that exists and is trusted (`Downloader.CachedFile`: checked by this run of the helper); otherwise 404, and the player uses the mirrors. 400 for a bad id. `Content-Type: application/x-osu-beatmap-archive`, `Cache-Control: no-store`; no CORS headers, so only the dashboard itself can read it. `HEAD` needs `X-Osureq: 1` like every non-GET |
 
-`State` fields: `version`, `tikfinity` (status; `source` `tikfinity`/`tiktok` and `user` say which chat source it describes), `tosu` (status incl. `game`), `autoGap`, `queue` (`items`, `now`, `history`, `rejected`),
-`requests`, `resolving`, `notices`, `feed` (overlay pop-up events), `cacheMb`, `overlay`, `command`, `search`, `requestCoins`, `lang`, `playMode`, `viewerUrl`, `blacklistUsers`, `dryRun`,
+`State` fields: `version`, `tikfinity` (status; `source` `tikfinity`/`tiktok` and `user` say which chat source it describes; `viewers`, people watching, left out when unknown), `tosu` (status incl. `game`), `autoGap`, `queue` (`items`, `now`, `history`, `rejected`),
+`requests`, `resolving`, `notices`, `feed` (overlay pop-up events), `cacheMb`, `overlay` (`remoteToken` is blanked), `command`, `search`, `requestCoins`, `lang`, `playMode`, `viewerUrl`, `kikiPlayer` (`osu.kikiPlayer`), `noVideo` (`download.noVideo`), `blacklistUsers`, `dryRun`,
 `voteSkip` (`votes`, `needed`), `tts` (settings), `speech` (chat to read), `ttsSpeaker`/`ttsSpeakerOn` (the dashboard page that reads it), `update` (`version`, `url`, only when newer), `summary`, `summaryShown`, `raw`, `firstRaw`,
 `previewAsk` (`setId`, `n`: a mod panel preview press, `n` grows per press), `mirrors` (`name`, `state` ok|failed|resting|unknown, `error`, `ms`, `at`), `mirrorCheck`,
 `extra` (`hotkeyErrors`, `baseDir`, `cacheDir`).
 
 **Mod panel** (separate listener, `remote.port`, default 21281, only when `remote.enabled`): `GET /m` (page), `POST /m/login` `{"pin"}`
 (sets the `osureq_mod` cookie; `401 wrong_pin`, `429 locked`), `POST /m/logout`, `GET /m/api/state` (now playing, queue, requests, TikFinity/tosu
-level, votes), `POST /m/api/action/{next|previous|skip|toggleRequests}`, `POST /m/api/queue/{id}/{remove|skip|move|preview}` (`preview` plays or stops the map's preview on the dashboard of the stream PC). Everything else answers 404.
+level, votes, `viewers` when known, `kikiPlayer` = `osu.kikiPlayerMod`, and `beatmapId` on every item for the map player), `POST /m/api/action/{next|previous|skip|toggleRequests}`, `POST /m/api/queue/{id}/{remove|skip|move|preview}` (`preview` plays or stops the map's preview on the dashboard of the stream PC). The overlay link ([Overlay link](#overlay-link)) lives on the same listener under `/o/`. Everything else answers 404.
 
 Example (PowerShell):
 
 ```powershell
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:21280/api/simulate -Headers @{ "X-Osureq" = "1" } -ContentType application/json -Body '{"user":"fan","message":"!req 2096297"}'
 ```
+
+### Overlay link
+
+For OBS on a second PC (`overlay.remote`). It lives on the mod panel's listener (`internal/remote`, `remote.port`), the only listener other machines can reach, so `remote.enabled` must be on too; the dashboard
+stays on 127.0.0.1. `main.go` gives `remote.Server` the page (`server.OverlayPage()`, the embedded `overlay.html`), the version and, the other way round, the overlay count (`srv.RemoteOverlays = mods.Overlays`);
+`remote` does not import `server`.
+
+| Method & path | Purpose |
+|---|---|
+| `GET /o/{token}` | `overlay.html`; the page opens its WebSocket at its own path + `/ws` instead of `/ws?client=overlay` |
+| `GET /o/{token}/ws` | WebSocket pushing `remote.OverlayState` as JSON |
+| any other path or method under `/o/` | 404 |
+
+* **Link**: `http://<LAN IP>:<remote.port>/o/<token>`, built by Settings → Overlay from the mod panel's addresses (with a Copy button and **New link**; the dashboard asks `POST /api/overlay/token` when the switch is first
+  turned on, so the link shows before saving, and the tab's Reset keeps the token). `overlay.remoteToken` is 32 random bytes as base64url, 43 characters (`config.NewOverlayToken`), made by the helper when
+  `overlay.remote` is first switched on (`PUT /api/config`, or when `config.json` was edited by hand: `Load`) and by **New link**. A token typed into `config.json` must be 43-128 base64url characters (`overlay_token`).
+  It is blanked in `/api/state`, shown as `(hidden)` in the support file and never logged.
+* **Checks** (`overlayOK`): the feature must be on (`overlay.remote`, a token, mod panel on), else 404 and nothing is counted. The token is compared in constant time (SHA-256 hashes, `subtle.ConstantTimeCompare`).
+  A wrong token gets the same 404 as a path that does not exist and counts toward the same per-address lockout as a wrong PIN (`lockedIP`/`failIP`: 5 failures, 10 minutes; a locked address gets 404 even with the right
+  token). It does not count toward the panel-wide lock, so guesses cannot black out the PIN login, and the right token does not reset the PIN count. Clients outside the private networks (loopback passes) or with
+  a bad `Host` get 403 from `guard`, as for the mod panel.
+* **Departure from the PIN rule**: the hashes of the last 4 links replaced while osureq runs (`retired`) answer 404 without counting as failures, so an OBS left on the old link cannot lock its own PC out of the new one.
+  They are in memory, lost on restart.
+* **Unclean paths** (`//o/<token>`, `/o/./<token>`) are answered 404 by `guard`: Go's router would redirect to the clean path and put the token in `Location`.
+* **Headers**: `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` and a CSP made for the overlay (`overlayCSP`: `default-src 'none'`, its inline
+  script and styles, Google Fonts, `img-src https: data:`, `connect-src 'self'`, `frame-ancestors 'none'`). The WebSocket accepts same-origin connections only.
+* **Data** (`remote.OverlayState`): a whitelist built field by field, exactly what `overlay.html` reads: `version`, `overlay` (visible, showRequester, theme, scale, position, feedback, feedbackSec, lang, avatars),
+  `queue` (`now`, `items`), `feed`, `requests`, `tikfinity.level`, `command`, `search`, `requestCoins`, `summary`, `summaryShown`. No raw events, paths, config, TTS, blacklist, tokens or keys. It does contain viewer
+  names, requested songs and picture URLs, so anyone on the network with the link can watch the overlay, but cannot control anything.
+* **Push**: see [Architecture](#architecture): every 200 ms when changed, the whole state at least every 20 s; the link is re-checked every tick. A connected overlay counts in the pre-stream check.
+  TTS still plays in the dashboard page on the stream PC.
 
 ---
 
@@ -743,19 +864,40 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:21280/api/simulate -Headers
   `same(el, key)` skips a section whose input did not change; queue cards are kept in a `Map` by item id and rebuilt only when their own data changes;
   download bars are updated in place (`updateAttempts`); cards that were already shown get the `seen` class so their entrance animation does not replay.
   Breaking this brings back the flicker fixed in 1.1.1.
+* **Map player and viewer count**: an open ▶ player is a `.kiki` node next to its card that list rendering ignores and never moves or rebuilds (an iframe that moves reloads), see
+  [KIKI Beatmap Viewer player](#kiki-beatmap-viewer-player). The viewer count is written straight into the status pill (`#tfViewers`) and left out of the banner's `same` key, so a new number does not redraw it.
 * **i18n:** every UI string is a key in the `T` table: `key: ["English", "Thai"]`. Use `t("key", {vars})`; static HTML uses `data-t` / `data-tp`. Add both languages.
-* **Settings form** is generated from `SCHEMA` (`F(path, type, labelEn, labelTh, hintEn, hintTh, extra)`). Types: `switch`, `text`, `hotkey`, `number`,
-  `list`, `numlist`, `seg`, `select`, `multi`, `button`, `overlaylink`, `sources`. A new config field needs: Go struct field + default + validation (if any) +
+* **Settings form** is generated from `SCHEMA` (`F(path, type, labelEn, labelTh, hintEn, hintTh, extra)`); the map rules are the separate `RULES` list (see below). Types: `switch`, `text`, `hotkey`, `number`,
+  `list`, `numlist`, `seg`, `select`, `multi`, `button`, `overlaylink`, `ovremote` (the overlay link), `sources`. A new config field needs: Go struct field + default + validation (if any) +
   a `SCHEMA` entry + a row in the [Settings reference](#settings-reference-configjson).
 * **Design language:** osu! pink as the one accent on a violet-tinted neutral ground, light and dark by the browser's setting (`prefers-color-scheme`). All colours are tokens in `:root` of `app.css`
   (`--brand`, `--bg`, `--surface`, `--ink`, `--muted`, `--line`, `--ok`, `--warn`, `--bad`, `--info`) and Bootstrap's `--bs-*` tokens are set from them, so Bootstrap components follow both themes.
   Fonts: Kanit (headings), IBM Plex Sans Thai (text), IBM Plex Mono (numbers). The cover banner is `.cover-bg` (set `--cover` on the element; `--cover-opacity` tunes it). The osu! star colour ramp (`starColor`) and the mod colours stay the same in both themes. Keep new UI on the tokens; no literal colours.
 
+### Map rules drawer
+
+The **Map rules** button in the queue header (`#rulesBtn`) opens `#rulesDrawer`, a Bootstrap drawer like the pre-stream check. It lists `RULES`
+(the fields that were the Settings tab "Map rules"; `rules.exemptUsers` stays in **Settings → Queue**), drawn by the same `field()` as the Settings form.
+`field()` reads and writes the draft of `form` (`{draft, render}`), which `renderSettings` and `renderRules` set before drawing, so the dialog and the drawer
+keep their own drafts. **Reset to defaults** resets only the `RULES` paths (exempt users are kept).
+
+**Saving without losing changes made meanwhile.** `PUT /api/config` replaces the whole config, while bans (card ⋯ menu, rejection log, mod panel),
+the requests switch (by hand, `!reqon`/`!reqoff`, automatic open/close), the volume, auto download, dry run, `osu.game` (tosu detection) and `connection.tosuPath`
+are written by the server at any time. Both forms therefore save with `mergeEdits(base, draft, fresh)`: `base` is a copy of the config taken when the form
+opened, and on Save the dashboard GETs `/api/config` again (`fresh`) and changes in it only the fields the streamer changed (draft differs from base).
+A field is a key of a section (`rules.minStars`) or a top-level value (`masterVolume`); lists and objects (`rules.blacklistUsers`, `rules.modeStars`,
+`tts.templates`, `download.sources`) count as one field; `null`, `[]` and `{}` are equal. The drawer merges only `rules`; the Settings dialog merges every section,
+so a rule saved from the drawer, or a ban, made while Settings was open is kept. A list edited in the form replaces the server's list as a whole, and a
+change the server makes between that GET and the PUT (milliseconds) is still lost.
+
+A validation error from Save is shown in a toast and, in the drawer, under its field (`RULE_ERR`: `stars_order` → min and max stars, `stars_negative`,
+`stars_order_mode`, `mode_unknown` → stars per mode, `song_rule`, `hard_mod_stars`, `banned_mod`). The server reports only the first problem.
+
 ---
 
 ## Settings reference (`config.json`)
 
-All settings are editable in the dashboard (gear icon). Missing keys take their defaults.
+All settings are editable in the dashboard (gear icon; the `rules` section with the **Map rules** button above the queue). Missing keys take their defaults.
 
 | Section | Key | Default | Meaning |
 |---|---|---|---|
@@ -782,11 +924,14 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `cacheFolder` | `cache` | Relative to the exe (or `-dir`) |
 | | `downloadsFolder` | `%USERPROFILE%\Downloads` | Watched by the official source |
 | | `useOsuDb` | `false` | Experimental (stable): if `osu!.db` already has the map, skip the download and open `osu://b/{id}` |
-| | `viewerUrl` | `https://osu-beatmap-viewer.vercel.app/` | Beatmap viewer for the "viewer ↗" link; empty hides it |
+| | `viewerUrl` | `https://kiki-bm.app/` | Beatmap viewer (KIKI Beatmap Viewer) for the "viewer ↗" link; empty hides it. The old default `https://osu-beatmap-viewer.vercel.app/` becomes this one on load |
+| | `kikiPlayer` | `true` | **▶ view map** on the dashboard's queue, now-playing and history cards: KIKI Beatmap Viewer's player under the card (osu!standard only); configs without the key get `true` |
+| | `kikiPlayerMod` | `true` | The same ▶ on the mod panel (always from the community mirrors) |
 | command | `name` / `aliases` | `!req` / `!request`, `!r` | |
 | | `enabled` | `true` | Requests on/off (also the switch in the top bar) |
 | | `bareNumberAs` | `beatmap` | `beatmap` or `set` (the other meaning is tried if not found) |
 | | `searchByName` | `true` | Text that is not an ID or link is searched as a song name |
+| | `maxPerMessage` | `1` | Maps one chat message may ask for (1-5, `max_per_message`); 1 = as before. See [Several maps in one message](#several-maps-in-one-message) |
 | | `mods` | empty | TikTok users who may use mod commands |
 | | `trustTikTokMods` | `true` | TikTok moderators count as mods (when TikFinity sends the flag) |
 | | `skipCmd` / `removeCmd` / `openCmd` / `closeCmd` | `!skip` / `!remove` / `!reqon` / `!reqoff` | empty turns a command off |
@@ -830,6 +975,8 @@ All settings are editable in the dashboard (gear icon). Missing keys take their 
 | | `feedback` / `feedbackSec` | `true` / `7` | Pop-ups for viewers and how long they stay |
 | | `lang` | `auto` | Overlay language: `auto` (OBS browser language), `en`, `th` |
 | | `avatars` | `true` | Viewers' TikTok pictures next to their names (when TikFinity sends them) |
+| | `remote` | `false` | Let another PC load the overlay through the mod panel's port with a secret link (needs `remote.enabled`; see [Overlay link](#overlay-link)) |
+| | `remoteToken` | empty | The link's secret: 43-128 base64url characters (`overlay_token`), made by the helper (32 random bytes) when `remote` is switched on, replaced by **New link** (`POST /api/overlay/token`). Not editable in the settings form, hidden in `/api/state` and the support file |
 | gifts | `enabled` | `false` | Gifts buy queue priority |
 | | `coinsPerPriority` | `30` | Coins (added up per viewer) for one priority |
 | | `creditMinutes` | `60` | How long an unused priority (or paid request) waits for a request |
@@ -883,7 +1030,13 @@ All live in the base folder (next to the exe, or `-dir`):
   name (DNS rebinding). Login needs the PIN (SHA-256 compared in constant time); 5 wrong tries from one address or 20 in total lock it for
   10 minutes. Sessions are random 32-byte tokens in an HttpOnly, SameSite=Strict cookie, valid 12 h and ended by a PIN change; every POST
   also needs `X-Osureq: 1`. It offers only queue actions. It is plain HTTP, so the PIN can be seen by others on the same Wi-Fi: use it at home.
-* The support file hides the mod panel PIN and the home folder; it still has viewer names and messages, which the README in the zip says.
+* **Overlay link** (`overlay.remote`, off by default, needs the mod panel): `/o/<token>` on the same listener, read-only. The token is 32 random bytes, compared in constant time; a wrong one is a plain 404 and
+  counts toward the per-address lockout of the PIN (5 tries, 10 minutes); the page and feed are `no-store`, `no-referrer`, not frameable. The feed is a whitelist (`OverlayState`) without events, paths, config, TTS,
+  tokens or keys, but it shows viewer names and requested songs to anyone who has the link. Like the PIN, it travels over plain HTTP on the home network. Details in [Overlay link](#overlay-link).
+* **Map player**: the ▶ player is an iframe of `https://player.kiki-bm.app`. Messages from it are accepted only from that origin and that iframe's window; the cached `.osz` is sent to it only when it asks
+  (`need-file`), through `GET /api/osz/{setId}`, which is same-origin only (no CORS), builds its path from a number, and serves only archives this run of the helper verified (`Downloader.CachedFile`).
+  The mod panel's CSP allows exactly `frame-src https://player.kiki-bm.app`.
+* The support file hides the mod panel PIN, the overlay link's token and the home folder; it still has viewer names and messages, which the README in the zip says.
 
 ---
 
@@ -892,15 +1045,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.4.9          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.5.0          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.4.9      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.4.9" -o dist\osureq.exe .
+go run ./tools/winres -version 1.5.0      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.5.0" -o dist\osureq.exe .
 ```
 
 ### Releases (GitHub Actions)
@@ -908,15 +1061,15 @@ go build -trimpath -ldflags "-X main.version=1.4.9" -o dist\osureq.exe .
 `.github/workflows/build.yml` runs on every push to `main` and every pull request: `go vet`, `go test` and a build on
 `windows-latest`; the exe is kept as a workflow artifact for 14 days (version `0.0.0-dev+<commit>`).
 To publish a release, bump the version (Changelog row, Version row, `build.ps1` default) and merge it into `main`, then
-either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.4.9`) or tag and push:
+either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.5.0`) or tag and push:
 
 ```powershell
-git tag v1.4.9
-git push origin v1.4.9
+git tag v1.5.0
+git push origin v1.5.0
 ```
 
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
-creates the tag `v1.4.9` on that commit together with the release (a tag made by the workflow does not start another run).
+creates the tag `v1.5.0` on that commit together with the release (a tag made by the workflow does not start another run).
 The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 To fix the text of a release that is already out, change its file, merge it, and run the workflow with **notes** set to the version
 (only `gh release edit --notes-file`, nothing is rebuilt). Every build runs `.github/check-release-notes.sh`, which fails on a bare `@word`
@@ -972,7 +1125,7 @@ Read this before changing anything.
 5. **Auto mode is tosu-only by the owner's decision.** Do not add a timer or window-title fallback without asking.
 6. **Dashboard performance:** follow the [rendering rule](#dashboard-internals); never re-render whole sections on every push.
 7. **UI text must exist in both English and Thai** (`T` table). Follow the existing design tokens.
-8. **Security invariants:** keep the dashboard's 127.0.0.1 bind (the mod panel is the one, opt-in exception, with its own guard), the `guard` checks, the host whitelist, `Trusted` before opening files, and `SafeJoin` for extraction.
+8. **Security invariants:** keep the dashboard's 127.0.0.1 bind (the mod panel is the one, opt-in exception, with its own guard; the overlay link rides on it and must keep its 404 behaviour and token checks), the `guard` checks, the host whitelist, `Trusted` before opening files, and `SafeJoin` for extraction.
 9. **Windows/encoding pitfalls:** write files as UTF-8 without BOM; a literal U+FEFF inside a `.go` file breaks compilation (use `\ufeff` or bytes).
    Git on Windows converts line endings; `.osz` fixtures are marked binary in `.gitattributes`.
 10. **Config changes must stay backward compatible:** new fields need defaults in `Default()`; old `config.json` files must still load.
@@ -992,6 +1145,10 @@ Read this before changing anything.
 | TikFinity gift and role fields | follow TikTok's payload names; check the raw event panel for `gift` and `chat` during a stream |
 | Profile pictures | `profilePictureUrl` and the other shapes are unverified; if no pictures appear, check the raw `chat` event for the field name |
 | Mod panel | plain HTTP on the LAN; not tested on Windows yet (firewall prompt, phone on the same Wi-Fi) |
+| Viewer count | with TikFinity the event names (`roomUser`, `viewerCount`, `viewer`) and keys (`viewerCount`, `viewers`, `total`, `totalUser`) are unverified; check the raw events of a real LIVE. TikTok direct reads `WebcastRoomUserSeqMessage.Total` |
+| KIKI map player | depends on KIKI's embed protocol (`ready`, `load`, `need-file`, `file`, `cache-clear`, `pause`, `play`, `error`, envelope `v: 1`); if it changes the player stays empty until `app.js` and `mod.html` follow. osu!standard only, files over 100 MiB are not offered, and after a restart cached files are not trusted until the set is downloaded again (the player then uses the mirrors) |
+| Several maps per message | `PUT /api/config` from a Settings dialog opened before updating would send 0 for `command.maxPerMessage` and fail validation (like other range fields): reload the dashboard first |
+| Overlay link (second PC) | not tried on a real second PC or in real OBS: only in a browser on the same PC, also through the LAN address. An open connection from an address that is locked later stays connected, and if the mod panel port changes an open connection survives the listener restart. Replaced links (last 4) answer 404 without counting as failures, in memory only: after a restart the old link counts as a wrong guess |
 | Song search | depends on catboy's search API; when it is down, names are rejected with `search_error` (IDs and links still work) |
 | Official download fallback | implemented, not exercised (needs a logged-in browser) |
 | osu! lazer | supported via `open` and tosu, not tested |
@@ -1020,6 +1177,12 @@ Read this before changing anything.
 | Next does nothing in osu! | Double-click an `.osz` once so Windows opens it with osu!. Make sure dry run is off. |
 | Port already in use | Another copy is running, or change `dashboardPort`. |
 | Phone cannot open the mod panel | Same Wi-Fi (not a guest network, which isolates devices)? Allowed in the Windows firewall for **private** networks? Windows network profile set to Private? Use an address from Settings → Mod panel. |
+| Overlay link answers 404 | **Settings → Overlay → Let another PC load the overlay** must be on **and saved**, and the mod panel must be on. The link must be the current one (**New link** replaces it at once). Five wrong links or PINs from one PC lock it for 10 minutes, and a locked PC gets 404 even with the right link; `osureq.log` has `overlay link: wrong link from <ip>` lines. A PC outside the private networks gets 403 |
+| Overlay on the other PC is empty or never connects | Same network (not a guest Wi-Fi)? osureq allowed in the Windows firewall for **private** networks? Use an address from Settings → Overlay; the pre-stream check says whether an overlay is connected. TTS still plays on the PC where the dashboard is open |
+| ▶ player says "Try again" or stays empty | Press ▶ in the player again (osureq then lets it use the mirrors). Still failing: the community mirrors are down, the set is over 100 MiB, or the browser or network blocks `https://player.kiki-bm.app` (offline, a content blocker, https/CORS). It never needs osureq to restart |
+| No ▶ on a card | The map is not osu!standard (taiko, catch, mania and converts have none), it is a history entry from before the mode was recorded, or the setting is off (**Settings → osu! → KIKI map viewer**, one switch for the dashboard and one for the mod panel) |
+| No 👁 viewer count | It is hidden while unknown. TikTok direct shows it after TikTok's first count; with TikFinity only if it sends the count (see Known limitations) |
+| Several maps typed, only one was requested | `command.maxPerMessage` is 1, or the message holds other words than IDs, links and mods (a song name, chat): it is then read as one request |
 | Windows says the app is unsafe / "Windows protected your PC" | That is SmartScreen warning about an **unsigned** program, usually one that was downloaded or received in a zip. Windows Defender finds nothing in it. Click **More info → Run anyway**, or right-click `osureq.exe` → **Properties** → tick **Unblock**. Only a code-signing certificate removes the warning for everyone. |
 | TikFinity's TTS reads `!req 123…` | Turn TikFinity's TTS off and use **Settings → TTS**, which never reads commands. |
 | Chat TTS is read twice | Another program reads chat too (turn TikFinity's TTS off). Two osureq dashboards no longer both speak: only the last one started reads, the other says **TTS in another window**. |
@@ -1032,6 +1195,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
+| 1.5.0 | PR #19 | **Viewer count**: 👁 in the status pill and the mod panel (`tikfinity.Status.Viewers`, `DirectEvents.Viewers`, `Client.OnViewers`; TikTok direct reads `WebcastRoomUserSeqMessage.Total`; TikFinity's `roomUser` / `viewerCount` / `viewer` event is unverified on a real stream). **KIKI map player** (KIKI Beatmap Viewer, player.kiki-bm.app): ▶ under queue, now-playing and history cards and on the mod panel, an iframe plus osureq's own postMessage code (no script is loaded from KIKI); the dashboard offers the cached .osz through `GET /api/osz/{setId}` (`Downloader.CachedFile`, checked files only), the mod panel and uncached maps use the mirrors; `osu.kikiPlayer`, `osu.kikiPlayerMod`. **Several maps per message** (`command.maxPerMessage`, 1-5, default 1; `parser.ParseAll`, `App.submitAll`: the cooldown is checked once per message, one paid request per map). **Overlay for a second PC**: `overlay.remote`, `overlay.remoteToken`; `/o/{token}` and `/o/{token}/ws` on the mod panel's server send a read-only `OverlayState`; `POST /api/overlay/token` makes a new link. **Map rules** moved from Settings to a drawer on the dashboard (button above the queue); saving merges with a fresh config (`mergeEdits`) so bans made meanwhile survive, and the Settings save merges the same way. The default `osu.viewerUrl` is now `https://kiki-bm.app/` (a stored old default is migrated on load) |
 | 1.4.9 | PR #18 | **Auto download switch** above the queue on the dashboard (`import.preload`; `POST /api/action/toggleAutoDownload`; `State.autoDownload`, `autoDownloadN`); the setting is renamed Auto download. **New dashboard on Bootstrap 6** (6.0.0-alpha.1, vendored): sticky top bar (not sticky on phones) with the requests switch, volume, language, settings and a ⋮ menu (pre-stream check, support file, close tosu/TikFinity, quit); light and dark by the browser; now playing and queue rows with the cover as a soft banner inside the box (drawn with a CSS mask, so it fades into the box colour in light and dark; strongest on the right, fading out towards the text and at the edges), play and remove buttons and a ⋮ menu (move, skip, preview, open elsewhere, bans); rejected / activity / history / LIVE events as tabs; settings as a dialog of one fixed height on every tab, with a side menu that stays put while only the pane scrolls (a full-screen page on phones, with the tabs in one scrolling row); the pre-stream check in a drawer; Bootstrap toasts. The server sets the content type of `.js`, `.css` and `.svg` itself. Needs Chrome/Edge 130, Firefox 132 or Safari 18 or newer. Bootstrap, Floating UI and Vanilla Calendar Pro licences added |
 | 1.4.8 | PR #13 | **TikTok direct**: chat and gifts straight from TikTok without TikFinity (`connection.source` `tiktok`, `tiktokUser`, optional `eulerApiKey`; new package `internal/tiktok`, signed by Euler Stream, keyless or with a key; switch back to TikFinity any time). Status pill, pre-stream check, mod panel and support file (key hidden) know the source. Only one dashboard page reads TTS (`POST /api/tts/speaker`, `State.ttsSpeaker`): the last one started, the others say **TTS in another window**. `osu.viewerUrl` can be a template with `{set}`, `{map}`, `{file}` |
 | 1.4.7 | PR #11 | TTS starts by itself when the dashboard loads (`ttsAutoStart`); when the browser wants an interaction first, the first click or key anywhere starts it. Switching it off is remembered per browser (`osureq.ttsOff`). New `queue.autoNeedsPass` ("Auto: only after a clear", off by default): a fail or quit waits for a retry or Next; the tracker now goes from `ended` back to `playing` when the same map is played again. README credits chaiwat2183 for the idea |
@@ -1066,4 +1230,4 @@ Read this before changing anything.
 ---
 
 Credits: [TikFinity](https://tikfinity.zerody.one/) for TikTok events, [tosu](https://github.com/tosuapp/tosu) for osu! game state,
-the hinai, Nekoha, beatconnect, osu.direct, catboy.best and Sayobot mirrors, and the owner's osu! beatmap viewer for the visual design.
+the hinai, Nekoha, beatconnect, osu.direct, catboy.best and Sayobot mirrors, the owner's osu! beatmap viewer for the visual design, and [KIKI Beatmap Viewer](https://api.kiki-bm.app/) for the map player.

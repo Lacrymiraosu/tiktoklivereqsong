@@ -163,6 +163,64 @@ func TestAutoUpdate(t *testing.T) {
 	}
 }
 
+func TestKikiPlayerOnByDefault(t *testing.T) {
+	if d := Default().Osu; !d.KikiPlayer || !d.KikiPlayerMod {
+		t.Errorf("the map player should be on in a new config: %+v", d)
+	}
+	path := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(path, []byte(`{"osu":{"game":"stable","viewerUrl":""}}`), 0o644)
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o := s.Get().Osu; !o.KikiPlayer || !o.KikiPlayerMod {
+		t.Errorf("a config from before the map player should get it on: %+v", o)
+	}
+	c := s.Get()
+	c.Osu.KikiPlayer, c.Osu.KikiPlayerMod = false, false
+	if err := s.Set(c); err != nil {
+		t.Fatal(err)
+	}
+	s2, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o := s2.Get().Osu; o.KikiPlayer || o.KikiPlayerMod {
+		t.Errorf("a streamer who turned the map player off must keep it off: %+v", o)
+	}
+}
+
+func TestViewerURL(t *testing.T) {
+	if v := Default().Osu.ViewerURL; v != "https://kiki-bm.app/" {
+		t.Errorf("the default beatmap viewer should be KIKI Beatmap Viewer, got %q", v)
+	}
+	path := filepath.Join(t.TempDir(), "config.json")
+	for _, c := range []struct{ saved, want string }{
+		{`"https://osu-beatmap-viewer.vercel.app/"`, "https://kiki-bm.app/"}, // the old default
+		{`""`, ""}, // button hidden
+		{`"https://osu-beatmap-viewer.vercel.app"`, "https://osu-beatmap-viewer.vercel.app"}, // typed by hand
+		{`"https://my-viewer.example/"`, "https://my-viewer.example/"},
+		{`"https://player.kiki-bm.app/s/{set}?file={file}&diff={map}"`, "https://player.kiki-bm.app/s/{set}?file={file}&diff={map}"},
+	} {
+		raw := []byte(`{"osu":{"game":"stable","viewerUrl":` + c.saved + `}}`)
+		os.WriteFile(path, raw, 0o644)
+		s, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := s.Get().Osu.ViewerURL; got != c.want {
+			t.Errorf("viewerUrl %s: got %q, want %q", c.saved, got, c.want)
+		}
+		if b, _ := os.ReadFile(path); string(b) != string(raw) {
+			t.Errorf("viewerUrl %s: Load should not rewrite config.json", c.saved)
+		}
+	}
+	os.WriteFile(path, []byte(`{"osu":{"game":"stable"}}`), 0o644)
+	if s, _ := Load(path); s.Get().Osu.ViewerURL != "https://kiki-bm.app/" {
+		t.Errorf("a config without viewerUrl should get the default, got %q", s.Get().Osu.ViewerURL)
+	}
+}
+
 func TestOldSourcesGetNewMirrors(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	os.WriteFile(path, []byte(`{"download":{"sources":[
@@ -222,5 +280,92 @@ func TestHostAllowed(t *testing.T) {
 				t.Errorf("default source %s uses a host that is not allowed: %s", s.Name, u)
 			}
 		}
+	}
+}
+
+func TestMaxPerMessage(t *testing.T) {
+	if n := Default().Command.MaxPerMessage; n != 1 {
+		t.Errorf("default maps per message = %d, want 1", n)
+	}
+	path := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(path, []byte(`{"command":{"name":"!song","enabled":true,"bareNumberAs":"set"}}`), 0o644)
+	s, err := Load(path)
+	if err != nil {
+		t.Fatalf("a config from before maps per message must load: %v", err)
+	}
+	if c := s.Get().Command; c.MaxPerMessage != 1 || c.Name != "!song" {
+		t.Errorf("an old config gets one map per message: %+v", c)
+	}
+	for _, n := range []int{0, 6, -1} {
+		c := Default()
+		c.Command.MaxPerMessage = n
+		var ve *ValidationError
+		if err := c.Validate(); !errors.As(err, &ve) || ve.Problems[0].Code != "max_per_message" {
+			t.Errorf("%d maps per message: want max_per_message, got %v", n, err)
+		}
+	}
+	for _, n := range []int{1, 3, 5} {
+		c := Default()
+		c.Command.MaxPerMessage = n
+		if err := c.Validate(); err != nil {
+			t.Errorf("%d maps per message should be valid: %v", n, err)
+		}
+	}
+}
+
+func TestOverlayLinkSettings(t *testing.T) {
+	if o := Default().Overlay; o.Remote || o.RemoteToken != "" {
+		t.Errorf("the overlay link is off and has no secret by default: %+v", o)
+	}
+	dir := t.TempDir()
+	// a config from before the overlay link
+	old := filepath.Join(dir, "old.json")
+	os.WriteFile(old, []byte(`{"overlay":{"visible":3,"theme":"sky"}}`), 0o644)
+	s, err := Load(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o := s.Get().Overlay; o.Remote || o.RemoteToken != "" || o.Visible != 3 {
+		t.Errorf("old config: %+v", o)
+	}
+
+	// switched on by hand in config.json: the secret is made and saved once
+	hand := filepath.Join(dir, "hand.json")
+	os.WriteFile(hand, []byte(`{"overlay":{"remote":true}}`), 0o644)
+	s, err = Load(hand)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok := s.Get().Overlay.RemoteToken
+	if !GoodOverlayToken(tok) {
+		t.Fatalf("token made on load: %q", tok)
+	}
+	if again, _ := Load(hand); again.Get().Overlay.RemoteToken != tok {
+		t.Error("the token made on load must be saved, not made anew on every start")
+	}
+
+	a, b := NewOverlayToken(), NewOverlayToken()
+	if a == b || len(a) != 43 || !GoodOverlayToken(a) {
+		t.Errorf("NewOverlayToken: %q %q", a, b)
+	}
+	for tok, ok := range map[string]bool{a: true, strings.Repeat("A", 42): false, strings.Repeat("A", 129): false, a[:40] + "a/b": false, a[:42] + "=": false} {
+		if GoodOverlayToken(tok) != ok {
+			t.Errorf("GoodOverlayToken(%q) = %v", tok, !ok)
+		}
+	}
+	c := Default()
+	c.Overlay.RemoteToken = "short-secret-123"
+	err = c.Validate()
+	var ve *ValidationError
+	if !errors.As(err, &ve) || ve.Problems[0].Code != "overlay_token" {
+		t.Fatalf("a short token: %v", err)
+	}
+	if strings.Contains(err.Error(), "short-secret-123") {
+		t.Errorf("the error shows the token: %v", err)
+	}
+	c = Default()
+	c.Overlay.Remote = true // the mod panel is off: Settings explains, saving still works
+	if err := c.Validate(); err != nil {
+		t.Errorf("overlay link on with the mod panel off: %v", err)
 	}
 }

@@ -120,3 +120,49 @@ func TestKeepsFirstCommandAndCountedGift(t *testing.T) {
 		t.Errorf("gift events: %+v", first)
 	}
 }
+
+func TestParseViewers(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want int
+		ok   bool
+	}{
+		{`{"viewerCount":1234,"topViewers":[]}`, 1234, true},
+		{`{"viewerCount":0}`, 0, true},
+		{`{"total":57}`, 57, true},
+		{`{"viewerCount":12,"total":99}`, 12, true},
+		{`{"viewerCount":"1234"}`, 0, false},
+		{`{"viewerCount":-3}`, 0, false},
+		{`{"viewerCount":12.5}`, 0, false},
+		{`{"viewerCount":1e12}`, 0, false},
+		{`{"viewerCount":null}`, 0, false},
+		{`{"topViewers":[]}`, 0, false},
+		{`[1,2]`, 0, false},
+		{`not json`, 0, false},
+	}
+	for _, c := range cases {
+		got, ok := ParseViewers([]byte(c.raw))
+		if got != c.want || ok != c.ok {
+			t.Errorf("ParseViewers(%s) = %d %v, want %d %v", c.raw, got, ok, c.want, c.ok)
+		}
+	}
+}
+
+func TestViewersFromTikFinity(t *testing.T) {
+	c := New(Env{}, func() Settings { return Settings{} })
+	var seen []int
+	c.OnViewers = func(n int) { seen = append(seen, n) }
+	c.handle([]byte(`{"event":"roomUser","data":{"viewerCount":321}}`), false)
+	if st := c.Status(); st.Viewers != 321 || !st.Live {
+		t.Errorf("roomUser: %+v", st)
+	}
+	c.handle([]byte(`{"event":"roomUser","data":{"topViewers":[]}}`), false)
+	c.handle([]byte(`{"event":"roomUser","data":{"viewerCount":"many"}}`), false)
+	c.handle([]byte(`{"event":"chat","data":{"uniqueId":"a","comment":"hi","viewerCount":5}}`), false)
+	if st := c.Status(); st.Viewers != 321 {
+		t.Errorf("payloads without a number must change nothing: %+v", st)
+	}
+	if len(seen) != 1 || seen[0] != 321 {
+		t.Errorf("OnViewers = %v", seen)
+	}
+}

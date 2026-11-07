@@ -136,7 +136,9 @@ func TestStream(t *testing.T) {
 			message(t, "WebcastGiftMessage", &pb.WebcastGiftMessage{User: viewer, RepeatCount: 5, RepeatEnd: 1, Gift: &pb.GiftStruct{Type: 1, DiamondCount: 1, Name: "Rose"}}),
 			message(t, "WebcastGiftMessage", &pb.WebcastGiftMessage{User: viewer, Gift: &pb.GiftStruct{Type: 2, DiamondCount: 30, Name: "Doughnut"}}),
 			message(t, "WebcastGiftMessage", &pb.WebcastGiftMessage{User: viewer}),
-			message(t, "WebcastRoomUserSeqMessage", &pb.WebcastChatMessage{}),
+			message(t, "WebcastRoomUserSeqMessage", &pb.WebcastRoomUserSeqMessage{Total: 1234, TotalUser: 99999, Popularity: 7}),
+			message(t, "WebcastRoomUserSeqMessage", &pb.WebcastRoomUserSeqMessage{Total: 1300}),
+			message(t, "WebcastLikeMessage", &pb.WebcastLikeMessage{}),
 		}}
 		b, _ = proto.Marshal(resp)
 		conn.Write(ctx, websocket.MessageBinary, frame(t, "msg", gz(b)))
@@ -170,10 +172,12 @@ func TestStream(t *testing.T) {
 	var chats []tikfinity.Chat
 	var gifts []tikfinity.Gift
 	connected, other := 0, 0
+	var viewers []int
 	err := c.Stream(ctx, "streamer", "key1", tikfinity.DirectEvents{
 		Connected: func() { connected++ },
 		Chat:      func(ch tikfinity.Chat) { chats = append(chats, ch) },
 		Gift:      func(g tikfinity.Gift) { gifts = append(gifts, g) },
+		Viewers:   func(n int) { viewers = append(viewers, n) },
 		Other:     func() { other++ },
 	})
 	if !errors.Is(err, tikfinity.ErrOffline) {
@@ -182,6 +186,9 @@ func TestStream(t *testing.T) {
 	if connected != 1 || other != 1 {
 		t.Errorf("connected %d, other %d", connected, other)
 	}
+	if len(viewers) != 2 || viewers[0] != 1234 || viewers[1] != 1300 {
+		t.Errorf("viewers = %v, want the room user totals", viewers)
+	}
 	want := tikfinity.Chat{User: "viewer1", Nick: "Viewer One", Comment: "!req 2096297", Avatar: "https://p16.tiktokcdn.com/a.jpg",
 		Moderator: tikfinity.Yes, Follower: tikfinity.Yes, Subscriber: tikfinity.No}
 	if len(chats) != 1 || chats[0] != want {
@@ -189,5 +196,21 @@ func TestStream(t *testing.T) {
 	}
 	if len(gifts) != 2 || gifts[0].Coins != 5 || gifts[0].Name != "Rose" || gifts[1].Coins != 30 || gifts[1].User != "viewer1" {
 		t.Errorf("gifts = %+v", gifts)
+	}
+}
+
+func TestHandleViewers(t *testing.T) {
+	m := message(t, "WebcastRoomUserSeqMessage", &pb.WebcastRoomUserSeqMessage{Total: 42})
+	other := 0
+	if err := handle(m, 0, tikfinity.DirectEvents{Other: func() { other++ }}); err != nil || other != 1 {
+		t.Errorf("without a Viewers callback it is just a sign of life: %v, other %d", err, other)
+	}
+	got, other := -1, 0
+	if err := handle(m, 0, tikfinity.DirectEvents{Viewers: func(n int) { got = n }, Other: func() { other++ }}); err != nil || got != 42 || other != 0 {
+		t.Errorf("viewers %d, other %d, err %v", got, other, err)
+	}
+	bad := &pb.WebcastResponse_Message{Method: "WebcastRoomUserSeqMessage", Payload: []byte{0xff, 0xff}}
+	if err := handle(bad, 0, tikfinity.DirectEvents{Viewers: func(n int) { t.Error("garbage payload counted") }}); err != nil {
+		t.Errorf("garbage payload: %v", err)
 	}
 }

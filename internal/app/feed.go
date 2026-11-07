@@ -29,6 +29,8 @@ type FeedEvent struct {
 	SetID   int       `json:"setId,omitempty"`
 	// Vars are a rejection's or result's numbers one by one, for announcements.
 	Vars map[string]string `json:"vars,omitempty"`
+	// quiet: shown, not spoken (the same message already announced it, see batch)
+	quiet bool
 }
 
 const maxFeed = 30
@@ -48,7 +50,9 @@ func (a *App) emit(e FeedEvent) {
 		a.feed = a.feed[:maxFeed]
 	}
 	a.mu.Unlock()
-	a.announce(e)
+	if !e.quiet {
+		a.announce(e)
+	}
 	a.Changed()
 }
 

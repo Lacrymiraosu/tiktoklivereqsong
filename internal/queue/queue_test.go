@@ -108,6 +108,18 @@ func TestAddFair(t *testing.T) {
 	}
 }
 
+func TestHistoryKeepsMode(t *testing.T) {
+	q, err := Open(filepath.Join(t.TempDir(), "queue.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	q.Add(&Item{ID: "a", User: "fan", SetID: 1, BeatmapID: 11, Mode: "mania", Mods: "HD", AddedAt: time.Now()})
+	q.Drop("a", "skipped")
+	if h := q.Snapshot().History; len(h) != 1 || h[0].Mode != "mania" || h[0].BeatmapID != 11 || h[0].Mods != "HD" {
+		t.Errorf("the dashboard's map player needs the mode of a history entry: %+v", h)
+	}
+}
+
 func TestBackToPrevious(t *testing.T) {
 	q, err := Open(filepath.Join(t.TempDir(), "queue.json"))
 	if err != nil {
