@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/url"
 	"strings"
 	"sync"
@@ -42,6 +43,7 @@ type Status struct {
 	Error     string    `json:"error,omitempty"`
 	Offline   bool      `json:"offline,omitempty"`   // direct: the account is not live
 	NoAccount bool      `json:"noAccount,omitempty"` // direct: TikTok has no such account
+	Viewers   int       `json:"viewers,omitempty"`   // people watching the LIVE, 0 = unknown
 }
 
 type Chat struct {
@@ -107,7 +109,8 @@ type DirectEvents struct {
 	Connected func()
 	Chat      func(Chat)
 	Gift      func(Gift)
-	Other     func() // any other message (viewers, likes…): the LIVE is alive
+	Viewers   func(int) // the number of people watching (also counts as the LIVE being alive)
+	Other     func()    // any other message (likes, gifts in a streak…): the LIVE is alive
 }
 
 const (
@@ -123,6 +126,9 @@ type Client struct {
 	OnChat   func(Chat)
 	OnGift   func(Gift)
 	OnStatus func(Status)
+	// OnViewers is called when the viewer count changes. It is not part of
+	// OnStatus, which would log a line on every new number.
+	OnViewers func(int)
 
 	mu          sync.Mutex
 	st          Status
@@ -207,6 +213,9 @@ func (c *Client) set(f func(*Status)) {
 	c.mu.Unlock()
 	if c.OnStatus != nil && (old.Level != st.Level || old.Code != st.Code || old.Connected != st.Connected || old.Error != st.Error || old.Installed != st.Installed || old.Running != st.Running) {
 		c.OnStatus(st)
+	}
+	if c.OnViewers != nil && old.Viewers != st.Viewers {
+		c.OnViewers(st.Viewers)
 	}
 }
 
@@ -347,11 +356,14 @@ func (c *Client) direct(ctx context.Context, s Settings) time.Duration {
 				c.OnGift(g)
 			}
 		},
+		Viewers: func(n int) {
+			c.set(func(st *Status) { st.Viewers, st.LastEvent = max(n, 0), time.Now() })
+		},
 		Other: func() { c.set(func(st *Status) { st.LastEvent = time.Now() }) },
 	})
 	cancel()
 	if <-kicked || ctx.Err() != nil {
-		c.set(func(st *Status) { st.Connected, st.Handshake, st.Live = false, false, false })
+		c.set(func(st *Status) { st.Connected, st.Handshake, st.Live, st.Viewers = false, false, false, 0 })
 		return 0
 	}
 	if time.Since(start) > 2*time.Minute {
@@ -359,7 +371,7 @@ func (c *Client) direct(ctx context.Context, s Settings) time.Duration {
 	}
 	wait := s.Reconnect
 	c.set(func(st *Status) {
-		st.Connected, st.Handshake, st.Live, st.Offline, st.NoAccount = false, false, false, false, false
+		st.Connected, st.Handshake, st.Live, st.Offline, st.NoAccount, st.Viewers = false, false, false, false, false, 0
 		st.Error = shortErr(err)
 		switch {
 		case errors.Is(err, ErrOffline):
@@ -400,7 +412,7 @@ func (c *Client) connect(ctx context.Context, s Settings) {
 	cancel()
 	if err != nil {
 		c.set(func(st *Status) {
-			st.Connected, st.Handshake, st.Live = false, false, false
+			st.Connected, st.Handshake, st.Live, st.Viewers = false, false, false, 0
 			st.Error = "WebSocket: " + shortErr(err)
 		})
 		return
@@ -425,7 +437,7 @@ func (c *Client) connect(ctx context.Context, s Settings) {
 			case <-t.C:
 				c.set(func(st *Status) {
 					if st.Live && time.Since(st.LastEvent) > liveTimeout {
-						st.Live = false
+						st.Live, st.Viewers = false, 0
 					}
 				})
 			}
@@ -436,7 +448,7 @@ func (c *Client) connect(ctx context.Context, s Settings) {
 		_, data, err := conn.Read(wctx)
 		if err != nil {
 			c.set(func(st *Status) {
-				st.Connected, st.Handshake, st.Live = false, false, false
+				st.Connected, st.Handshake, st.Live, st.Viewers = false, false, false, 0
 				if ctx.Err() == nil && websocket.CloseStatus(err) != websocket.StatusNormalClosure {
 					st.Error = "disconnected: " + shortErr(err)
 				}
@@ -485,6 +497,11 @@ func (c *Client) handle(b []byte, logRaw bool) {
 			if c.OnGift != nil {
 				c.OnGift(g)
 			}
+		}
+	}
+	if viewerEvents[strings.ToLower(e.Event)] {
+		if n, ok := ParseViewers(e.Data); ok {
+			c.set(func(st *Status) { st.Viewers = n })
 		}
 	}
 	if e.Event == "chat" {
@@ -567,6 +584,31 @@ func ParseChat(data json.RawMessage) (Chat, bool) {
 		}
 	}
 	return ch, true
+}
+
+// viewerEvents are the TikFinity event names that may carry the viewer count.
+// "roomUser" is what TikTok-Live-Connector (same author as TikFinity) calls
+// TikTok's room user message; the other two are guesses. Not verified on a
+// live stream yet: check the raw events of a real LIVE.
+var viewerEvents = map[string]bool{"roomuser": true, "viewercount": true, "viewer": true}
+
+// ParseViewers reads the viewer count of a TikFinity room user event: a
+// non-negative whole number in data.viewerCount (TikTok-Live-Connector's
+// name), or one of a few other plausible keys. Anything else is not a count.
+func ParseViewers(data json.RawMessage) (int, bool) {
+	var m map[string]any
+	if json.Unmarshal(data, &m) != nil {
+		return 0, false
+	}
+	for _, k := range []string{"viewerCount", "viewers", "total", "totalUser"} {
+		if v, ok := m[k].(float64); ok {
+			if v < 0 || v > 1e9 || v != math.Trunc(v) {
+				return 0, false
+			}
+			return int(v), true
+		}
+	}
+	return 0, false
 }
 
 // Gift is a finished gift (a whole streak for streakable gifts).

@@ -91,19 +91,22 @@ const T = {
   confirmBan_set: ["Ban beatmapset {v}? Waiting requests for it are removed.", "แบนเซ็ต {v}? คำขอที่รออยู่ของแมพนี้จะถูกลบ"],
   confirmBan_song: ["Ban the song {v}? Every version of it (other sets, TV size, cut…) is rejected and waiting requests for it are removed.", "แบนเพลง {v}? ทุกเวอร์ชันของเพลงนี้ (เซ็ตอื่น TV size ตัดสั้น ฯลฯ) จะถูกปฏิเสธ และคำขอที่รออยู่จะถูกลบ"],
   banSong: ["Ban this song (every version)", "แบนเพลงนี้ (ทุกเวอร์ชัน)"], banArtist: ["Ban every song by {a}", "แบนทุกเพลงของ {a}"],
-  confirmBan_artist: ["Ban every song by {v}? Waiting requests for them are removed. Undo in Settings → Map rules.", "แบนทุกเพลงของ {v}? คำขอที่รออยู่จะถูกลบ ยกเลิกได้ใน ตั้งค่า → กฎแมพ"],
+  confirmBan_artist: ["Ban every song by {v}? Waiting requests for them are removed. Undo with the Map rules button on the dashboard.", "แบนทุกเพลงของ {v}? คำขอที่รออยู่จะถูกลบ ยกเลิกได้ที่ปุ่ม กฎแมพ บนแดชบอร์ด"],
   n_banned_artist: ["Banned songs by {v} (removed {n})", "แบนเพลงของ {v} แล้ว (ลบ {n} รายการ)"],
   e_song_rule: ["Song rule {rule}: write artist=\"…\", title=\"…\", Artist - Title, or a title", "กฎเพลง {rule}: เขียนเป็น artist=\"…\", title=\"…\", ศิลปิน - ชื่อเพลง หรือชื่อเพลง"],
   n_banned_song: ["Banned the song {v} (removed {n})", "แบนเพลง {v} แล้ว (ลบ {n} รายการ)"],
   r_song_blacklisted: ["song blacklisted", "เพลงถูกแบน"], r_artist_blacklisted: ["artist blacklisted", "ศิลปินถูกแบน"],
   confirmBan_mapper: ["Ban maps by {v}? Waiting requests for their maps are removed.", "แบนแมพของ {v}? คำขอที่รออยู่ของแมพเหล่านี้จะถูกลบ"],
-  banned: ["Banned {v} · removed {n}. Undo in Settings → Map rules.", "แบน {v} แล้ว · ลบ {n} คำขอ ยกเลิกได้ใน ตั้งค่า → กฎแมพ"],
+  banned: ["Banned {v} · removed {n}. Undo with the Map rules button on the dashboard.", "แบน {v} แล้ว · ลบ {n} คำขอ ยกเลิกได้ที่ปุ่ม กฎแมพ บนแดชบอร์ด"],
   mirrors: ["Mirrors", "Mirror"], mirrorCheck: ["Check", "ตรวจ"], mirrorChecking: ["Checking…", "กำลังตรวจ…"],
   m_unknown: ["not checked yet", "ยังไม่ได้ตรวจ"], m_resting: ["rate limited, {s}s", "โดนจำกัดความถี่ รออีก {s} วิ"], m_ago: ["{t} ago", "{t} ที่แล้ว"],
   mirrorHint: ["Checked once after start, then by each download. A mirror that refuses a download (HTTP 403) is also reported in Activity.", "ตรวจครั้งเดียวหลังเปิดโปรแกรม จากนั้นอัปเดตตามการดาวน์โหลดแต่ละครั้ง ถ้า mirror ไหนไม่ยอมให้โหลด (HTTP 403) จะแจ้งในกิจกรรมด้วย"],
   n_mirrorRefused: ["{src} refused the download: {msg}", "{src} ไม่ยอมให้โหลด: {msg}"],
   pvPlay: ["preview", "ฟังตัวอย่าง"], pvStop: ["stop", "หยุด"], pvFail: ["Could not play the preview", "เล่นตัวอย่างเพลงไม่ได้"],
   viewer: ["viewer", "viewer"], viewerTitle: ["Open in the beatmap viewer", "เปิดใน beatmap viewer"],
+  kikiOpen: ["view map", "ดูแมพ"], kikiClose: ["close map viewer", "ปิดตัวดูแมพ"],
+  kikiTip: ["Play the map in KIKI's beatmap player under this card", "เล่นแมพในตัวดูแมพ KIKI ใต้การ์ดนี้"],
+  kikiTitle: ["Beatmap player (KIKI Beatmap Viewer)", "ตัวดูแมพ (KIKI Beatmap Viewer)"],
   confirmQuit: ["Stop osureq? Requests will not be taken until you start it again.", "ปิด osureq? จะไม่รับคำขอจนกว่าจะเปิดใหม่"],
   quitDone: ["osureq stopped. You can close this tab.", "ปิด osureq แล้ว ปิดแท็บนี้ได้เลย"],
   trayHint: ["osureq runs in its CMD window, which shows the log. Closing that window also stops osureq.", "osureq ทำงานอยู่ในหน้าต่าง CMD ซึ่งแสดง log ด้วย ปิดหน้าต่างนั้นก็เป็นการปิด osureq"],
@@ -131,6 +134,7 @@ const T = {
   e_command_name: ["The command must start with ! and have no spaces", "คำสั่งต้องขึ้นต้นด้วย ! และไม่มีช่องว่าง"],
   e_mod_cmd: ["Mod command {cmd} must start with ! and have no spaces", "คำสั่งม็อด {cmd} ต้องขึ้นต้นด้วย ! และไม่มีช่องว่าง"],
   e_bare_number: ["A bare number must mean beatmap or set", "ตัวเลขเปล่าต้องเป็น beatmap หรือ set"],
+  e_max_per_message: ["Maps per message must be 1-5", "จำนวนแมพต่อข้อความต้องอยู่ระหว่าง 1-5"],
   e_stars_order: ["Min stars is above max stars", "ดาวขั้นต่ำมากกว่าดาวสูงสุด"],
   e_play_mode: ["Play mode must be manual or auto", "โหมดเล่นต้องเป็น manual หรือ auto"],
   e_md5_level: ["MD5 level must be strict or requested", "ระดับ MD5 ต้องเป็น strict หรือ requested"],
@@ -154,6 +158,7 @@ const T = {
   emptyQueue: ["The queue is empty. Viewers type {cmd} <ID or link> in TikTok chat.", "คิวว่าง ผู้ชมพิมพ์ {cmd} <ID หรือลิงก์> ในแชท TikTok"],
   emptyQueueName: ["The queue is empty. Viewers type {cmd} <song name, ID or link> in TikTok chat.", "คิวว่าง ผู้ชมพิมพ์ {cmd} <ชื่อเพลง, ID หรือลิงก์> ในแชท TikTok"],
   r_search_none: ["no map with that name", "ไม่พบแมพชื่อนี้"], r_needs_gift: ["no gift sent", "ยังไม่ได้ส่งของขวัญ"],
+  r_too_many_maps: ["too many maps in one message", "ขอหลายแมพเกินในข้อความเดียว"],
   e_request_coins: ["Coins per request cannot be negative", "เหรียญต่อคำขอติดลบไม่ได้"], r_search_error: ["song search failed", "ค้นหาเพลงไม่ได้"],
   resolving: ["looking up {n} request(s)…", "กำลังค้นหา {n} คำขอ…"],
   st_queued: ["waiting", "รอดาวน์โหลด"],
@@ -162,6 +167,7 @@ const T = {
   st_failed: ["failed", "ล้มเหลว"],
   wholeSet: ["whole set", "ทั้งเซ็ต"],
   test: ["test", "ทดสอบ"],
+  viewersTip: ["People watching the LIVE", "ผู้ชมที่กำลังดูไลฟ์"],
   tf_not_installed: ["TikFinity not installed", "ยังไม่ได้ติดตั้ง TikFinity"],
   tf_not_running: ["TikFinity not running", "TikFinity ไม่ได้เปิดอยู่"],
   tf_connecting: ["Connecting to TikFinity…", "กำลังเชื่อมต่อ TikFinity…"],
@@ -190,6 +196,9 @@ const T = {
   saved: ["Saved", "บันทึกแล้ว"],
   restart: ["Saved. Restart the helper to use the new dashboard port.", "บันทึกแล้ว รีสตาร์ทโปรแกรมเพื่อใช้พอร์ตใหม่"],
   added: ["Added: {t}", "เพิ่มแล้ว: {t}"],
+  addedMany: ["Added {n} of {m} maps, first: {t}", "เพิ่มแล้ว {n} จาก {m} แมพ แมพแรก: {t}"],
+  noneAdded: ["None of the {m} maps was added", "ไม่ได้เพิ่มเลยสักแมพจาก {m} แมพ"],
+  mapsLeftOut: ["{n} more left out (maps per message)", "อีก {n} แมพไม่ถูกนับ (เกินจำนวนแมพต่อข้อความ)"],
   confirmClear: ["Remove every request from the queue?", "ลบคำขอทั้งหมดในคิว?"],
   none: ["Nothing yet", "ยังไม่มี"],
   copied: ["Copied", "คัดลอกแล้ว"],
@@ -277,6 +286,13 @@ const T = {
   modUrls: ["Open on a phone on the same Wi-Fi", "เปิดบนมือถือที่ใช้ Wi-Fi เดียวกัน"], modNoUrl: ["Turn it on and save to see the address.", "เปิดแล้วกดบันทึกเพื่อดูที่อยู่"],
   modNoLan: ["No home network address found on this PC.", "ไม่พบที่อยู่วงแลนของเครื่องนี้"],
   genPin: ["New PIN", "สุ่ม PIN ใหม่"],
+  ovrNeedMod: ["Turn on the mod panel first (Mod panel tab) and save: the link uses its port.", "เปิดแผงม็อดก่อน (แท็บแผงม็อด) แล้วกดบันทึก ลิงก์นี้ใช้พอร์ตของแผงม็อด"],
+  ovrUrls: ["Paste it into a Browser Source in OBS on the other PC (same network)", "นำไปวางใน Browser Source ของ OBS บนคอมอีกเครื่อง (เครือข่ายเดียวกัน)"],
+  ovrSave: ["Save to turn the link on.", "กดบันทึกเพื่อเปิดใช้ลิงก์"], ovrMaking: ["Making the link…", "กำลังสร้างลิงก์…"],
+  ovrWarn: ["Anyone on this network who has the link can see the overlay (viewer names, requested songs), but cannot control anything. Keep it to yourself.", "ใครก็ตามในเครือข่ายนี้ที่มีลิงก์จะเห็น overlay ได้ (ชื่อผู้ชม เพลงที่ขอ) แต่ควบคุมอะไรไม่ได้ เก็บลิงก์ไว้ใช้เอง"],
+  ovrNew: ["New link", "สร้างลิงก์ใหม่"], ovrNewDone: ["New link made: paste it into OBS on the other PC", "สร้างลิงก์ใหม่แล้ว นำไปวางใน OBS บนคอมอีกเครื่อง"],
+  ovrNewConfirm: ["Make a new link? The old link stops working right away, so OBS on the other PC needs the new one.", "สร้างลิงก์ใหม่ไหม? ลิงก์เก่าจะใช้ไม่ได้ทันที OBS บนคอมอีกเครื่องต้องเปลี่ยนไปใช้ลิงก์ใหม่"],
+  e_overlay_token: ["The overlay link is broken: make a new link in Settings → Overlay", "ลิงก์ overlay ใช้ไม่ได้ สร้างลิงก์ใหม่ใน ตั้งค่า → โอเวอร์เลย์"],
   e_remote_port: ["Mod panel port must be 1024-65535 and not the dashboard port", "พอร์ตแผงม็อดต้องอยู่ระหว่าง 1024-65535 และไม่ซ้ำกับพอร์ตแดชบอร์ด"],
   e_remote_pin: ["Mod panel PIN must be 6-12 digits, not all the same and not 123456-style", "PIN แผงม็อดต้องเป็นตัวเลข 6-12 หลัก ไม่ซ้ำกันทั้งหมด และไม่ใช่แบบ 123456"],
   n_modLogin: ["Mod panel: signed in from {ip}", "แผงม็อด: มีคนเข้าใช้จาก {ip}"],
@@ -351,7 +367,9 @@ const T = {
   ph_queueEmpty: ["queue is empty", "คิวว่าง"],
   r_too_long: ["too long", "ยาวเกิน"], r_meta_error: ["osu! lookup failed", "ดึงข้อมูล osu! ไม่ได้"], r_bad_input: ["invalid input", "รูปแบบไม่ถูกต้อง"], r_requests_off: ["requests off", "ปิดรับคำขอ"], r_followers_only: ["not a follower", "ไม่ได้ติดตาม"],
   // settings tabs
-  tab_connection: ["Connection", "การเชื่อมต่อ"], tab_osu: ["osu!", "osu!"], tab_command: ["Command", "คำสั่ง"], tab_rules: ["Map rules", "กฎแมพ"],
+  tab_connection: ["Connection", "การเชื่อมต่อ"], tab_osu: ["osu!", "osu!"], tab_command: ["Command", "คำสั่ง"],
+  // the Map rules drawer on the dashboard (no longer a settings tab)
+  mapRules: ["Map rules", "กฎแมพ"], rulesReset: ["Reset to defaults", "คืนค่าเริ่มต้น"],
   tab_remote: ["Mod panel", "แผงม็อด"], tab_queue: ["Queue", "คิว"], tab_download: ["Download", "ดาวน์โหลด"], tab_md5: ["MD5", "MD5"], tab_import: ["Import", "นำเข้า"], tab_overlay: ["Overlay", "โอเวอร์เลย์"], tab_hotkeys: ["Hotkeys", "ปุ่มลัด"],
 };
 let LANG = (navigator.language || "").startsWith("th") ? "th" : "en", langPicked = false;
@@ -432,6 +450,10 @@ function render() {
   $("#tfDot").className = "dot " + tf.level;
   $("#tfText").textContent = t((direct ? "tt_" : "tf_") + tf.code);
   $("#tfPill").title = tf.error || (direct && tf.user ? "TikTok @" + tf.user : "");
+  const vw = $("#tfViewers"), viewers = tf.viewers > 0 ? tf.viewers : 0;
+  vw.hidden = !viewers;
+  vw.textContent = viewers ? "👁 " + viewers.toLocaleString() : "";
+  vw.title = viewers ? t("viewersTip") : "";
   const sub = $("[data-t^=subtitle]"), subKey = direct ? "subtitleDirect" : "subtitle";
   if (sub.dataset.t !== subKey) { sub.dataset.t = subKey; sub.textContent = t(subKey); }
   $("#logo").classList.toggle("beat", tf.level === "green" && S.requests);
@@ -466,6 +488,7 @@ function render() {
   updatePhase();
   renderQueue(S.queue.items || []);
   renderSide();
+  if (kiki && (!S.kikiPlayer || !kiki.box.isConnected)) kikiClose(); // switched off in Settings, or its card is gone
 }
 
 // same() remembers what an element was last drawn from, so the 4-per-second
@@ -482,7 +505,7 @@ let statusOpen = true;
 try { statusOpen = localStorage.getItem("osureq.statusOpen") !== "0"; } catch {}
 function renderStatus(tf, ts) {
   const b = $("#banner");
-  const { lastEvent, ...shownTf } = tf;
+  const { lastEvent, viewers, ...shownTf } = tf;
   if (same(b, JSON.stringify([shownTf, ts.level, ts.code, ts.running, ts.connected, !!ts.path, ts.error, LANG, statusOpen]))) return;
   b.replaceChildren();
   const chk = (ok, k) => h("em", { class: ok ? "ok" : "no" }, (ok ? "✓ " : "✕ ") + t(k));
@@ -571,12 +594,15 @@ function togglePreview(setId) {
   if (previewSet !== setId) { preview.src = `https://b.ppy.sh/preview/${setId}.mp3`; previewSet = setId; }
   preview.play().catch(() => toast(t("pvFail"), true));
 }
-// mapLinks: " · ♪ preview · viewer ↗" after the osu! link (viewer hidden when no URL is set).
+// mapLinks: " · ♪ preview · viewer ↗ · ▶ view map" after the osu! link in now playing
+// (viewer hidden when no URL is set; the map player opens under the now-playing box).
 function mapLinks(it) {
   const pv = h("button", { class: "mlink pv", type: "button", "data-pv": it.setId, onclick: e => { e.stopPropagation(); togglePreview(it.setId); } });
   const out = [" · ", pv];
   const vh = viewerHref(it);
   if (vh) out.push(" · ", h("a", { class: "mlink", href: vh, target: "_blank", rel: "noopener", title: t("viewerTitle") }, t("viewer") + " ↗"));
+  const kb = kikiBtn("n:" + it.id, it, () => $("#np"));
+  if (kb) out.push(" · ", kb);
   queueMicrotask(syncPreview);
   return out;
 }
@@ -593,6 +619,146 @@ function viewerHref(it) {
   u.searchParams.set("s", it.setId);
   if (it.beatmapId) u.searchParams.set("b", it.beatmapId);
   return u.toString();
+}
+
+/* ---------- KIKI beatmap player (▶ view map) ---------- */
+// KIKI Beatmap Viewer's player folds out under a card, one at a time. It is a plain iframe of
+// player.kiki-bm.app/embed driven by the postMessage code below: no script from KIKI runs on
+// this page. The map comes from osureq's cache when it holds a copy checked by this run
+// (/api/osz/{set}); otherwise the player fetches it from the community mirrors by its id.
+// Moving an iframe in the page reloads it, so the open player stays put and the cards are
+// placed around it (setKids).
+const KIKI = "https://player.kiki-bm.app";
+const KIKI_MAX = 100 << 20; // the player takes an .osz up to 100 MB
+// kikiMods keeps the mods the player knows (EZ HD HR DT NC HT FL) and, like the player,
+// drops the later one of EZ+HR and of DT/NC/HT. "" = no mods.
+function kikiMods(mods) {
+  const out = [], speed = ["DT", "NC", "HT"];
+  for (const m of String(mods || "").toUpperCase().match(/[A-Z0-9]{2}/g) || []) {
+    if (!["EZ", "HD", "HR", "FL", ...speed].includes(m) || out.includes(m)) continue;
+    if ((m === "EZ" || m === "HR") && out.some(x => x === "EZ" || x === "HR")) continue;
+    if (speed.includes(m) && out.some(x => speed.includes(x))) continue;
+    out.push(m);
+  }
+  return out.join("");
+}
+// kikiAccent: osureq's pink for the player's buttons (the light or dark one, as the page shows it).
+const kikiAccent = () => {
+  const c = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim();
+  return /^#[0-9a-f]{6}$/i.test(c) ? c : "#ff66aa";
+};
+// kikiShows: the button is on (Settings → osu!) and the map is osu!standard, the only mode the player plays.
+const kikiShows = it => !!(S && S.kikiPlayer) && it.mode === "osu" && it.setId > 0;
+let kiki = null; // the open player: { key, it, box, frame, osz: Promise of the cache address or "", ours, sent }
+
+// kikiBtn is "▶ view map" for the card that anchorOf(button) returns; key names the card across redraws.
+function kikiBtn(key, it, anchorOf) {
+  if (!kikiShows(it)) return null;
+  const b = h("button", { class: "mlink kikibtn", type: "button", "data-kiki-btn": key, title: t("kikiTip"),
+    onclick: e => { e.stopPropagation(); kikiToggle(key, it, anchorOf(b)); } });
+  kikiLabel(b);
+  return b;
+}
+function kikiLabel(b) {
+  const open = !!kiki && kiki.key === b.dataset.kikiBtn;
+  b.textContent = open ? "▴ " + t("kikiClose") : "▶ " + t("kikiOpen");
+  b.setAttribute("aria-expanded", String(open));
+  b.classList.toggle("on", open);
+}
+const syncKiki = () => document.querySelectorAll("[data-kiki-btn]").forEach(kikiLabel);
+
+function kikiToggle(key, it, anchor) {
+  const again = !!kiki && kiki.key === key;
+  kikiClose();
+  if (again || !anchor) return;
+  const q = new URLSearchParams({ lang: LANG, accent: kikiAccent(), label: "osureq" });
+  const frame = h("iframe", { src: `${KIKI}/embed?${q}`, title: t("kikiTitle"), allow: "autoplay; fullscreen", loading: "lazy" });
+  const box = h("div", { class: "kiki", "data-kiki-for": key }, h("div", { class: "kiki-in" }, h("div", { class: "kiki-frame" }, frame)));
+  anchor.after(box);
+  kiki = { key, it, box, frame, osz: kikiCached(it.setId), ours: "", sent: false };
+  box.addEventListener("transitionend", () => { if (kiki && kiki.box === box) box.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, { once: true });
+  requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add("open")));
+  syncKiki();
+}
+function kikiClose() {
+  const k = kiki;
+  if (!k) return;
+  kiki = null;
+  k.frame.remove(); // the sound stops at once
+  k.box.classList.remove("open");
+  setTimeout(() => k.box.remove(), 300); // once it has folded away
+  syncKiki();
+}
+
+// kikiCached asks osureq (HEAD, nothing is read yet) whether its cache holds a checked copy of the
+// set small enough for the player, and gives its address, or "" for the mirrors. The no-video file
+// is asked for first when downloads leave the video out; osureq falls back to the other one.
+async function kikiCached(setId) {
+  const url = `/api/osz/${setId}` + (S && S.noVideo ? "?novideo=1" : "");
+  try {
+    const r = await fetch(url, { method: "HEAD", headers: { "X-Osureq": "1" }, cache: "no-store" });
+    const n = +r.headers.get("Content-Length");
+    return r.ok && n > 0 && n <= KIKI_MAX ? url : "";
+  } catch { return ""; }
+}
+const kikiSend = (k, type, data = {}) => { if (k.frame.contentWindow) k.frame.contentWindow.postMessage({ kiki: 1, v: 1, type, ...data }, KIKI); };
+// kikiLoad shows the map: with osureq's file (asked for when the viewer presses ▶ in the player) or from the mirrors.
+function kikiLoad(k) {
+  const it = k.it, set = { id: it.setId };
+  for (const f of ["title", "artist", "creator"]) if (it[f]) set[f] = String(it[f]);
+  const msg = { set, lang: LANG, accent: kikiAccent(), label: "osureq" };
+  if (it.beatmapId > 0) msg.diff = it.beatmapId;
+  const mods = kikiMods(it.mods);
+  if (mods) msg.mods = mods;
+  if (k.ours) msg.file = { ask: true };
+  kikiSend(k, "load", msg);
+}
+// kikiMirrors: osureq's file did not work, so the player takes the map from the mirrors instead (once).
+// The player keeps a file it was given in its memory cache, even a broken one: that copy goes first.
+function kikiMirrors(k) {
+  if (kiki !== k || !k.ours) return;
+  k.ours = "";
+  kikiSend(k, "cache-clear", { set: k.it.setId });
+  kikiLoad(k);
+}
+addEventListener("message", async e => {
+  const k = kiki;
+  if (!k || e.origin !== KIKI || e.source !== k.frame.contentWindow || !e.data || e.data.kiki !== 1) return;
+  const m = e.data;
+  if (m.type === "ready" && !k.sent) {
+    k.sent = true;
+    k.ours = await k.osz;
+    if (kiki === k) kikiLoad(k);
+  } else if (m.type === "need-file" && m.kind === "map" && k.ours) {
+    try {
+      const r = await fetch(k.ours, { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const file = await r.blob();
+      if (kiki === k) kikiSend(k, "file", { kind: "map", id: m.id, file });
+    } catch { kikiMirrors(k); }
+  } else if (m.type === "error" && ["fetch_failed", "file_too_large", "bad_file"].includes(m.code)) {
+    kikiMirrors(k);
+  } else if (m.type === "play" && !preview.paused) {
+    preview.pause(); // one sound at a time
+  }
+});
+preview.addEventListener("play", () => { if (kiki) kikiSend(kiki, "pause"); });
+
+// setKids replaces a list's children like replaceChildren, but keeps the open player in place
+// when its card is still in the list (the cards go around it); else the player closes.
+function setKids(el, nodes) {
+  const k = kiki;
+  if (k && k.box.parentNode === el) {
+    const at = nodes.findIndex(n => n.dataset && n.dataset.kiki === k.key);
+    if (at >= 0) {
+      for (const c of [...el.children]) if (c !== k.box) c.remove();
+      k.box.before(...nodes.slice(0, at + 1));
+      k.box.after(...nodes.slice(at + 1));
+      return;
+    }
+    kikiClose();
+  }
+  el.replaceChildren(...nodes);
 }
 
 // resultShort mirrors app.ResultShort: "98.52% S · 812x · 2 miss · 301pp · HDHR".
@@ -644,7 +810,9 @@ setInterval(updatePhase, 1000);
 function renderNow(n) {
   const box = $("#np");
   const prevTitle = S.queue.prev || "";
-  if (same(box, JSON.stringify([n, LANG, S.viewerUrl, prevTitle]))) return;
+  // the map player sits after the box (not in it, so a redraw leaves it alone) until another map plays
+  if (kiki && kiki.key.startsWith("n:") && (!n || kiki.key !== "n:" + n.id)) kikiClose();
+  if (same(box, JSON.stringify([n, LANG, S.viewerUrl, S.kikiPlayer, prevTitle]))) return;
   box.replaceChildren();
   const next = h("button", { class: "btn-solid theme-primary", type: "button", onclick: e => busy(e.currentTarget, () => act("/api/action/next")) }, svg(ICON.next), t("next"));
   // back to the map played before: osu! jumps to it again
@@ -687,13 +855,13 @@ function renderQueue(items) {
   res.textContent = S.resolving > 0 ? t("resolving", { n: S.resolving }) : "";
   if (!items.length) {
     cards.clear();
-    if (!same(list, "empty" + LANG + S.command + S.search)) list.replaceChildren(h("div", { class: "empty" }, t(S.search ? "emptyQueueName" : "emptyQueue", { cmd: S.command })));
+    if (!same(list, "empty" + LANG + S.command + S.search)) setKids(list, [h("div", { class: "empty" }, t(S.search ? "emptyQueueName" : "emptyQueue", { cmd: S.command }))]);
     return;
   }
   list.dataset.key = "";
   const next = items.map((it, i) => {
     const { attempts: _, ...rest } = it;
-    const key = JSON.stringify([rest, i, items.length, LANG, ago(it.addedAt), S.viewerUrl]);
+    const key = JSON.stringify([rest, i, items.length, LANG, ago(it.addedAt), S.viewerUrl, S.kikiPlayer]);
     let card = cards.get(it.id);
     // a card whose menu is open is kept as it is: rebuilding it would pull the menu away from its button
     if (!card || (card.dataset.key !== key && !card.dataset.menuOpen)) {
@@ -703,11 +871,11 @@ function renderQueue(items) {
     updateAttempts(card, it);
     return card;
   });
-  const cur = [...list.children];
+  const cur = [...list.children].filter(c => !c.classList.contains("kiki")); // the map player is not a card
   if (cur.length === next.length && cur.every((c, i) => c.dataset.id === next[i].dataset.id)) {
     cur.forEach((c, i) => { if (c !== next[i]) c.replaceWith(next[i]); }); // swap only rebuilt cards
   } else {
-    list.replaceChildren(...next); // added, removed or reordered
+    setKids(list, next); // added, removed or reordered
   }
   cards.clear();
   items.forEach((it, i) => { cards.set(it.id, next[i]); seen.add(it.id); });
@@ -716,13 +884,15 @@ function renderQueue(items) {
 function buildCard(it, i, total) {
   const q = (op, body) => act(`/api/queue/${it.id}/${op}`, body);
   const btn = (ico, title, f, cls, dis) => h("button", { class: (cls || "btn-outline theme-secondary") + " btn-icon rounded-pill", type: "button", title, "aria-label": title, disabled: dis, onclick: e => busy(e.currentTarget, f) }, svg(ico));
-  const card = h("div", { class: "qi cover-bg" + (it.state === "failed" ? " failed" : "") + (seen.has(it.id) ? " seen" : ""), style: `--i:${i};--cover:url("${coverOf(it)}")`, draggable: "true", "data-id": it.id, "data-set": it.setId },
+  const tags = tagsFor(it), kb = kikiBtn("q:" + it.id, it, b => b.closest(".qi"));
+  if (kb) tags.append(kb);
+  const card = h("div", { class: "qi cover-bg" + (it.state === "failed" ? " failed" : "") + (seen.has(it.id) ? " seen" : ""), style: `--i:${i};--cover:url("${coverOf(it)}")`, draggable: "true", "data-id": it.id, "data-set": it.setId, "data-kiki": "q:" + it.id },
     h("span", { class: "pos", title: "drag" }, i + 1),
     h("div", { class: "ci" },
       h("b", { title: it.title }, it.title),
       h("span", { title: `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}` }, `${it.artist} · [${it.version}] · ${t("mappedBy")} ${it.creator}`),
       h("small", { title: "@" + it.user }, h("span", { class: "s-" + it.state }, t("st_" + it.state)), " · " + ago(it.addedAt) + " · ", h("span", { class: "req" }, "@" + it.user)),
-      tagsFor(it)),
+      tags),
     h("div", { class: "cact" },
       it.state === "failed" ? btn(ICON.retry, L("Retry", "ลองใหม่"), () => q("retry"), "btn-solid theme-primary") : btn(ICON.play, L("Play now", "เล่นเลย"), () => q("play"), "btn-solid theme-primary"),
       btn(ICON.x, L("Remove", "ลบ"), () => q("remove")),
@@ -823,7 +993,7 @@ function logItem(cls, head, who, at, body, code) {
 function fill(sel, items, key) {
   const e = $(sel);
   if (same(e, JSON.stringify([key, LANG]))) return;
-  e.replaceChildren(...(items.length ? items : [h("div", { class: "hint" }, t("none"))]));
+  setKids(e, items.length ? items : [h("div", { class: "hint" }, t("none"))]);
 }
 
 // renderMirrors: how each download mirror did last time (a download or a check).
@@ -845,6 +1015,8 @@ function renderMirrors() {
   }), [list.map(m => [m.name, m.state, m.state === "ok" ? "" : m.error, m.at && ago(m.at)]), S.mirrorCheck]);
 }
 $("#mirrorBtn").addEventListener("click", () => act("/api/action/checkMirrors"));
+// a player under a history entry closes with its tab, so it does not keep playing out of sight
+$('[data-bs-target="#tabHist"]').addEventListener("hide.bs.tab", () => { if (kiki && kiki.key.startsWith("h:")) kikiClose(); });
 
 function renderSide() {
   renderMirrors();
@@ -865,11 +1037,15 @@ function renderSide() {
   fill("#histLog", hist.map(p => {
     const li = logItem(p.result === "played" ? "ok" : "warn", p.title + (p.mods ? " +" + p.mods : ""), "@" + p.user, p.at,
       t(p.result) + (p.play ? " · " + t("res_" + p.play.outcome) + " " + resultShort(p.play) : ""));
-    // jump back to it in osu! (osu://b/…) without touching the queue
-    li.append(h("button", { class: "mlink jumplink", type: "button", title: t("jumpTitle"),
-      onclick: e => busy(e.currentTarget, () => act("/api/jump", { setId: p.setId, beatmapId: p.beatmapId || 0 })) }, "↗ " + t("jump")));
+    // jump back to it in osu! (osu://b/…) without touching the queue; ▶ view map opens the player under the entry
+    const key = "h:" + p.at + ":" + p.setId;
+    li.dataset.kiki = key;
+    li.append(h("div", { class: "tplinks" },
+      h("button", { class: "mlink jumplink", type: "button", title: t("jumpTitle"),
+        onclick: e => busy(e.currentTarget, () => act("/api/jump", { setId: p.setId, beatmapId: p.beatmapId || 0 })) }, "↗ " + t("jump")),
+      kikiBtn(key, { setId: p.setId, beatmapId: p.beatmapId || 0, mods: p.mods, mode: p.mode, title: p.title }, b => b.closest(".tp"))));
     return li;
-  }), hist);
+  }), [hist, S.kikiPlayer]);
   fill("#rawLog", raw.map(r => logItem("info", r.event, "", r.at, "", r.raw)), raw.map(r => [r.at, r.event]));
   renderSummary(S.summary);
   const ov = location.origin + "/overlay";
@@ -1205,6 +1381,17 @@ function setTestOpen(open) {
 $("#testToggle").addEventListener("click", () => setTestOpen($("#testBody").hidden));
 try { setTestOpen(localStorage.getItem("osureq.testOpen") === "1"); } catch { setTestOpen(false); }
 $("#clearTestBtn").addEventListener("click", () => { if (confirm(t("confirmClearTest"))) act("/api/action/clearTest"); });
+const MOD_CODES = ["NF", "EZ", "HD", "HR", "SD", "DT", "HT", "NC", "FL", "SO", "PF", "FI", "MR"];
+// mapsOnly: the test box holds only map IDs or osu! links, each maybe followed by mods ("123 456 HDHR").
+function mapsOnly(input) {
+  const map = w => /^(\d+|(https?:\/\/)?(osu|old)\.ppy\.sh\/\S+)$/i.test(w);
+  const words = input.split(/\s+/);
+  const mods = w => w.startsWith("+") || (w.length % 2 === 0 && w.length <= 26 && (w.toUpperCase().match(/../g) || []).every(m => MOD_CODES.includes(m)));
+  return map(words[0]) && words.every(w => map(w) || mods(w));
+}
+const rejText = j => j.code && T["r_" + j.code] ? t("r_" + j.code) + (j.short ? " · " + j.short : "") : j.error;
+// manyNotes: the first rejection and the maps left out of a test message with several maps.
+const manyNotes = j => [j.rejected ? rejText(j) : "", j.ignored ? t("mapsLeftOut", { n: j.ignored }) : ""].filter(Boolean);
 $("#testForm").addEventListener("submit", async e => {
   e.preventDefault();
   let input = $("#testIn").value.trim();
@@ -1221,17 +1408,19 @@ $("#testForm").addEventListener("submit", async e => {
       return;
     }
     if (testMode === "chat") {
-      // only a bare ID or osu! link gets the command; other text is plain chat (read by TTS)
-      if (/^(\d+|(https?:\/\/)?(osu|old)\.ppy\.sh\/\S+)$/i.test(input)) input = (S ? S.command : "!req") + " " + input;
+      // only bare IDs or osu! links (mods may follow each) get the command; other text is plain chat (read by TTS)
+      if (mapsOnly(input)) input = (S ? S.command : "!req") + " " + input;
       j = await api("POST", "/api/simulate", { user, message: input });
     } else {
       j = await api("POST", "/api/test", { input, user });
     }
     if (j.command) { toast(t("cmd_" + j.command, { u: user || "viewer" }), !j.ok); if (j.ok) $("#testIn").value = ""; }
     else if (j.code === "spoken") { toast(t("spokenTest")); $("#testIn").value = ""; }
+    else if (j.ok && j.maps > 1) { toast([t("addedMany", { n: j.count, m: j.maps, t: `${j.item.artist} - ${j.item.title} [${j.item.version}]` }), ...manyNotes(j)].join(" · "), j.rejected > 0); $("#testIn").value = ""; }
     else if (j.ok) { toast(t("added", { t: `${j.item.artist} - ${j.item.title} [${j.item.version}]` })); $("#testIn").value = ""; }
     else if (j.code === "ignored") toast(t("ignored"), true);
-    else toast(j.code && T["r_" + j.code] ? t("r_" + j.code) + (j.short ? " · " + j.short : "") : j.error, true);
+    else if (j.maps > 1) toast([t("noneAdded", { m: j.maps }), ...manyNotes(j)].join(" · "), true);
+    else toast(rejText(j), true);
   } finally { btn.disabled = false; }
 });
 setInterval(() => S && renderQueue(S.queue.items || []), 30000); // refresh "x min ago"
@@ -1240,6 +1429,24 @@ setInterval(() => S && renderQueue(S.queue.items || []), 30000); // refresh "x m
 const MODES = [["osu", "osu!"], ["taiko", "taiko"], ["fruits", "catch"], ["mania", "mania"]];
 const STATUSES = ["ranked", "approved", "qualified", "loved", "pending", "wip", "graveyard"];
 const F = (path, type, en, th, hintEn, hintTh, extra) => ({ path, type, label: [en, th], hint: hintEn ? [hintEn, hintTh] : null, ...extra });
+// RULES are the fields of the Map rules drawer on the dashboard (drawn by field() like SCHEMA).
+const RULES = [
+  F("rules.minStars", "number", "Min stars", "ดาวขั้นต่ำ", "0 = no limit", "0 = ไม่จำกัด", { step: 0.1, min: 0 }),
+  F("rules.maxStars", "number", "Max stars", "ดาวสูงสุด", "0 = no limit", "0 = ไม่จำกัด", { step: 0.1, min: 0 }),
+  F("rules.modeStars", "modestars", "Stars per mode", "ดาวแยกตามโหมด", "Stars are not comparable between modes. Leave a box empty to use the min/max above for that mode. Converts use the stars of the mode they are played in.", "ดาวแต่ละโหมดเทียบกันไม่ได้ เว้นว่างเพื่อใช้ค่าต่ำสุด/สูงสุดด้านบน แมพ convert ใช้ดาวของโหมดที่เล่นจริง"),
+  F("rules.maxLengthSec", "number", "Max length (s)", "ความยาวสูงสุด (วินาที)", "0 = no limit", "0 = ไม่จำกัด", { min: 0 }),
+  F("rules.modes", "multi", "Allowed modes", "โหมดที่อนุญาต", null, null, { options: MODES }),
+  F("rules.statuses", "multi", "Allowed statuses", "สถานะที่อนุญาต", null, null, { options: STATUSES.map(s => [s, s]) }),
+  F("rules.allowMods", "switch", "Requests with mods", "ขอเพลงพร้อม mod", "Viewers can add mods: !req 2096297 HDHR, or a song name ending in +HDHR. osu! cannot be told to use them: the mods show on the dashboard and overlay and you select them yourself (Activity warns if a result lacks one).", "ผู้ชมใส่ mod ได้ เช่น !req 2096297 HDHR หรือชื่อเพลงตามด้วย +HDHR โปรแกรมสั่ง osu! ให้ใส่ mod ไม่ได้ mod จะแสดงบนแดชบอร์ดและ overlay ให้คุณเลือกเอง (ถ้าเล่นไม่ครบ กิจกรรม จะแจ้งเตือน)"),
+  F("rules.bannedMods", "multi", "Mods not allowed", "mod ที่ไม่อนุญาต", null, null, { bad: true, options: ["NF", "EZ", "HD", "HR", "SD", "DT", "HT", "NC", "FL", "SO", "PF", "FI", "MR"].map(m => [m, m]) }),
+  F("rules.hardModMaxStars", "number", "Max stars with DT/NC/HR", "ดาวสูงสุดเมื่อใส่ DT/NC/HR", "Stars are always the no-mod rating (osu! gives modded ratings only through its login API). Use this to stop, say, DT on maps above 5★. 0 = only the normal limit. Length counts DT/HT speed.", "ดาวที่ใช้เป็นแบบไม่มี mod เสมอ (osu! ให้ดาวพร้อม mod ผ่าน API ที่ต้องล็อกอินเท่านั้น) ใช้ค่านี้กัน เช่น DT บนแมพเกิน 5★ 0 = ใช้แค่ขีดจำกัดปกติ ความยาวคิดตามความเร็วของ DT/HT"),
+  F("rules.followersOnly", "switch", "Followers only", "เฉพาะผู้ติดตาม", "Rejects viewers TikTok reports as not following. If TikFinity does not send follow status, requests are let through and Activity shows a warning.", "ปฏิเสธผู้ชมที่ TikTok แจ้งว่ายังไม่ได้ติดตาม ถ้า TikFinity ไม่ส่งสถานะการติดตามมา จะปล่อยผ่านและแจ้งเตือนใน กิจกรรม"),
+  F("rules.subscriberPerUserLimit", "number", "Requests per subscriber", "คำขอต่อคนสำหรับสมาชิก", "Waiting requests allowed for TikTok subscribers. 0 = same as everyone.", "จำนวนคำขอที่รอได้ของสมาชิก TikTok 0 = เท่ากับคนอื่น", { min: 0 }),
+  F("rules.blacklistSets", "numlist", "Blacklisted set IDs", "ID เซ็ตที่แบน", "Comma separated", "คั่นด้วยจุลภาค"),
+  F("rules.blacklistSongs", "lines", "Blacklisted songs and artists", "เพลงและศิลปินที่แบน", "One rule per line. artist=\"a_hisa\" bans every song by that artist; title=\"Ghost\" bans that song by anyone; artist=\"xi\" title=\"Blue Zenith\" (or xi - Blue Zenith) bans one song. Every version is caught (other sets, TV size, cut…), artists match as whole words (\"xi\" also catches \"xi remixed by…\"), and Japanese/Thai names work too. Also from the ⋯ menu on a queue card.", "บรรทัดละกฎ artist=\"a_hisa\" แบนทุกเพลงของศิลปินนั้น title=\"Ghost\" แบนเพลงนั้นไม่ว่าใครทำ artist=\"xi\" title=\"Blue Zenith\" (หรือ xi - Blue Zenith) แบนเพลงเดียว จับได้ทุกเวอร์ชัน (เซ็ตอื่น TV size ตัดสั้น ฯลฯ) ชื่อศิลปินเทียบเป็นคำเต็ม (\"xi\" จับ \"xi remixed by…\" ด้วย) และใช้ชื่อภาษาญี่ปุ่น/ไทยได้ แบนจากเมนู ⋯ บนการ์ดในคิวได้ด้วย"),
+  F("rules.blacklistMappers", "list", "Blacklisted mappers", "แมพเปอร์ที่แบน", "Comma separated osu! usernames", "ชื่อผู้ใช้ osu! คั่นด้วยจุลภาค"),
+  F("rules.blacklistUsers", "list", "Blacklisted TikTok users", "ผู้ใช้ TikTok ที่แบน", "Comma separated @uniqueId", "@uniqueId คั่นด้วยจุลภาค"),
+];
 const SCHEMA = {
   connection: [
     F("connection.source", "seg", "Chat comes from", "รับแชทจาก",
@@ -1271,7 +1478,13 @@ const SCHEMA = {
     F("osu.cacheFolder", "text", "Cache folder", "โฟลเดอร์แคช", "Relative paths are next to the exe.", "ถ้าเป็นพาธสัมพัทธ์จะอยู่ข้าง exe"),
     F("osu.downloadsFolder", "text", "Browser Downloads folder", "โฟลเดอร์ดาวน์โหลดของเบราว์เซอร์", "Watched for official osu! downloads.", "ใช้รอไฟล์ที่ดาวน์โหลดจาก osu! โดยตรง"),
     F("masterVolume", "number", "Master volume (%)", "ระดับเสียงหลัก (%)", "Every sound the dashboard plays (map previews). Default 10%. Also on the speaker button at the top.", "ทุกเสียงที่แดชบอร์ดเล่น (ตัวอย่างเพลง) ค่าเริ่มต้น 10% ปรับได้ที่ปุ่มลำโพงด้านบนด้วย", { min: 0, max: 100 }),
-    F("osu.viewerUrl", "text", "Beatmap viewer URL", "URL ของ beatmap viewer", "Queue cards get a \"viewer ↗\" link to ?s={set}&b={map} on this site. Empty hides it.", "การ์ดในคิวจะมีลิงก์ \"viewer ↗\" ไปที่ ?s={set}&b={map} ของเว็บนี้ เว้นว่างเพื่อซ่อน"),
+    F("osu.viewerUrl", "text", "Beatmap viewer URL", "URL ของ beatmap viewer", "The now-playing card gets a \"viewer ↗\" link, and the ⋯ menu of the other cards an \"Open in the beatmap viewer\" item, to ?s={set}&b={map} on this site. Default: KIKI Beatmap Viewer (https://kiki-bm.app/). Empty hides it.", "การ์ดที่กำลังเล่นจะมีลิงก์ \"viewer ↗\" และเมนู ⋯ ของการ์ดอื่นจะมีรายการ \"เปิดใน beatmap viewer\" ไปที่ ?s={set}&b={map} ของเว็บนี้ ค่าเริ่มต้นคือ KIKI Beatmap Viewer (https://kiki-bm.app/) เว้นว่างเพื่อซ่อน"),
+    F("osu.kikiPlayer", "switch", "KIKI map viewer on the dashboard", "ตัวดูแมพ KIKI บนแดชบอร์ด",
+      "Queue, now playing and history get \"▶ view map\": KIKI Beatmap Viewer's player (player.kiki-bm.app) opens under the card and plays the map with its hitsounds and the requested mods. osu!standard maps only. It uses the copy osureq downloaded and checked when there is one, otherwise KIKI fetches the map from the community mirrors.",
+      "คิว เพลงที่กำลังเล่น และประวัติ จะมีปุ่ม \"▶ ดูแมพ\" เปิดตัวเล่นแมพของ KIKI Beatmap Viewer (player.kiki-bm.app) ใต้การ์ด เล่นแมพพร้อมเสียงฮิตและม็อดที่ขอ เฉพาะแมพ osu!standard ถ้า osureq มีไฟล์แมพที่ดาวน์โหลดและตรวจแล้วจะใช้ไฟล์นั้น ถ้าไม่มี KIKI จะโหลดแมพจากมิเรอร์ของชุมชนเอง"),
+    F("osu.kikiPlayerMod", "switch", "KIKI map viewer on the mod panel", "ตัวดูแมพ KIKI บนแผงม็อด",
+      "The same \"▶ view map\" on the phone's mod panel. The phone loads the map from KIKI's community mirrors itself.",
+      "ปุ่ม \"▶ ดูแมพ\" แบบเดียวกันบนแผงม็อดในมือถือ มือถือจะโหลดแมพจากมิเรอร์ของชุมชนผ่าน KIKI เอง"),
     F("osu.useOsuDb", "switch", "Skip maps already in osu!", "ข้ามแมพที่มีใน osu! แล้ว", "stable only: reads osu!.db and opens osu://b/{id} instead of downloading. Best effort.", "เฉพาะ stable: อ่าน osu!.db แล้วเปิด osu://b/{id} แทนการดาวน์โหลด"),
   ],
   command: [
@@ -1290,23 +1503,10 @@ const SCHEMA = {
     F("command.voteSkipVotes", "number", "Votes needed to skip", "จำนวนโหวตที่ต้องใช้ข้ามเพลง", "Different viewers who must vote to skip the song being played. 0 = vote skip off.", "จำนวนผู้ชม (ไม่ซ้ำคน) ที่ต้องโหวตเพื่อข้ามเพลงที่กำลังเล่น 0 = ปิดการโหวต", { min: 0 }),
     F("command.searchByName", "switch", "Requests by song name", "ขอเพลงด้วยชื่อ", "\"!req freedom dive\" searches catboy.best and takes the best title match (most played first) that passes your map rules. IDs and links work as before.", "\"!req freedom dive\" จะค้นใน catboy.best แล้วเลือกแมพที่ชื่อตรงที่สุด (เล่นเยอะสุดก่อน) ที่ผ่านกฎแมพ ID และลิงก์ใช้ได้เหมือนเดิม"),
     F("command.bareNumberAs", "seg", "A bare number is a…", "ตัวเลขเปล่าๆ หมายถึง…", null, null, { options: [["beatmap", ["beatmap (difficulty) ID", "ID บีทแมพ (ระดับ)"]], ["set", ["beatmapset ID", "ID เซ็ต"]]] }),
-  ],
-  rules: [
-    F("rules.minStars", "number", "Min stars", "ดาวขั้นต่ำ", "0 = no limit", "0 = ไม่จำกัด", { step: 0.1, min: 0 }),
-    F("rules.maxStars", "number", "Max stars", "ดาวสูงสุด", "0 = no limit", "0 = ไม่จำกัด", { step: 0.1, min: 0 }),
-    F("rules.modeStars", "modestars", "Stars per mode", "ดาวแยกตามโหมด", "Stars are not comparable between modes. Leave a box empty to use the min/max above for that mode. Converts use the stars of the mode they are played in.", "ดาวแต่ละโหมดเทียบกันไม่ได้ เว้นว่างเพื่อใช้ค่าต่ำสุด/สูงสุดด้านบน แมพ convert ใช้ดาวของโหมดที่เล่นจริง"),
-    F("rules.maxLengthSec", "number", "Max length (s)", "ความยาวสูงสุด (วินาที)", "0 = no limit", "0 = ไม่จำกัด", { min: 0 }),
-    F("rules.modes", "multi", "Allowed modes", "โหมดที่อนุญาต", null, null, { options: MODES }),
-    F("rules.statuses", "multi", "Allowed statuses", "สถานะที่อนุญาต", null, null, { options: STATUSES.map(s => [s, s]) }),
-    F("rules.allowMods", "switch", "Requests with mods", "ขอเพลงพร้อม mod", "Viewers can add mods: !req 2096297 HDHR, or a song name ending in +HDHR. osu! cannot be told to use them: the mods show on the dashboard and overlay and you select them yourself (Activity warns if a result lacks one).", "ผู้ชมใส่ mod ได้ เช่น !req 2096297 HDHR หรือชื่อเพลงตามด้วย +HDHR โปรแกรมสั่ง osu! ให้ใส่ mod ไม่ได้ mod จะแสดงบนแดชบอร์ดและ overlay ให้คุณเลือกเอง (ถ้าเล่นไม่ครบ กิจกรรม จะแจ้งเตือน)"),
-    F("rules.bannedMods", "multi", "Mods not allowed", "mod ที่ไม่อนุญาต", null, null, { bad: true, options: ["NF", "EZ", "HD", "HR", "SD", "DT", "HT", "NC", "FL", "SO", "PF", "FI", "MR"].map(m => [m, m]) }),
-    F("rules.hardModMaxStars", "number", "Max stars with DT/NC/HR", "ดาวสูงสุดเมื่อใส่ DT/NC/HR", "Stars are always the no-mod rating (osu! gives modded ratings only through its login API). Use this to stop, say, DT on maps above 5★. 0 = only the normal limit. Length counts DT/HT speed.", "ดาวที่ใช้เป็นแบบไม่มี mod เสมอ (osu! ให้ดาวพร้อม mod ผ่าน API ที่ต้องล็อกอินเท่านั้น) ใช้ค่านี้กัน เช่น DT บนแมพเกิน 5★ 0 = ใช้แค่ขีดจำกัดปกติ ความยาวคิดตามความเร็วของ DT/HT"),
-    F("rules.followersOnly", "switch", "Followers only", "เฉพาะผู้ติดตาม", "Rejects viewers TikTok reports as not following. If TikFinity does not send follow status, requests are let through and Activity shows a warning.", "ปฏิเสธผู้ชมที่ TikTok แจ้งว่ายังไม่ได้ติดตาม ถ้า TikFinity ไม่ส่งสถานะการติดตามมา จะปล่อยผ่านและแจ้งเตือนใน กิจกรรม"),
-    F("rules.subscriberPerUserLimit", "number", "Requests per subscriber", "คำขอต่อคนสำหรับสมาชิก", "Waiting requests allowed for TikTok subscribers. 0 = same as everyone.", "จำนวนคำขอที่รอได้ของสมาชิก TikTok 0 = เท่ากับคนอื่น", { min: 0 }),
-    F("rules.blacklistSets", "numlist", "Blacklisted set IDs", "ID เซ็ตที่แบน", "Comma separated", "คั่นด้วยจุลภาค"),
-    F("rules.blacklistSongs", "lines", "Blacklisted songs and artists", "เพลงและศิลปินที่แบน", "One rule per line. artist=\"a_hisa\" bans every song by that artist; title=\"Ghost\" bans that song by anyone; artist=\"xi\" title=\"Blue Zenith\" (or xi - Blue Zenith) bans one song. Every version is caught (other sets, TV size, cut…), artists match as whole words (\"xi\" also catches \"xi remixed by…\"), and Japanese/Thai names work too. Also from the ⋯ menu on a queue card.", "บรรทัดละกฎ artist=\"a_hisa\" แบนทุกเพลงของศิลปินนั้น title=\"Ghost\" แบนเพลงนั้นไม่ว่าใครทำ artist=\"xi\" title=\"Blue Zenith\" (หรือ xi - Blue Zenith) แบนเพลงเดียว จับได้ทุกเวอร์ชัน (เซ็ตอื่น TV size ตัดสั้น ฯลฯ) ชื่อศิลปินเทียบเป็นคำเต็ม (\"xi\" จับ \"xi remixed by…\" ด้วย) และใช้ชื่อภาษาญี่ปุ่น/ไทยได้ แบนจากเมนู ⋯ บนการ์ดในคิวได้ด้วย"),
-    F("rules.blacklistMappers", "list", "Blacklisted mappers", "แมพเปอร์ที่แบน", "Comma separated osu! usernames", "ชื่อผู้ใช้ osu! คั่นด้วยจุลภาค"),
-    F("rules.blacklistUsers", "list", "Blacklisted TikTok users", "ผู้ใช้ TikTok ที่แบน", "Comma separated @uniqueId", "@uniqueId คั่นด้วยจุลภาค"),
+    F("command.maxPerMessage", "number", "Maps per message", "จำนวนแมพต่อข้อความ",
+      "How many maps one chat message may ask for, e.g. \"!req 123 456 HDHR 789\" (mods go with the map before them). Default 1, at most 5. Each map counts toward the viewer's requests per user and goes through every rule on its own; with gift-only requests each map costs one paid request. A song name search is always one map.",
+      "ผู้ชมขอได้กี่แมพในข้อความเดียว เช่น \"!req 123 456 HDHR 789\" (mod ที่พิมพ์ต่อท้ายจะใช้กับแมพที่อยู่ก่อนหน้า) ค่าเริ่มต้น 1 ได้สูงสุด 5 ทุกแมพนับรวมในจำนวนคำขอต่อคน และต้องผ่านกฎทุกข้อเหมือนขอทีละแมพ ถ้าเปิดขอเพลงด้วยของขวัญ แต่ละแมพใช้สิทธิ์ขอ 1 ครั้ง ส่วนการขอด้วยชื่อเพลงจะได้ครั้งละ 1 แมพเสมอ",
+      { min: 1, max: 5 }),
   ],
   queue: [
     F("queue.maxSize", "number", "Max queue size", "คิวสูงสุด", "0 = no limit", "0 = ไม่จำกัด", { min: 0 }),
@@ -1357,6 +1557,8 @@ const SCHEMA = {
     F("overlay.theme", "seg", "Theme", "ธีม", null, null, { options: [["pink", "pink"], ["sky", "sky"], ["mono", "mono"]] }),
     F("overlay.scale", "number", "Size (%)", "ขนาด (%)", null, null, { min: 50, max: 250 }),
     F("overlay.position", "select", "Position", "ตำแหน่ง", null, null, { options: [["top-left", "top left"], ["top-right", "top right"], ["bottom-left", "bottom left"], ["bottom-right", "bottom right"]] }),
+    F("overlay.remote", "switch", "Let another PC load the overlay", "ให้คอมอีกเครื่องเปิด overlay ได้", "For OBS on a second PC: it loads the overlay through the mod panel's port with a secret link. The link only shows the overlay, it cannot change anything.", "สำหรับ OBS ที่อยู่บนคอมอีกเครื่อง: เปิด overlay ผ่านพอร์ตของแผงม็อดด้วยลิงก์ลับ ลิงก์นี้แสดงได้แค่ overlay เปลี่ยนแปลงอะไรไม่ได้", { rerender: true }),
+    F("", "ovremote", "Link for the other PC", "ลิงก์สำหรับคอมอีกเครื่อง", null, null, { when: "overlay.remote" }),
   ],
   remote: [
     F("remote.enabled", "switch", "Mod panel on a phone", "แผงม็อดบนมือถือ", "A small page for a phone on the same Wi-Fi: Next, Skip, remove and move requests, requests on/off. Nothing else (no settings, bans or quit). Only devices on your home network can open it, and only with the PIN. Windows may ask to allow osureq through the firewall: allow it for private networks only.", "หน้าเล็ก ๆ สำหรับมือถือที่ใช้ Wi-Fi เดียวกัน: ถัดไป ข้าม ลบ/เลื่อนคำขอ และเปิด/ปิดรับคำขอ ไม่มีอย่างอื่น (ไม่มีการตั้งค่า แบน หรือปิดโปรแกรม) เปิดได้เฉพาะอุปกรณ์ในวงแลนบ้านและต้องใช้ PIN Windows อาจถามให้อนุญาต osureq ผ่านไฟร์วอลล์: อนุญาตเฉพาะเครือข่ายส่วนตัว (Private)"),
@@ -1413,14 +1615,43 @@ const SCHEMA = {
     F("hotkeys.toggleRequests", "hotkey", "Toggle requests", "เปิด/ปิดรับคำขอ"),
   ],
 };
-let draft = null, defaults = null, tab = "connection";
+let draft = null, defaults = null, tab = "connection", ovrAsked = false; // ovrAsked: the first overlay link was asked for
+let setBase = null; // the config as Settings opened with it, for mergeEdits
+// form is what field() draws into: the Settings dialog or the Map rules drawer, each with its own draft.
+// A field takes it when it is built, so its handlers keep writing to that form's draft.
+let form = { draft: null, render: () => {} };
 const getP = (o, p) => p.split(".").reduce((a, k) => a == null ? a : a[k], o);
 const setP = (o, p, v) => { const ks = p.split("."); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
 const lbl = x => Array.isArray(x) ? L(x[0], x[1]) : x;
 
+// mergeEdits builds the body of PUT /api/config, which replaces the whole config, for a form that may have
+// been open for a long time: bans, the requests switch, the volume … change the config meanwhile. It starts
+// from fresh (the config now) and takes from draft only the fields the form changed since it opened (draft
+// differs from base). A field is a key of a section (rules.minStars) or a top-level value (masterVolume);
+// lists and objects (rules.blacklistUsers, rules.modeStars) count as one field. null, [] and {} are equal,
+// as Go sends an empty list as null and a cleared input gives [].
+function mergeEdits(base, draft, fresh) {
+  const norm = v => {
+    if (Array.isArray(v)) return v.length ? v.map(norm) : null;
+    if (v && typeof v === "object") { const ks = Object.keys(v).sort(); return ks.length ? Object.fromEntries(ks.map(k => [k, norm(v[k])])) : null; }
+    return v ?? null;
+  };
+  const eq = (a, b) => JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+  const isObj = v => !!v && typeof v === "object" && !Array.isArray(v);
+  const out = structuredClone(fresh);
+  for (const k of Object.keys(draft)) {
+    const b = (base || {})[k], d = draft[k];
+    if (isObj(d) && isObj(b) && isObj(out[k])) {
+      for (const f of Object.keys(d)) if (!eq(d[f], b[f])) out[k][f] = structuredClone(d[f]);
+    } else if (!eq(d, b)) out[k] = structuredClone(d);
+  }
+  return out;
+}
+
 async function openSettings() {
   const j = await api("GET", "/api/config");
-  draft = j.config; defaults = j.defaults;
+  draft = j.config; defaults = j.defaults; ovrAsked = false;
+  setBase = structuredClone(j.config);
   renderSettings();
   settingsDialog().show();
 }
@@ -1432,10 +1663,11 @@ $("#settings").addEventListener("hidden.bs.dialog", () => { draft = null; });
 // whenOK reads a field's "when": "path" (on) or "path=value".
 function whenOK(when) {
   const [path, want] = when.split("=");
-  return want === undefined ? !!getP(draft, path) : getP(draft, path) === want;
+  return want === undefined ? !!getP(form.draft, path) : getP(form.draft, path) === want;
 }
 
 function renderSettings() {
+  form = { draft, render: renderSettings };
   const tabs = $("#setTabs");
   tabs.replaceChildren(...Object.keys(SCHEMA).map(k => h("button", { class: "nav-link" + (k === tab ? " active" : ""), type: "button", role: "tab", "aria-selected": k === tab ? "true" : "false", onclick: () => { tab = k; renderSettings(); $("#setBody").scrollTop = 0; } }, t("tab_" + k))));
   const on = tabs.querySelector(".active");
@@ -1453,9 +1685,10 @@ function renderSettings() {
 }
 
 function field(f) {
-  const v = f.path ? getP(draft, f.path) : null;
+  const { draft: d, render: redraw } = form;
+  const v = f.path ? getP(d, f.path) : null;
   const text = h("div", { class: "swt" }, h("b", {}, lbl(f.label)), f.hint ? h("small", {}, lbl(f.hint)) : null);
-  const set = x => setP(draft, f.path, x);
+  const set = x => setP(d, f.path, x);
   switch (f.type) {
     case "group":
       return h("div", { class: "sgroup" }, t(f.label[0]));
@@ -1467,7 +1700,7 @@ function field(f) {
     }
     case "switch": {
       const i = h("input", { type: "checkbox", role: "switch", switch: true, "aria-label": lbl(f.label) }); i.checked = !!v;
-      i.addEventListener("change", () => { set(i.checked); if (f.rerender) renderSettings(); });
+      i.addEventListener("change", () => { set(i.checked); if (f.rerender) redraw(); });
       return h("label", { class: "frow" }, text, h("span", { class: "switch" }, i));
     }
     case "text": case "hotkey": {
@@ -1504,7 +1737,7 @@ function field(f) {
     }
     case "seg": {
       const seg = h("div", { class: "btn-group", role: "group", "aria-label": lbl(f.label) });
-      const draw = () => seg.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: "btn-outline theme-secondary" + (getP(draft, f.path) === val ? " on" : ""), "aria-pressed": String(getP(draft, f.path) === val), onclick: () => { set(val); f.rerender ? renderSettings() : draw(); } }, lbl(name))));
+      const draw = () => seg.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: "btn-outline theme-secondary" + (getP(d, f.path) === val ? " on" : ""), "aria-pressed": String(getP(d, f.path) === val), onclick: () => { set(val); f.rerender ? redraw() : draw(); } }, lbl(name))));
       draw();
       return h("div", { class: "frow stack" }, text, seg);
     }
@@ -1516,7 +1749,7 @@ function field(f) {
     case "multi": {
       const c = h("div", { class: "opts" + (f.bad ? " bad" : "") });
       const draw = () => {
-        const cur = getP(draft, f.path) || [];
+        const cur = getP(d, f.path) || [];
         c.replaceChildren(...f.options.map(([val, name]) => h("button", { type: "button", class: "opt" + (cur.includes(val) ? " on" : ""), "aria-pressed": String(cur.includes(val)), onclick: () => {
           set(cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val]); draw();
         } }, lbl(name))));
@@ -1566,6 +1799,35 @@ function field(f) {
       i.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); say(); } });
       return h("div", { class: "frow stack" }, text, h("div", { class: "ovlink" }, i, h("button", { class: "btn-outline theme-secondary btn-sm", type: "button", onclick: say }, "▶ " + lbl(f.label))));
     }
+    case "ovremote": { // the overlay link: the mod panel's addresses with /o/<secret> instead of /m
+      const r = S && S.extra && S.extra.remote, tok = draft.overlay.remoteToken;
+      const note = k => h("small", { class: "hint" }, t(k)), warn = note("ovrWarn");
+      if (!r || !r.enabled) return h("div", { class: "frow stack" }, text, note("ovrNeedMod"), warn);
+      if (!tok) { // switched on for the first time: make the secret now, so the link shows before saving
+        if (!ovrAsked) {
+          ovrAsked = true;
+          api("POST", "/api/overlay/token").then(j => {
+            if (!j.ok) { toast(errText(j), true); return; }
+            if (draft) { draft.overlay.remoteToken = j.token; renderSettings(); }
+          });
+        }
+        return h("div", { class: "frow stack" }, text, note("ovrMaking"), warn);
+      }
+      const urls = (r.urls || []).map(u => u.replace(/\/m$/, "/o/" + tok));
+      const renew = h("button", { class: "btn-outline theme-secondary btn-sm", type: "button", onclick: e => {
+        if (!confirm(t("ovrNewConfirm"))) return;
+        busy(e.currentTarget, async () => {
+          const j = await api("POST", "/api/overlay/token");
+          if (!j.ok) { toast(errText(j), true); return; }
+          if (draft) { draft.overlay.remoteToken = j.token; renderSettings(); }
+          toast(t("ovrNewDone"));
+        });
+      } }, t("ovrNew"));
+      const rows = urls.map(u => h("div", { class: "ovlink" }, h("input", { type: "text", class: "form-control mono", value: u, readonly: true, "aria-label": lbl(f.label) }),
+        h("button", { class: "btn-outline theme-secondary btn-icon rounded-pill sm", type: "button", "aria-label": "Copy", onclick: () => copy(u) }, svg(ICON.copy))));
+      return h("div", { class: "frow stack" }, text, urls.length ? note("ovrUrls") : note("modNoLan"), ...rows,
+        S.overlay && S.overlay.remote ? null : note("ovrSave"), warn, h("div", {}, renew));
+    }
     case "remoteinfo": {
       const r = S && S.extra && S.extra.remote;
       const body = !r || !r.enabled ? h("small", { class: "hint" }, r && r.error ? r.error : t("modNoUrl"))
@@ -1577,10 +1839,10 @@ function field(f) {
       const grid = h("div", { class: "modestars" }, h("span"), h("small", {}, t("min")), h("small", {}, t("max")));
       for (const [mode, name] of MODES) {
         const num = key => {
-          const cur = ((draft.rules.modeStars || {})[mode] || {})[key];
+          const cur = ((d.rules.modeStars || {})[mode] || {})[key];
           const i = h("input", { type: "number", class: "form-control", min: 0, step: 0.1, value: cur > 0 ? cur : "", placeholder: t("global"), "aria-label": name + " " + key });
           i.addEventListener("input", () => {
-            const ms = draft.rules.modeStars = draft.rules.modeStars || {};
+            const ms = d.rules.modeStars = d.rules.modeStars || {};
             const r = ms[mode] = ms[mode] || { min: 0, max: 0 };
             r[key] = i.value === "" ? 0 : Number(i.value);
             if (!r.min && !r.max) delete ms[mode];
@@ -1623,8 +1885,10 @@ $("#setBtn").addEventListener("click", openSettings);
 $("#setClose").addEventListener("click", closeSettings);
 $("#setCancel").addEventListener("click", closeSettings);
 $("#setReset").addEventListener("click", () => {
-  const key = { connection: "connection", osu: "osu", command: "command", rules: "rules", queue: "queue", download: "download", md5: "md5", import: "import", overlay: "overlay", remote: "remote", tts: "tts", hotkeys: "hotkeys" }[tab];
+  const key = { connection: "connection", osu: "osu", command: "command", queue: "queue", download: "download", md5: "md5", import: "import", overlay: "overlay", remote: "remote", tts: "tts", hotkeys: "hotkeys" }[tab];
+  const tok = draft.overlay.remoteToken; // the overlay link is not a setting: Reset keeps it
   draft[key] = structuredClone(defaults[key]);
+  draft.overlay.remoteToken = tok;
   renderSettings();
 });
 // newPin makes an 8-digit PIN that passes config.GoodPIN.
@@ -1639,9 +1903,67 @@ $("#setSave").addEventListener("click", async e => {
   if (draft.remote && draft.remote.enabled && !draft.remote.pin) draft.remote.pin = newPin();
   const btn = e.currentTarget; btn.disabled = true;
   try {
-    const j = await api("PUT", "/api/config", draft);
+    // only what was changed here: map rules saved from the drawer, bans, the volume … made meanwhile stay
+    const now = await api("GET", "/api/config");
+    if (!now.config) { toast(errText(now), true); return; }
+    const j = await api("PUT", "/api/config", mergeEdits(setBase, draft, now.config));
     if (j.ok) { toast(j.restartNeeded ? t("restart") : t("saved")); closeSettings(); }
     else toast(errText(j), true);
+  } finally { btn.disabled = false; }
+});
+
+/* ---------- map rules drawer ---------- */
+// The RULES fields in a drawer on the dashboard, drawn by field() into their own draft. Save sends only the
+// rules changed here (mergeEdits against the config of that moment), so a ban made while the drawer was
+// open is kept. A validation error is shown under its field (RULE_ERR) as well as in a toast.
+let rules = null; // while open: { draft, base (config.rules on opening), defaults, err: { code, text } }
+const RULE_ERR = {
+  stars_order: ["rules.minStars", "rules.maxStars"], stars_negative: ["rules.modeStars"], stars_order_mode: ["rules.modeStars"],
+  mode_unknown: ["rules.modeStars"], song_rule: ["rules.blacklistSongs"], hard_mod_stars: ["rules.hardModMaxStars"], banned_mod: ["rules.bannedMods"],
+};
+const rulesDrawer = () => bootstrap.Drawer.getOrCreateInstance($("#rulesDrawer"));
+async function openRules() {
+  const j = await api("GET", "/api/config");
+  if (!j.config) { toast(errText(j), true); return; }
+  rules = { draft: j.config, base: structuredClone(j.config.rules), defaults: j.defaults, err: null };
+  renderRules();
+  $("#rulesBody").scrollTop = 0;
+  rulesDrawer().show();
+}
+function renderRules() {
+  if (!rules) return;
+  form = { draft: rules.draft, render: renderRules };
+  const paths = rules.err ? RULE_ERR[rules.err.code] || [] : [];
+  $("#rulesBody").replaceChildren(h("div", { class: "fgroup" }, ...RULES.map(f => {
+    const row = field(f);
+    if (paths.includes(f.path)) { row.classList.add("bad"); row.querySelector(".swt").append(h("small", { class: "ferr", role: "alert" }, rules.err.text)); }
+    return row;
+  })));
+  const bad = $("#rulesBody .frow.bad");
+  if (bad) bad.scrollIntoView({ block: "nearest" });
+}
+$("#rulesBtn").addEventListener("click", openRules);
+$("#rulesCancel").addEventListener("click", () => rulesDrawer().hide());
+$("#rulesDrawer").addEventListener("hidden.bs.drawer", () => { rules = null; });
+$("#rulesBody").addEventListener("input", () => { // typing in a field clears the error shown under it
+  if (rules && rules.err) { rules.err = null; document.querySelectorAll("#rulesBody .ferr").forEach(x => x.remove()); document.querySelectorAll("#rulesBody .frow.bad").forEach(x => x.classList.remove("bad")); }
+});
+$("#rulesReset").addEventListener("click", () => { // only the fields in the drawer: exempt users (Settings → Queue) stay
+  if (!rules) return;
+  for (const f of RULES) setP(rules.draft, f.path, structuredClone(getP(rules.defaults, f.path)));
+  rules.err = null;
+  renderRules();
+});
+$("#rulesSave").addEventListener("click", async e => {
+  if (!rules) return;
+  const btn = e.currentTarget; btn.disabled = true;
+  try {
+    const now = await api("GET", "/api/config");
+    if (!now.config) { toast(errText(now), true); return; }
+    const j = await api("PUT", "/api/config", mergeEdits({ rules: rules.base }, { rules: rules.draft.rules }, now.config));
+    if (j.ok) { toast(t("saved")); rulesDrawer().hide(); return; }
+    toast(errText(j), true);
+    if (rules) { rules.err = { code: j.code, text: errText(j) }; renderRules(); }
   } finally { btn.disabled = false; }
 });
 

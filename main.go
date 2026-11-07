@@ -133,6 +133,7 @@ func main() {
 			log.Printf("saving tosu path: %v", err)
 		}
 	}
+	tf.OnViewers = func(int) { srv.Push() }
 	tf.OnStatus = func(st tikfinity.Status) {
 		if st.Source == "tiktok" {
 			log.Printf("TikTok @%s: %s (%s) %s", st.User, st.Level, st.Code, st.Error)
@@ -163,6 +164,8 @@ func main() {
 	applyHotkeys(cfg)
 
 	mods := remote.New(a, func() config.Remote { return store.Get().Remote })
+	mods.OverlayPage, mods.Version = server.OverlayPage(), version // the overlay link (overlay.remote)
+	srv.RemoteOverlays = mods.Overlays
 
 	prev := cfg
 	store.OnChange(func(c config.Config) {

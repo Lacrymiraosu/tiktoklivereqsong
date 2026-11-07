@@ -99,6 +99,7 @@ type Played struct {
 	Test      bool      `json:"test,omitempty"`
 	Play      *Result   `json:"play,omitempty"` // tosu's numbers, when the map was played
 	Mods      string    `json:"mods,omitempty"` // requested mods
+	Mode      string    `json:"mode,omitempty"` // osu taiko fruits mania (empty in older entries)
 }
 
 type Rejected struct {
@@ -546,7 +547,7 @@ func (q *Queue) Back(id string) (Item, bool) {
 
 // record adds it to the history; q.mu must be held.
 func (q *Queue) record(it *Item, result string) {
-	q.d.History = append([]Played{{SetID: it.SetID, BeatmapID: it.BeatmapID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test, Play: it.Result, Mods: it.Mods}}, q.d.History...)
+	q.d.History = append([]Played{{SetID: it.SetID, BeatmapID: it.BeatmapID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test, Play: it.Result, Mods: it.Mods, Mode: it.Mode}}, q.d.History...)
 	if len(q.d.History) > maxHistory {
 		q.d.History = q.d.History[:maxHistory]
 	}

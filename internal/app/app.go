@@ -180,7 +180,7 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 	if a.command(ch, false) != cmdNone {
 		return
 	}
-	req, ok := parser.Parse(ch.Comment, a.parseOptions(cfg))
+	parts, extra, ok := parser.ParseAll(ch.Comment, a.parseOptions(cfg))
 	if !ok {
 		return
 	}
@@ -192,7 +192,12 @@ func (a *App) HandleChat(ch tikfinity.Chat) {
 	if cfg.Rules.FollowersOnly && ch.Follower == tikfinity.Unknown {
 		a.warnOnce("followUnknown", map[string]string{"u": ch.User}, "followers-only is on, but TikFinity did not say whether @%s follows; letting the request through", ch.User)
 	}
-	go a.submit(ch.User, ch.Nick, ch.Comment, req, fromChat, validator.Roles{Follower: int8(ch.Follower), Subscriber: int8(ch.Subscriber)})
+	roles := validator.Roles{Follower: int8(ch.Follower), Subscriber: int8(ch.Subscriber)}
+	if len(parts) == 1 {
+		go a.submit(ch.User, ch.Nick, ch.Comment, parts[0].Request, fromChat, roles, nil)
+		return
+	}
+	go a.submitAll(ch.User, ch.Nick, ch.Comment, parts, extra, fromChat, roles)
 }
 
 // rememberAvatar keeps a viewer's picture for their requests and pop-ups.
@@ -227,7 +232,7 @@ const (
 
 func (a *App) parseOptions(cfg config.Config) parser.Options {
 	return parser.Options{Command: cfg.Command.Name, Aliases: cfg.Command.Aliases, BareNumberAs: cfg.Command.BareNumberAs,
-		Search: cfg.Command.Search && a.Search != nil}
+		Search: cfg.Command.Search && a.Search != nil, MaxMaps: cfg.Command.MaxPerMessage}
 }
 
 func testUser(user, def string) string {
@@ -251,35 +256,78 @@ const (
 
 // SimulateChat feeds a chat message through the same path as TikTok chat
 // (commands, requests on/off, per-user limit, cooldown, map rules), but works
-// while offline and marks the result as test data.
+// while offline and marks the result as test data. For a message with
+// several maps it returns the first one added, or else the first rejection
+// (SimulateMessage has them all).
 func (a *App) SimulateChat(user, comment string) (it *queue.Item, rej *validator.Rejection, kind SimKind) {
+	r := a.SimulateMessage(user, comment)
+	it, rej = r.First()
+	return it, rej, r.Kind
+}
+
+// SimResult is what a simulated chat message did.
+type SimResult struct {
+	Kind  SimKind
+	Maps  []MapResult // SimRequest: the maps tried, in message order
+	Asked int         // maps the message asked for (up to command.maxPerMessage)
+	Extra int         // maps past command.maxPerMessage, left out
+}
+
+// MapResult is one map of a request: added (Item) or rejected (Rej).
+type MapResult struct {
+	Item *queue.Item
+	Rej  *validator.Rejection
+}
+
+// First returns the first map added, or else the first rejection.
+func (r SimResult) First() (*queue.Item, *validator.Rejection) {
+	for _, m := range r.Maps {
+		if m.Item != nil {
+			return m.Item, nil
+		}
+	}
+	if len(r.Maps) > 0 {
+		return nil, r.Maps[0].Rej
+	}
+	return nil, nil
+}
+
+// SimulateMessage is SimulateChat with every map of the message.
+func (a *App) SimulateMessage(user, comment string) SimResult {
 	cfg := a.Cfg.Get()
 	user = testUser(user, "viewer")
 	spoken := a.speakChat(tikfinity.Chat{User: user, Nick: user, Comment: comment}, true)
 	switch a.command(tikfinity.Chat{User: user, Nick: user, Comment: comment}, true) {
 	case cmdDone:
-		return nil, nil, SimCmdDone
+		return SimResult{Kind: SimCmdDone}
 	case cmdNotMod:
-		return nil, nil, SimCmdNoMod
+		return SimResult{Kind: SimCmdNoMod}
 	case cmdNothing:
-		return nil, nil, SimCmdNoop
+		return SimResult{Kind: SimCmdNoop}
 	}
-	req, ok := parser.Parse(comment, a.parseOptions(cfg))
+	parts, extra, ok := parser.ParseAll(comment, a.parseOptions(cfg))
 	if !ok {
 		if spoken {
-			return nil, nil, SimSpoken
+			return SimResult{Kind: SimSpoken}
 		}
-		return nil, nil, SimIgnored
+		return SimResult{Kind: SimIgnored}
 	}
+	res := SimResult{Kind: SimRequest, Asked: len(parts), Extra: extra}
 	if !cfg.Command.Enabled {
 		r := &validator.Rejection{Code: "requests_off", Detail: "requests are turned off"}
 		rr := queue.RejectedFrom(user, comment, r)
 		rr.Test = true
 		a.Queue.Reject(rr)
-		return nil, r, SimRequest
+		res.Maps = []MapResult{{Rej: r}}
+		return res
 	}
-	it, rej = a.submit(user, user, comment, req, fromSim, validator.Roles{})
-	return it, rej, SimRequest
+	if len(parts) == 1 {
+		it, rej := a.submit(user, user, comment, parts[0].Request, fromSim, validator.Roles{}, nil)
+		res.Maps = []MapResult{{Item: it, Rej: rej}}
+		return res
+	}
+	res.Maps = a.submitAll(user, user, comment, parts, extra, fromSim, validator.Roles{})
+	return res
 }
 
 // TestRequest adds a map from the dashboard. It runs the map rules but not
@@ -301,10 +349,83 @@ func (a *App) TestRequest(user, input string) (*queue.Item, *validator.Rejection
 		a.Queue.Reject(rr)
 		return nil, r
 	}
-	return a.submit(user, user, input, req, fromQuick, validator.Roles{})
+	return a.submit(user, user, input, req, fromQuick, validator.Roles{}, nil)
 }
 
-func (a *App) submit(user, nick, input string, req parser.Request, o origin, roles validator.Roles) (*queue.Item, *validator.Rejection) {
+// batch is one chat message with several maps (command.maxPerMessage).
+type batch struct {
+	checked bool            // the first map passed the viewer checks, cooldown included
+	said    map[string]bool // outcomes already announced for this message
+	rest    string          // the command with this map and the ones after it
+}
+
+// spokenPerMessage is how many announcements one message with several maps
+// may make; the dashboard keeps only 5 lines waiting and drops the oldest.
+const spokenPerMessage = 2
+
+// quiet reports whether an outcome ("added", "rejected_<code>") is left
+// unspoken: each outcome is said once per message, and at most
+// spokenPerMessage lines in all. The overlay still shows every map.
+func (b *batch) quiet(outcome string) bool {
+	if b == nil {
+		return false
+	}
+	if b.said[outcome] || len(b.said) >= spokenPerMessage {
+		return true
+	}
+	b.said[outcome] = true
+	return false
+}
+
+// viewerCodes are rejections that are about the viewer, not the map: every
+// later map of the same message would get the same answer.
+var viewerCodes = map[string]bool{"user_blacklisted": true, "queue_full": true, "followers_only": true, "user_limit": true,
+	"cooldown": true, "needs_gift": true, "requests_off": true}
+
+// submitAll handles a chat message with several maps, one after another,
+// each through the same checks as a single request. Each map sees the ones
+// before it in the queue, so every map counts toward the per-user limit, a
+// set named twice is a duplicate, and gift-only requests are paid for in
+// order (one paid request per map). The cooldown is checked once, on the
+// first map, so the maps of one message do not wait for each other; the
+// next message waits from the last map added (queue.add records it).
+// A rejection about the viewer (viewerCodes) ends the message: one rejection
+// stands for the maps left. Maps past command.maxPerMessage get one
+// "too_many_maps" rejection.
+func (a *App) submitAll(user, nick, comment string, parts []parser.Part, extra int, o origin, roles validator.Roles) []MapResult {
+	cmd := strings.Fields(comment)[0]
+	b := &batch{said: map[string]bool{}}
+	var out []MapResult
+	for i, p := range parts {
+		input := cmd + " " + p.Text
+		b.rest = cmd
+		for _, q := range parts[i:] {
+			b.rest += " " + q.Text
+		}
+		if i > 0 && !a.Cfg.Get().Command.Enabled { // closed meanwhile: by hand, by a mod or by auto-close
+			rej := &validator.Rejection{Code: "requests_off", Detail: "requests are turned off"}
+			a.rejected(user, nick, b.rest, "", rej, o, b)
+			return append(out, MapResult{Rej: rej})
+		}
+		it, rej := a.submit(user, nick, input, p.Request, o, roles, b)
+		out = append(out, MapResult{Item: it, Rej: rej})
+		b.checked = true
+		if rej != nil && viewerCodes[rej.Code] {
+			return out
+		}
+	}
+	if extra > 0 {
+		asked := len(parts) + extra
+		rej := &validator.Rejection{Code: "too_many_maps", Detail: fmt.Sprintf("%d maps in one message, %d allowed; the rest were left out", asked, len(parts)),
+			Short: fmt.Sprintf("%d > %d", asked, len(parts)), Vars: map[string]string{"n": strconv.Itoa(asked), "max": strconv.Itoa(len(parts))}}
+		b.said["rejected_too_many_maps"] = true // overlay only: spoken after maps were added, "could not request" would be wrong
+		a.rejected(user, nick, comment, "", rej, o, b)
+	}
+	return out
+}
+
+// b is the message's batch when it has several maps, else nil.
+func (a *App) submit(user, nick, input string, req parser.Request, o origin, roles validator.Roles, b *batch) (*queue.Item, *validator.Rejection) {
 	a.mu.Lock()
 	a.pending++
 	a.mu.Unlock()
@@ -314,14 +435,12 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin, rol
 		a.mu.Unlock()
 		a.Changed()
 	}()
-	it, rej := a.resolve(user, nick, input, req, o, roles)
+	it, rej := a.resolve(user, nick, input, req, o, roles, b)
 	if rej != nil {
-		rr := queue.RejectedFrom(user, input, rej)
-		rr.Test = o != fromChat
-		a.Queue.Reject(rr)
-		a.emit(FeedEvent{Kind: "rejected", User: user, Nick: nick, Code: rej.Code, Short: rej.Short, Test: o != fromChat,
-			Title: rej.Vars["title"], Artist: rej.Vars["artist"], Mapper: rej.Vars["mapper"], Version: rej.Vars["diff"], Mods: req.Mods, Vars: rej.Vars})
-		log.Printf("rejected @%s %q: %s", user, input, rej.Detail)
+		if b != nil && viewerCodes[rej.Code] {
+			input = b.rest // it stands for this map and the ones after it
+		}
+		a.rejected(user, nick, input, req.Mods, rej, o, b)
 		return nil, rej
 	}
 	if a.Cfg.Get().Queue.Fair {
@@ -331,15 +450,29 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin, rol
 	}
 	a.applyCredit(user, nick, o != fromChat)
 	a.emit(FeedEvent{Kind: "added", User: user, Nick: nick, Title: it.Title, Artist: it.Artist, Version: it.Version,
-		Mapper: it.Creator, SetID: it.SetID, Stars: it.Stars, Mods: it.Mods, Pos: a.Queue.Position(it.ID), Test: o != fromChat})
+		Mapper: it.Creator, SetID: it.SetID, Stars: it.Stars, Mods: it.Mods, Pos: a.Queue.Position(it.ID), Test: o != fromChat, quiet: b.quiet("added")})
 	log.Printf("queued @%s: %s - %s [%s] +%s (%d)", user, it.Artist, it.Title, it.Version, it.Mods, it.SetID)
 	return it, nil
 }
 
-func (a *App) resolve(user, nick, input string, req parser.Request, o origin, roles validator.Roles) (_ *queue.Item, rej *validator.Rejection) {
+// rejected records a rejection and shows it on the overlay.
+func (a *App) rejected(user, nick, input, mods string, rej *validator.Rejection, o origin, b *batch) {
+	rr := queue.RejectedFrom(user, input, rej)
+	rr.Test = o != fromChat
+	a.Queue.Reject(rr)
+	a.emit(FeedEvent{Kind: "rejected", User: user, Nick: nick, Code: rej.Code, Short: rej.Short, Test: o != fromChat,
+		Title: rej.Vars["title"], Artist: rej.Vars["artist"], Mapper: rej.Vars["mapper"], Version: rej.Vars["diff"], Mods: mods, Vars: rej.Vars,
+		quiet: b.quiet("rejected_" + rej.Code)})
+	log.Printf("rejected @%s %q: %s", user, input, rej.Detail)
+}
+
+func (a *App) resolve(user, nick, input string, req parser.Request, o origin, roles validator.Roles, b *batch) (_ *queue.Item, rej *validator.Rejection) {
 	cfg := a.Cfg.Get()
 	now := time.Now()
 	st := a.Queue.ValidationState(user)
+	if b != nil && b.checked {
+		st.LastRequest = time.Time{} // the message's first map passed the cooldown; its other maps do not wait for it
+	}
 	if o != fromQuick {
 		st.Roles = roles
 		if r := validator.CheckUser(user, st, cfg.Rules, cfg.Queue, now); r != nil {

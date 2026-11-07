@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -169,6 +170,89 @@ func TestMods(t *testing.T) {
 		}
 		if r.Mods != c.mods || code != c.err || r.Query != c.query {
 			t.Errorf("%q: mods=%q err=%q query=%q, want %q %q %q", c.in, r.Mods, code, r.Query, c.mods, c.err, c.query)
+		}
+	}
+}
+
+func TestParseAll(t *testing.T) {
+	o := Options{Command: "!req", BareNumberAs: "beatmap", Search: true, MaxMaps: 3}
+	type want struct {
+		id   int
+		mods string
+		err  string
+		text string
+	}
+	read := func(in string, o Options) ([]want, int, bool) {
+		parts, extra, ok := ParseAll(in, o)
+		var got []want
+		for _, p := range parts {
+			id := p.BeatmapID
+			if p.Kind == KindSet {
+				id = -p.SetID
+			}
+			code := ""
+			if p.ModsErr != nil {
+				code = p.ModsErr.Code
+			}
+			got = append(got, want{id, p.Mods, code, p.Text})
+		}
+		return got, extra, ok
+	}
+	cases := []struct {
+		in    string
+		want  []want
+		extra int
+	}{
+		{"!req 123 456 HDHR 789", []want{{123, "", "", "123"}, {456, "HDHR", "", "456 HDHR"}, {789, "", "", "789"}}, 0},
+		{"!req 123 +hd dt 456", []want{{123, "HDDT", "", "123 +hd dt"}, {456, "", "", "456"}}, 0},
+		{"!req https://osu.ppy.sh/b/5 6 osu.ppy.sh/s/7 NC", []want{{5, "", "", "https://osu.ppy.sh/b/5"}, {6, "", "", "6"}, {-7, "NC", "", "osu.ppy.sh/s/7 NC"}}, 0},
+		{"!req 123 456 123 HD", []want{{123, "", "", "123"}, {456, "", "", "456"}}, 0},             // named twice: counts once
+		{"!req 5 osu.ppy.sh/b/5 6", []want{{5, "", "", "5"}, {6, "", "", "6"}}, 0},                 // the same map as an ID and a link
+		{"!req 1 2 3 4 5 HD", []want{{1, "", "", "1"}, {2, "", "", "2"}, {3, "", "", "3"}}, 2},     // past the limit: left out
+		{"!req 1 2 2 3 3 4", []want{{1, "", "", "1"}, {2, "", "", "2"}, {3, "", "", "3"}}, 1},      // repeats do not use up the limit
+		{"!req 123 +HDXX 456", []want{{123, "", "unknown", "123 +HDXX"}, {456, "", "", "456"}}, 0}, // only that map has wrong mods
+		{"!req 123 EZHR 456 HD", []want{{123, "", "conflict", "123 EZHR"}, {456, "HD", "", "456 HD"}}, 0},
+		{"!req 123 HD DT HT 456", []want{{123, "", "conflict", "123 HD DT HT"}, {456, "", "", "456"}}, 0},
+		// not every word is a map or mods: one request, read as before
+		{"!req 123 456 please", []want{{123, "", "", "123 456 please"}}, 0},
+		{"!req 123 HDHR", []want{{123, "HDHR", "", "123 HDHR"}}, 0},
+		{"!req 123 123", []want{{123, "", "", "123 123"}}, 0},
+		{"!req 123 hdxx 456", []want{{123, "", "", "123 hdxx 456"}}, 0},
+		{"!req HDHR 123 456", nil, 0}, // mods first: a song name ("HDHR 123 456") is searched instead
+	}
+	for _, c := range cases {
+		got, extra, ok := read(c.in, o)
+		if c.want == nil {
+			if !ok || len(got) != 1 || got[0].id != 0 {
+				t.Errorf("%q: want a song name search, got %+v %v", c.in, got, ok)
+			}
+			continue
+		}
+		if !ok || fmt.Sprint(got) != fmt.Sprint(c.want) || extra != c.extra {
+			t.Errorf("%q:\n got %+v extra=%d ok=%v\nwant %+v extra=%d", c.in, got, extra, ok, c.want, c.extra)
+		}
+	}
+
+	// a song name is always one search, also when it has numbers or mods in it
+	if parts, _, ok := ParseAll("!req freedom dive 2 HDHR", o); !ok || len(parts) != 1 || parts[0].Kind != KindSearch || parts[0].Query != "freedom dive 2" || parts[0].Mods != "HDHR" {
+		t.Errorf("song name: %+v %v", parts, ok)
+	}
+	if _, _, ok := ParseAll("hello 1 2", o); ok {
+		t.Error("no command, no request")
+	}
+}
+
+// With one map per message (the default), ParseAll is exactly Parse.
+func TestParseAllDefaultIsParse(t *testing.T) {
+	for _, max := range []int{0, 1} {
+		o := Options{Command: "!req", Aliases: []string{"!r"}, BareNumberAs: "beatmap", Search: true, MaxMaps: max}
+		for _, in := range []string{"!req 123 456 HDHR 789", "!req 1 2", "!r 2096297 HD DT please", "!req freedom dive +HDHR",
+			"!req https://osu.ppy.sh/b/1 https://osu.ppy.sh/b/2", "!req 123 +HDXX", "!req", "hello", "!req ab"} {
+			want, wok := Parse(in, o)
+			parts, extra, ok := ParseAll(in, o)
+			if ok != wok || extra != 0 || (ok && (len(parts) != 1 || fmt.Sprint(parts[0].Request) != fmt.Sprint(want))) {
+				t.Errorf("max %d, %q: ParseAll = %+v %d %v; Parse = %+v %v", max, in, parts, extra, ok, want, wok)
+			}
 		}
 	}
 }

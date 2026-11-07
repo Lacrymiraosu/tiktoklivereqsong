@@ -131,6 +131,21 @@ func (d *Downloader) trust(path string) {
 	d.mu.Unlock()
 }
 
+// CachedFile returns the cached archive of setID, the no-video one first when
+// noVideo is set, then the other: only a file that exists and is Trusted
+// (checked by this run of the helper; trust is not kept across restarts).
+func (d *Downloader) CachedFile(setID int, noVideo bool) (string, bool) {
+	if setID <= 0 {
+		return "", false
+	}
+	for _, p := range []string{d.cachePath(setID, noVideo), d.cachePath(setID, !noVideo)} {
+		if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && d.Trusted(p) {
+			return p, true
+		}
+	}
+	return "", false
+}
+
 func (d *Downloader) cachePath(setID int, noVideo bool) string {
 	n := ""
 	if noVideo {

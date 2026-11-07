@@ -30,7 +30,7 @@
         <button class="btn-outline theme-secondary btn-icon rounded-pill ttsskip" type="button" id="ttsSkip" hidden aria-label="Skip">⏭</button>
       </span>
       <span class="pill dry" id="dryPill" hidden>DRY RUN</span>
-      <span class="pill" id="tfPill"><i class="dot" id="tfDot"></i><span id="tfText">…</span></span>
+      <span class="pill" id="tfPill"><i class="dot" id="tfDot"></i><span id="tfText">…</span><span class="viewers" id="tfViewers" hidden></span></span>
       <span class="pill" id="tosuPill"><i class="dot" id="tosuDot"></i><span id="tosuText">tosu</span></span>
     </div>
 
@@ -112,6 +112,7 @@
       <div class="subh"><span data-t="queue">Queue</span><span class="badge badge-subtle theme-secondary mono" id="qCount"></span>
         <label class="reqtog sm" id="autoDlWrap" for="autoDlSw"><span data-t="autoDl">Auto download</span><span class="switch"><input type="checkbox" role="switch" switch id="autoDlSw"></span></label>
         <span class="sp"></span>
+        <button class="btn-outline theme-secondary btn-sm" type="button" id="rulesBtn" data-t="mapRules">Map rules</button>
         <button class="btn-outline theme-secondary btn-sm" type="button" id="rmLastBtn" data-t="removeLast">Remove last</button>
         <button class="btn-outline theme-danger btn-sm" type="button" id="clearBtn" data-t="clear">Clear</button>
       </div>
@@ -172,6 +173,20 @@
   <div class="drawer-body">
     <div class="pf" id="pfOut"></div>
     <button class="btn-solid theme-primary w-100 mt-3" type="button" id="pfAgain" data-t="pfAgain">Check again</button>
+  </div>
+</dialog>
+
+<!-- Map rules -->
+<dialog class="drawer drawer-end" tabindex="-1" id="rulesDrawer" aria-labelledby="rulesTitle">
+  <div class="drawer-header">
+    <h2 class="drawer-title" id="rulesTitle" data-t="mapRules">Map rules</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="drawer" aria-label="Close"></button>
+  </div>
+  <div class="drawer-body rulesbody" id="rulesBody"></div>
+  <div class="drawer-footer">
+    <button class="btn-text theme-secondary me-auto" type="button" id="rulesReset" data-t="rulesReset">Reset to defaults</button>
+    <button class="btn-outline theme-secondary" type="button" id="rulesCancel" data-t="cancel">Cancel</button>
+    <button class="btn-solid theme-primary" type="button" id="rulesSave" data-t="save">Save</button>
   </div>
 </dialog>
 

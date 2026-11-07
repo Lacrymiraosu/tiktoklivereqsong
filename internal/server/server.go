@@ -27,6 +27,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/update"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/validator"
 	"github.com/coder/websocket"
 )
 
@@ -41,6 +42,9 @@ type Server struct {
 	Restart func()                // stops the helper, installs the downloaded update and starts it again
 	LogPath string                // osureq.log, for the support file
 	Voice   *gtts.Client          // Google's voice, for languages the browser cannot read
+	// RemoteOverlays counts overlays connected from another PC through the
+	// mod panel's overlay link (remote.Server.Overlays), for the pre-stream check.
+	RemoteOverlays func() int
 
 	mu       sync.Mutex
 	clients  map[chan []byte]bool
@@ -78,6 +82,8 @@ type State struct {
 	Lang           string                        `json:"lang"`
 	PlayMode       string                        `json:"playMode"`
 	ViewerURL      string                        `json:"viewerUrl"`
+	KikiPlayer     bool                          `json:"kikiPlayer"` // osu.kikiPlayer: "▶ view map" under the cards
+	NoVideo        bool                          `json:"noVideo"`    // download.noVideo: which cached .osz the player asks for first
 	Volume         int                           `json:"masterVolume"`
 	BlacklistUsers []string                      `json:"blacklistUsers"`
 	DryRun         bool                          `json:"dryRun"`
@@ -106,10 +112,11 @@ func (s *Server) state() State {
 		Version: s.Version, TikFinity: s.App.TF.Status(), Tosu: s.App.Tosu.Status(), AutoGap: cfg.Queue.AutoGapSec, AutoNeedsPass: cfg.Queue.AutoNeedsPass, Queue: s.App.Queue.Snapshot(),
 		Requests: cfg.Command.Enabled, Resolving: s.App.Resolving(), Notices: s.App.Notices(), Feed: s.App.Feed(),
 		CacheMB: float64(s.App.DL.CacheSize()) / (1 << 20), Overlay: cfg.Overlay, Command: cfg.Command.Name, Search: cfg.Command.Search && s.App.Search != nil, RequestCoins: cfg.Gifts.RequestCoins,
-		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, Volume: cfg.MasterVolume, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, AutoDownload: cfg.Import.Preload, AutoDownloadN: cfg.Import.PreloadCount, Raw: raw, FirstRaw: first,
+		Lang: cfg.Language, PlayMode: cfg.Queue.PlayMode, ViewerURL: cfg.Osu.ViewerURL, KikiPlayer: cfg.Osu.KikiPlayer, NoVideo: cfg.Download.NoVideo, Volume: cfg.MasterVolume, BlacklistUsers: cfg.Rules.BlacklistUsers, DryRun: cfg.Test.DryRun, AutoDownload: cfg.Import.Preload, AutoDownloadN: cfg.Import.PreloadCount, Raw: raw, FirstRaw: first,
 		VoteSkip: s.App.Votes(), Update: s.App.Update(), Summary: s.App.Queue.Summary(), SummaryShown: s.App.SummaryShown(), TTS: cfg.TTS, Speech: s.App.Speech(),
 		PreviewAsk: s.App.PreviewAsked(), MirrorCheck: s.App.CheckingMirrors(),
 	}
+	st.Overlay.RemoteToken = "" // the secret stays in config; the state also goes into the support file
 	if s.App.DL != nil {
 		st.Mirrors = s.App.DL.Statuses()
 	}
@@ -197,7 +204,9 @@ func (s *Server) Handler(port int) http.Handler {
 			"announcements": map[string]any{"th": config.ThaiAnnouncements(), "en": config.EnglishAnnouncements()}})
 	})
 	mux.HandleFunc("PUT /api/config", s.putConfig)
+	mux.HandleFunc("POST /api/overlay/token", s.overlayToken)
 	mux.HandleFunc("PUT /api/preview", s.putPreview)
+	mux.HandleFunc("GET /api/osz/{setId}", s.osz)
 	mux.HandleFunc("POST /api/action/{name}", s.action)
 	mux.HandleFunc("POST /api/queue/{id}/{op}", s.queueOp)
 	mux.HandleFunc("POST /api/test", s.test)
@@ -228,6 +237,13 @@ func assetTypes(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// OverlayPage is overlay.html, for the mod panel's overlay link (main.go
+// hands it to remote.Server, which cannot embed files from this package).
+func OverlayPage() []byte {
+	b, _ := webFS.ReadFile("web/overlay.html")
+	return b
 }
 
 func serveFile(w http.ResponseWriter, sub fs.FS, name string) {
@@ -330,6 +346,12 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	old := s.App.Cfg.Get()
+	// The overlay link only changes through POST /api/overlay/token: a
+	// settings dialog opened before "New link" must not bring the old one back.
+	c.Overlay.RemoteToken = old.Overlay.RemoteToken
+	if c.Overlay.Remote && c.Overlay.RemoteToken == "" {
+		c.Overlay.RemoteToken = config.NewOverlayToken() // switched on for the first time
+	}
 	if err := s.App.Cfg.Set(c); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -340,6 +362,19 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 	s.Push()
 	restart := c.Connection.DashboardPort != old.Connection.DashboardPort
 	writeJSON(w, map[string]any{"ok": true, "restartNeeded": restart})
+}
+
+// overlayToken makes a new secret for the overlay link (overlay.remote) and
+// returns it; the old link stops working at once.
+func (s *Server) overlayToken(w http.ResponseWriter, r *http.Request) {
+	c := s.App.Cfg.Get()
+	c.Overlay.RemoteToken = config.NewOverlayToken()
+	if err := s.App.Cfg.Set(c); err != nil {
+		result(w, err)
+		return
+	}
+	s.Push()
+	writeJSON(w, map[string]any{"ok": true, "token": c.Overlay.RemoteToken})
 }
 
 // putPreview is the dashboard saying which preview it plays ({"setId": 0}
@@ -354,6 +389,42 @@ func (s *Server) putPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	s.App.SetPreviewing(body.SetID)
 	writeJSON(w, map[string]any{"ok": true})
+}
+
+// osz serves a cached .osz to the dashboard's map player (GET and HEAD,
+// same origin only: no CORS headers). Only an archive this run of the helper
+// checked is served (Downloader.CachedFile); anything else is a 404 and the
+// player takes the map from the mirrors. ?novideo=1 asks for the no-video
+// file first. The path is built from the number, never from the request.
+func (s *Server) osz(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("setId"))
+	if err != nil || id <= 0 {
+		httpErr(w, http.StatusBadRequest, "bad set id")
+		return
+	}
+	if s.App.DL == nil {
+		http.NotFound(w, r)
+		return
+	}
+	p, ok := s.App.DL.CachedFile(id, r.URL.Query().Get("novideo") == "1")
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-osu-beatmap-archive")
+	w.Header().Set("Cache-Control", "no-store")
+	http.ServeContent(w, r, "", st.ModTime(), f)
 }
 
 func (s *Server) action(w http.ResponseWriter, r *http.Request) {
@@ -495,6 +566,33 @@ func (s *Server) test(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true, "item": it})
 }
 
+// simulatedMaps answers a simulated message with several maps like one with
+// a single map (ok, item = the first map added; code, short, error = the
+// first rejection, also when other maps were added), plus maps (asked
+// for), count (added), rejected and ignored (past the per-message limit).
+func simulatedMaps(res app.SimResult) map[string]any {
+	added := 0
+	var rej *validator.Rejection
+	for _, m := range res.Maps {
+		if m.Item != nil {
+			added++
+		} else if rej == nil {
+			rej = m.Rej
+		}
+	}
+	out := map[string]any{"ok": added > 0, "maps": res.Asked, "count": added, "rejected": res.Asked - added}
+	if it, _ := res.First(); it != nil {
+		out["item"] = it
+	}
+	if rej != nil {
+		out["code"], out["short"], out["error"] = rej.Code, rej.Short, rej.Detail
+	}
+	if res.Extra > 0 {
+		out["ignored"] = res.Extra
+	}
+	return out
+}
+
 // simulate runs a chat message through the real chat path.
 func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -505,7 +603,9 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	it, rej, kind := s.App.SimulateChat(body.User, body.Message)
+	res := s.App.SimulateMessage(body.User, body.Message)
+	it, rej := res.First()
+	kind := res.Kind
 	s.Push()
 	switch {
 	case kind == app.SimIgnored:
@@ -514,6 +614,8 @@ func (s *Server) simulate(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"ok": true, "code": "spoken"})
 	case kind != app.SimRequest: // a chat command: say whether it ran
 		writeJSON(w, map[string]any{"ok": kind == app.SimCmdDone, "command": string(kind)})
+	case res.Asked > 1:
+		writeJSON(w, simulatedMaps(res))
 	case rej != nil:
 		writeJSON(w, map[string]any{"ok": false, "code": rej.Code, "short": rej.Short, "error": rej.Detail})
 	default:
@@ -527,6 +629,9 @@ func (s *Server) preflight(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	env.OverlayClients = s.overlays
 	s.mu.Unlock()
+	if s.RemoteOverlays != nil {
+		env.OverlayClients += s.RemoteOverlays()
+	}
 	if s.Extra != nil {
 		env.HotkeyErrors, _ = s.Extra()["hotkeyErrors"].(map[string]string)
 	}
@@ -547,6 +652,9 @@ func (s *Server) supportFile(w http.ResponseWriter, r *http.Request) {
 	}
 	if cfg.Connection.EulerAPIKey != "" {
 		cfg.Connection.EulerAPIKey = "(hidden)"
+	}
+	if cfg.Overlay.RemoteToken != "" {
+		cfg.Overlay.RemoteToken = "(hidden)" // anyone with it can watch the overlay
 	}
 	err := support.Write(w, support.Input{Version: s.Version, LogPath: s.LogPath, Home: home, Now: now,
 		Config: cfg, State: s.state(), Raw: map[string]any{"first": first, "recent": raw}})

@@ -2,6 +2,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +44,11 @@ type Osu struct {
 	DownloadsDir string `json:"downloadsFolder"`
 	UseOsuDB     bool   `json:"useOsuDb"`  // stable: skip download when osu!.db already has the map
 	ViewerURL    string `json:"viewerUrl"` // beatmap viewer opened with ?s={set}&b={map}; empty hides the button
+	// KikiPlayer and KikiPlayerMod show the "▶ view map" button on the
+	// dashboard and on the mod panel: KIKI Beatmap Viewer's player
+	// (player.kiki-bm.app) folds out under the card (osu!standard maps only).
+	KikiPlayer    bool `json:"kikiPlayer"`
+	KikiPlayerMod bool `json:"kikiPlayerMod"`
 }
 
 type Command struct {
@@ -50,6 +57,9 @@ type Command struct {
 	Enabled      bool     `json:"enabled"`
 	BareNumberAs string   `json:"bareNumberAs"` // beatmap | set
 	Search       bool     `json:"searchByName"` // "!req <song name>" searches catboy.best
+	// MaxPerMessage is how many maps one chat message may ask for
+	// ("!req 123 456 HDHR"), 1-5. 1 is one map per message, as before.
+	MaxPerMessage int `json:"maxPerMessage"`
 
 	// Mod commands. An empty name turns that command off.
 	Mods            []string `json:"mods"`            // TikTok users who may use mod commands
@@ -176,6 +186,12 @@ type Overlay struct {
 	FeedbackSec int    `json:"feedbackSec"` // how long each pop-up stays
 	Lang        string `json:"lang"`        // auto | en | th
 	Avatars     bool   `json:"avatars"`     // viewers' TikTok pictures next to their names
+	// Remote lets another PC on the network (OBS on a second PC) load the
+	// overlay through the mod panel's port with a secret link, read-only.
+	// RemoteToken is that secret (NewOverlayToken); only POST
+	// /api/overlay/token replaces it, and the support file hides it.
+	Remote      bool   `json:"remote"`
+	RemoteToken string `json:"remoteToken"`
 }
 
 type Hotkeys struct {
@@ -334,15 +350,17 @@ func Default() Config {
 			AutoUpdate:    true,
 		},
 		Osu: Osu{
-			Game:         "stable",
-			DetectGame:   true,
-			Folder:       filepath.Join(local, "osu!"),
-			CacheFolder:  "cache",
-			DownloadsDir: filepath.Join(home, "Downloads"),
-			UseOsuDB:     false,
-			ViewerURL:    "https://osu-beatmap-viewer.vercel.app/",
+			Game:          "stable",
+			DetectGame:    true,
+			Folder:        filepath.Join(local, "osu!"),
+			CacheFolder:   "cache",
+			DownloadsDir:  filepath.Join(home, "Downloads"),
+			UseOsuDB:      false,
+			ViewerURL:     "https://kiki-bm.app/",
+			KikiPlayer:    true,
+			KikiPlayerMod: true,
 		},
-		Command: Command{Name: "!req", Aliases: []string{"!request", "!r"}, Enabled: true, BareNumberAs: "beatmap", Search: true,
+		Command: Command{Name: "!req", Aliases: []string{"!request", "!r"}, Enabled: true, BareNumberAs: "beatmap", Search: true, MaxPerMessage: 1,
 			TrustTikTokMods: true, SkipCmd: "!skip", RemoveCmd: "!remove", OpenCmd: "!reqon", CloseCmd: "!reqoff",
 			PosCmd: "!pos", NowCmd: "!np", VoteSkipCmd: "!voteskip"},
 		Rules: Rules{
@@ -385,6 +403,11 @@ func DefaultSources() []Source {
 // sourcesRev is bumped when DefaultSources gains mirrors; a config.json
 // saved with an older list gets them (mergeSources).
 const sourcesRev = 2
+
+// oldViewerURL was the default osu.viewerUrl before KIKI Beatmap Viewer
+// (kiki-bm.app). A config.json that still has it gets the new default;
+// any other value, or an empty one, is the streamer's choice.
+const oldViewerURL = "https://osu-beatmap-viewer.vercel.app/"
 
 // AllowedHosts are the only hosts the downloader may fetch from. An entry
 // starting with "." also allows its subdomains. storage.osu.direct is
@@ -492,6 +515,9 @@ func (c *Config) Validate() error {
 	if c.Remote.Enabled && !GoodPIN(c.Remote.PIN) {
 		add("remote_pin", nil, "mod panel PIN must be 6-12 digits, not all the same and not a simple run like 123456")
 	}
+	if t := c.Overlay.RemoteToken; t != "" && !GoodOverlayToken(t) { // never put the token itself in the message
+		add("overlay_token", nil, "overlay link token must be 43-128 letters, digits, - or _ (make a new link in Settings)")
+	}
 	if t := c.TTS; t.Lang != "auto" && t.Lang != "th" && t.Lang != "en" {
 		add("tts_lang", nil, "TTS language must be auto, th or en")
 	}
@@ -515,6 +541,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Command.BareNumberAs != "beatmap" && c.Command.BareNumberAs != "set" {
 		add("bare_number", nil, "bare number must be beatmap or set")
+	}
+	if n := c.Command.MaxPerMessage; n < 1 || n > 5 {
+		add("max_per_message", nil, "maps per message must be 1-5")
 	}
 	for _, e := range c.Rules.BlacklistSongs {
 		if _, ok := ParseSongRule(e); !ok && strings.TrimSpace(e) != "" {
@@ -670,6 +699,28 @@ func GoodPIN(pin string) bool {
 	return !same && !up && !down
 }
 
+// NewOverlayToken makes the secret of the overlay link: 32 random bytes,
+// base64url without padding (43 characters).
+func NewOverlayToken() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+// GoodOverlayToken accepts 43-128 base64url characters, so a token typed
+// into config.json by hand cannot be short enough to guess.
+func GoodOverlayToken(t string) bool {
+	if len(t) < 43 || len(t) > 128 {
+		return false
+	}
+	for _, r := range t {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return true
+}
+
 // ClockTime parses "HH:MM" (24 h) into minutes after midnight.
 func ClockTime(s string) (int, bool) {
 	var h, m int
@@ -749,8 +800,15 @@ func Load(path string) (*Store, error) {
 	if s.cfg.TTS.FollowersOnly && len(s.cfg.TTS.Allow) == 0 {
 		s.cfg.TTS.Allow, s.cfg.TTS.FollowersOnly = []string{"follower"}, false
 	}
+	if s.cfg.Osu.ViewerURL == oldViewerURL {
+		s.cfg.Osu.ViewerURL = Default().Osu.ViewerURL
+	}
 	if err := s.cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("config.json: %w", err)
+	}
+	if s.cfg.Overlay.Remote && s.cfg.Overlay.RemoteToken == "" { // switched on by hand in config.json
+		s.cfg.Overlay.RemoteToken = NewOverlayToken()
+		return s, s.save()
 	}
 	return s, nil
 }

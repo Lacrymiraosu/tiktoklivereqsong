@@ -137,6 +137,43 @@ func TestCleanupKeepsReferencedFiles(t *testing.T) {
 	}
 }
 
+func TestCachedFileOnlyTrusted(t *testing.T) {
+	d, _ := setup(t, nil)
+	os.MkdirAll(d.CacheDir, 0o755)
+	os.WriteFile(d.cachePath(9, true), osz(good), 0o644) // on disk, but not checked by this run
+	if p, ok := d.CachedFile(9, true); ok {
+		t.Fatalf("an untrusted file must not be offered: %s", p)
+	}
+	out, err := d.Get(context.Background(), Job{SetID: 9, Ref: ref(), HasVideo: true}, nil) // no-video is on by default
+	if err != nil || out.File != d.cachePath(9, true) {
+		t.Fatalf("got %+v err=%v", out, err)
+	}
+	if p, ok := d.CachedFile(9, true); !ok || p != out.File {
+		t.Errorf("no-video: %q %v", p, ok)
+	}
+	if p, ok := d.CachedFile(9, false); !ok || p != out.File {
+		t.Errorf("with video asked, only the no-video file is cached: %q %v", p, ok)
+	}
+	os.WriteFile(d.cachePath(9, false), osz(good), 0o644)
+	if p, _ := d.CachedFile(9, false); p != out.File {
+		t.Errorf("the untrusted video file must be passed over: %q", p)
+	}
+	d.trust(d.cachePath(9, false))
+	if p, _ := d.CachedFile(9, false); p != d.cachePath(9, false) {
+		t.Errorf("both trusted: the asked variant comes first, got %q", p)
+	}
+	os.Remove(d.cachePath(9, false))
+	os.Remove(out.File)
+	if p, ok := d.CachedFile(9, true); ok {
+		t.Errorf("a deleted file is gone even if it was trusted: %q", p)
+	}
+	for _, id := range []int{0, -9} {
+		if _, ok := d.CachedFile(id, true); ok {
+			t.Errorf("set %d", id)
+		}
+	}
+}
+
 func TestProbe(t *testing.T) {
 	d, _ := setup(t, func(c *config.Config) {
 		c.Download.Sources = append(c.Download.Sources,

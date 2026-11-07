@@ -99,6 +99,7 @@ button.pill:hover, a.pill:hover { background: var(--surface-2); }
 .dot.yellow { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in oklch, var(--warn) 22%, transparent); }
 .dot.red { background: var(--bad); box-shadow: 0 0 0 3px color-mix(in oklch, var(--bad) 22%, transparent); }
 @keyframes pulse { 50% { box-shadow: 0 0 0 1px color-mix(in oklch, var(--ok) 12%, transparent); } }
+.pill .viewers { color: var(--muted); font-variant-numeric: tabular-nums; }
 .pill.upd { color: var(--ok); border-color: color-mix(in oklch, var(--ok) 45%, transparent); background: color-mix(in oklch, var(--ok) 10%, var(--surface)); font-weight: 600; }
 .pill.dry { color: var(--warn); border-color: color-mix(in oklch, var(--warn) 50%, transparent); background: color-mix(in oklch, var(--warn) 12%, var(--surface)); font-weight: 600; letter-spacing: .04em; }
 .ttswrap { display: inline-flex; align-items: center; gap: .35rem; }
@@ -220,6 +221,10 @@ button.pill:hover, a.pill:hover { background: var(--surface-2); }
 .pfr small { grid-column: 2; color: var(--muted); overflow-wrap: anywhere; }
 .pf .wait { color: var(--muted); display: flex; gap: .6rem; align-items: center; padding: 1rem 0; }
 .drawer { width: min(26rem, 100%); }
+/* the Map rules drawer: the settings rows, one column, the body scrolls between the header and the buttons */
+.drawer-body.rulesbody { display: block; overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+.rulesbody .frow { flex-wrap: wrap; }
+.swt small.ferr { color: var(--bad); font-weight: 600; }
 
 /* ---------- queue ---------- */
 .list { display: flex; flex-direction: column; gap: .6rem; }
@@ -276,7 +281,24 @@ button.pill:hover, a.pill:hover { background: var(--surface-2); }
 .tp code { display: block; max-height: 6rem; overflow: auto; font-family: var(--font-data); font-size: .75rem; color: var(--muted); white-space: pre-wrap; word-break: break-all; }
 .tp .banlink, .tp .jumplink { align-self: flex-start; font-size: .78rem; margin-top: 2px; }
 .tp .banlink { color: var(--bad); }
+.tp .tplinks { display: flex; flex-wrap: wrap; gap: .2rem 1rem; }
+.tp .tplinks .kikibtn { font-size: .78rem; margin-top: 2px; }
 .log > .hint { padding: 1rem .9rem; margin: 0; }
+
+/* KIKI's beatmap player (▶ view map): folds out right under its card, 16:10, one at a time.
+   The frame keeps its size while the iframe is removed on close, so the fold stays smooth. */
+.kiki { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .25s ease, margin .25s ease; }
+.kiki.open { grid-template-rows: 1fr; }
+.kiki-in { min-height: 0; overflow: hidden; }
+.kiki-frame { position: relative; aspect-ratio: 16 / 10; border: 1px solid var(--line); border-radius: var(--bs-radius-7, .75rem); overflow: hidden; background: #000; }
+.kiki-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+.list > .kiki { margin-top: -.6rem; } .list > .kiki.open { margin-top: -.3rem; }        /* the queue's gap, halved under the card */
+.cols > main > .kiki { margin-top: -1rem; } .cols > main > .kiki.open { margin-top: -.5rem; } /* under now playing */
+.log > .kiki .kiki-frame { margin: 0 .9rem .65rem; }
+.log > .kiki + .tp { border-top: 1px solid var(--line); }
+.kikibtn.on { font-weight: 600; }
+.tags .kikibtn { font-size: .78rem; margin-inline-start: .15rem; }
+@media (prefers-reduced-motion: reduce) { .kiki { transition: none; } }
 .mirrors { display: flex; flex-direction: column; gap: .3rem; }
 .mrow { display: grid; grid-template-columns: .7rem max-content minmax(0, 1fr) max-content; align-items: center; gap: .5rem; font-size: .85rem; min-height: 1.5rem; }
 .mrow .dot { width: .55rem; height: .55rem; box-shadow: none; animation: none; }

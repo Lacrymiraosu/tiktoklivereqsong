@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/app"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/config"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/downloader"
+	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/osumeta"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/queue"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tikfinity"
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/tosu"
@@ -484,5 +486,308 @@ func TestPreviewAndMirrorsInState(t *testing.T) {
 	}
 	if w := do(h, http.MethodPut, "/api/preview", `{"setId":1}`, func(r *http.Request) { r.Header.Del("X-Osureq") }); w.Code != http.StatusForbidden {
 		t.Errorf("without X-Osureq: %d", w.Code)
+	}
+}
+
+// oszBytes is a tiny .osz; the name tells the cache files apart.
+func oszBytes(name string) []byte {
+	var b bytes.Buffer
+	zw := zip.NewWriter(&b)
+	f, _ := zw.Create(name + ".osu")
+	f.Write([]byte("osu file format v14\n"))
+	zw.Close()
+	return b.Bytes()
+}
+
+func TestOszFromCache(t *testing.T) {
+	s, h := newTestServer(t)
+	dl := s.App.DL
+	os.MkdirAll(dl.CacheDir, 0o755)
+	noVid, withVid := oszBytes("novideo"), oszBytes("video")
+	os.WriteFile(filepath.Join(dl.CacheDir, "123n.osz"), noVid, 0o644)
+	os.WriteFile(filepath.Join(dl.CacheDir, "123.osz"), withVid, 0o644)
+	os.WriteFile(filepath.Join(dl.CacheDir, "456.osz"), withVid, 0o644) // never checked by this run
+
+	if w := do(h, http.MethodGet, "/api/osz/123", ""); w.Code != http.StatusNotFound {
+		t.Fatalf("a file not checked by this run (e.g. after a restart): %d, want 404", w.Code)
+	}
+	// a cache hit trusts the file; no-video is on by default, so 123n.osz
+	if _, err := dl.Get(context.Background(), downloader.Job{SetID: 123, HasVideo: true}, nil); err != nil {
+		t.Fatal(err)
+	}
+	check := func(path string, want []byte) {
+		t.Helper()
+		w := do(h, http.MethodGet, path, "")
+		if w.Code != http.StatusOK || !bytes.Equal(w.Body.Bytes(), want) {
+			t.Fatalf("%s: %d, %d bytes (want %d)", path, w.Code, w.Body.Len(), len(want))
+		}
+		hd := w.Header()
+		if hd.Get("Content-Type") != "application/x-osu-beatmap-archive" || hd.Get("Cache-Control") != "no-store" || hd.Get("Content-Length") != fmt.Sprint(len(want)) {
+			t.Errorf("%s: headers %v", path, hd)
+		}
+		if _, ok := hd["Access-Control-Allow-Origin"]; ok {
+			t.Errorf("%s: the cache is for the dashboard only, no CORS: %v", path, hd)
+		}
+	}
+	check("/api/osz/123?novideo=1", noVid)
+	check("/api/osz/123", noVid) // the video file is not trusted: the other one is used
+	if _, err := dl.Get(context.Background(), downloader.Job{SetID: 123}, nil); err != nil {
+		t.Fatal(err) // a set without video: 123.osz is checked and trusted now
+	}
+	check("/api/osz/123", withVid)
+	check("/api/osz/123?novideo=1", noVid)
+
+	w := do(h, http.MethodHead, "/api/osz/123?novideo=1", "")
+	if w.Code != http.StatusOK || w.Body.Len() != 0 || w.Header().Get("Content-Length") != fmt.Sprint(len(noVid)) {
+		t.Errorf("HEAD: %d, %d bytes, headers %v", w.Code, w.Body.Len(), w.Header())
+	}
+	if w := do(h, http.MethodHead, "/api/osz/123", "", func(r *http.Request) { r.Header.Del("X-Osureq") }); w.Code != http.StatusForbidden {
+		t.Errorf("HEAD without X-Osureq: %d (the guard stays as it is)", w.Code)
+	}
+	if w := do(h, http.MethodGet, "/api/osz/123", "", func(r *http.Request) { r.Host = "evil.example:21299" }); w.Code != http.StatusForbidden {
+		t.Errorf("foreign host: %d", w.Code)
+	}
+	for _, path := range []string{"/api/osz/456", "/api/osz/789", "/api/osz/456?novideo=1"} {
+		if w := do(h, http.MethodGet, path, ""); w.Code != http.StatusNotFound {
+			t.Errorf("%s: %d, want 404", path, w.Code)
+		}
+	}
+	for _, path := range []string{"/api/osz/0", "/api/osz/-1", "/api/osz/abc", "/api/osz/1.5", "/api/osz/99999999999999999999", "/api/osz/..%2F123", "/api/osz/123%2F..%2F..%2Fconfig.json"} {
+		if w := do(h, http.MethodGet, path, ""); w.Code != http.StatusBadRequest {
+			t.Errorf("%s: %d, want 400", path, w.Code)
+		}
+	}
+}
+
+func TestKikiFlagsInState(t *testing.T) {
+	s, h := newTestServer(t)
+	st := decode(t, do(h, http.MethodGet, "/api/state", ""))
+	if st["kikiPlayer"] != true || st["noVideo"] != true {
+		t.Errorf("defaults: kikiPlayer=%v noVideo=%v", st["kikiPlayer"], st["noVideo"])
+	}
+	c := s.App.Cfg.Get()
+	c.Osu.KikiPlayer, c.Download.NoVideo = false, false
+	if err := s.App.Cfg.Set(c); err != nil {
+		t.Fatal(err)
+	}
+	st = decode(t, do(h, http.MethodGet, "/api/state", ""))
+	if st["kikiPlayer"] != false || st["noVideo"] != false {
+		t.Errorf("after turning them off: kikiPlayer=%v noVideo=%v", st["kikiPlayer"], st["noVideo"])
+	}
+}
+
+// osuPages answers osu!'s beatmapset pages for the sets in it (no network).
+type osuPages map[int]float64 // set id -> stars
+
+func (p osuPages) RoundTrip(r *http.Request) (*http.Response, error) {
+	var id int
+	fmt.Sscanf(r.URL.Path, "/beatmapsets/%d", &id)
+	body, code := "", http.StatusNotFound
+	if stars, ok := p[id]; ok && r.URL.Host == "osu.ppy.sh" {
+		body = fmt.Sprintf(`<html><script id="json-beatmapset" type="application/json">{"id":%d,"title":"Song %d","artist":"xi","creator":"m","status":"ranked",
+			"beatmaps":[{"id":%d,"version":"Hard","mode":"osu","difficulty_rating":%v,"total_length":200,"checksum":"aa","status":"ranked"}]}</script></html>`, id, id, id*10, stars)
+		code = http.StatusOK
+	}
+	return &http.Response{StatusCode: code, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{}, Request: r}, nil
+}
+
+func TestSimulateSeveralMaps(t *testing.T) {
+	s, h := newTestServer(t)
+	s.App.Meta = osumeta.New()
+	s.App.Meta.MinGap = 0
+	s.App.Meta.HTTP = &http.Client{Transport: osuPages{1: 2, 2: 2, 3: 2, 9: 9}}
+	c := s.App.Cfg.Get()
+	c.Command.BareNumberAs, c.Command.MaxPerMessage = "set", 3
+	c.Rules.MaxStars = 5
+	c.Queue.CooldownSec, c.Queue.PerUserLimit = 600, 0
+	if err := s.App.Cfg.Set(c); err != nil {
+		t.Fatal(err)
+	}
+	sim := func(user, msg string) map[string]any {
+		b, _ := json.Marshal(map[string]string{"user": user, "message": msg})
+		return decode(t, do(h, http.MethodPost, "/api/simulate", string(b)))
+	}
+
+	m := sim("fan", "!req 1 9 2 HDHR 3 1")
+	item, _ := m["item"].(map[string]any)
+	if m["ok"] != true || m["maps"] != float64(3) || m["count"] != float64(2) || m["rejected"] != float64(1) || item["setId"] != float64(1) {
+		t.Errorf("several maps: %v", m)
+	}
+	if m["code"] != "stars_high" || m["short"] != "9.00★ > 5.00★" || m["ignored"] != float64(1) {
+		t.Errorf("first rejection and the map past the limit: %v", m)
+	}
+	if n := s.App.Queue.Len(); n != 2 {
+		t.Errorf("queue has %d, want 2", n)
+	}
+
+	// none added: a rejection as for one map, with the counts
+	m = sim("fan", "!req 1 2")
+	if m["ok"] != false || m["code"] != "cooldown" || m["count"] != float64(0) || m["maps"] != float64(2) || m["item"] != nil {
+		t.Errorf("message in its cooldown: %v", m)
+	}
+
+	// one map: the same answer as before, without the counts
+	m = sim("fan2", "!req 3")
+	if item, _ := m["item"].(map[string]any); m["ok"] != true || item["setId"] != float64(3) || m["maps"] != nil || m["count"] != nil {
+		t.Errorf("one map: %v", m)
+	}
+	m = sim("fan2", "!req 1")
+	if m["ok"] != false || m["code"] != "cooldown" || m["maps"] != nil {
+		t.Errorf("one map rejected: %v", m)
+	}
+}
+
+// TestPutConfigReplacesBans pins down why the dashboard merges before saving
+// (mergeEdits in app.js): PUT /api/config stores the body as it is, so a
+// config read before a ban brings the old blacklist back.
+func TestPutConfigReplacesBans(t *testing.T) {
+	s, h := newTestServer(t)
+	stale := s.App.Cfg.Get() // a form opened before the ban
+	if m := decode(t, do(h, http.MethodPost, "/api/ban", `{"kind":"user","value":"troll"}`)); m["ok"] != true {
+		t.Fatalf("ban: %v", m)
+	}
+	stale.Rules.MinStars = 3
+	b, _ := json.Marshal(stale)
+	if m := decode(t, do(h, http.MethodPut, "/api/config", string(b))); m["ok"] != true {
+		t.Fatalf("save: %v", m)
+	}
+	if got := s.App.Cfg.Get().Rules.BlacklistUsers; len(got) != 0 {
+		t.Errorf("PUT /api/config should store the body as sent (the dashboard keeps bans itself), got %v", got)
+	}
+	// what the dashboard sends instead: the config read at save time with its own change on top
+	if m := decode(t, do(h, http.MethodPost, "/api/ban", `{"kind":"user","value":"troll"}`)); m["ok"] != true {
+		t.Fatalf("ban: %v", m)
+	}
+	fresh := s.App.Cfg.Get()
+	fresh.Rules.MinStars = 4
+	b, _ = json.Marshal(fresh)
+	decode(t, do(h, http.MethodPut, "/api/config", string(b)))
+	if c := s.App.Cfg.Get(); c.Rules.MinStars != 4 || len(c.Rules.BlacklistUsers) != 1 || c.Rules.BlacklistUsers[0] != "troll" {
+		t.Errorf("a save built on the config of that moment keeps the ban: %+v", c.Rules)
+	}
+}
+
+func TestOverlayLinkToken(t *testing.T) {
+	s, h := newTestServer(t)
+	if tok := s.App.Cfg.Get().Overlay.RemoteToken; tok != "" {
+		t.Fatalf("no secret before the link is switched on: %q", tok)
+	}
+	// switched on for the first time: saving makes the secret
+	c := s.App.Cfg.Get()
+	c.Overlay.Remote = true
+	body, _ := json.Marshal(c)
+	if m := decode(t, do(h, http.MethodPut, "/api/config", string(body))); m["ok"] != true {
+		t.Fatalf("save: %v", m)
+	}
+	first := s.App.Cfg.Get().Overlay.RemoteToken
+	if !config.GoodOverlayToken(first) {
+		t.Fatalf("first token: %q", first)
+	}
+
+	if w := do(h, http.MethodPost, "/api/overlay/token", "", func(r *http.Request) { r.Header.Del("X-Osureq") }); w.Code != http.StatusForbidden {
+		t.Errorf("without X-Osureq: %d", w.Code)
+	}
+	if w := do(h, http.MethodPost, "/api/overlay/token", "", func(r *http.Request) { r.Host = "evil.example:21299" }); w.Code != http.StatusForbidden {
+		t.Errorf("foreign Host: %d", w.Code)
+	}
+	m := decode(t, do(h, http.MethodPost, "/api/overlay/token", ""))
+	second, _ := m["token"].(string)
+	if m["ok"] != true || second == first || second != s.App.Cfg.Get().Overlay.RemoteToken || !config.GoodOverlayToken(second) {
+		t.Fatalf("new link: %v (saved %q, old %q)", m, s.App.Cfg.Get().Overlay.RemoteToken, first)
+	}
+
+	// a settings dialog opened before "New link" saves the old token back: ignored
+	c.Overlay.RemoteToken = first
+	c.Overlay.Theme = "sky"
+	body, _ = json.Marshal(c)
+	if m := decode(t, do(h, http.MethodPut, "/api/config", string(body))); m["ok"] != true {
+		t.Fatalf("save: %v", m)
+	}
+	if got := s.App.Cfg.Get().Overlay; got.RemoteToken != second || got.Theme != "sky" {
+		t.Errorf("only the token endpoint changes the link: %q (theme %s)", got.RemoteToken, got.Theme)
+	}
+
+	// the dashboard's state (pushed, /api/state, the support file) never has it
+	if w := do(h, http.MethodGet, "/api/state", ""); strings.Contains(w.Body.String(), second) || !strings.Contains(w.Body.String(), `"remote":true`) {
+		t.Errorf("state: %s", w.Body)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := ln.Addr().(*net.TCPAddr).Port
+	srv := httptest.NewUnstartedServer(s.Handler(p))
+	srv.Listener.Close()
+	srv.Listener = ln
+	srv.Start()
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(ctx, fmt.Sprintf("ws://127.0.0.1:%d/ws", p), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	if _, b, err := conn.Read(ctx); err != nil || strings.Contains(string(b), second) {
+		t.Errorf("pushed state: %v %s", err, b)
+	}
+}
+
+func TestSupportFileHidesOverlayLink(t *testing.T) {
+	s, h := newTestServer(t)
+	s.LogPath = filepath.Join(t.TempDir(), "osureq.log")
+	c := s.App.Cfg.Get()
+	c.Overlay.Remote = true
+	c.Overlay.RemoteToken = config.NewOverlayToken()
+	if err := s.App.Cfg.Set(c); err != nil {
+		t.Fatal(err)
+	}
+	w := do(h, http.MethodPost, "/api/support", "")
+	zr, err := zip.NewReader(bytes.NewReader(w.Body.Bytes()), int64(w.Body.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hidden := false
+	for _, f := range zr.File {
+		rc, _ := f.Open()
+		b, _ := io.ReadAll(rc)
+		rc.Close()
+		if strings.Contains(string(b), c.Overlay.RemoteToken) {
+			t.Errorf("%s contains the overlay link", f.Name)
+		}
+		hidden = hidden || strings.Contains(string(b), `"remoteToken": "(hidden)"`)
+	}
+	if !hidden {
+		t.Error("the config in the support file should say the token is hidden")
+	}
+	if s.App.Cfg.Get().Overlay.RemoteToken != c.Overlay.RemoteToken {
+		t.Error("the support file must not change the saved token")
+	}
+}
+
+func TestPreflightCountsRemoteOverlay(t *testing.T) {
+	s, h := newTestServer(t)
+	s.App.Meta = nil // no network in tests
+	c := s.App.Cfg.Get()
+	c.Download.Sources = nil
+	s.App.Cfg.Set(c)
+	n := 0
+	s.RemoteOverlays = func() int { return n } // remote.Server.Overlays in main.go
+	check := func() map[string]any {
+		m := decode(t, do(h, http.MethodPost, "/api/preflight", ""))
+		for _, c := range m["checks"].([]any) {
+			if c := c.(map[string]any); c["id"] == "overlay" {
+				return c
+			}
+		}
+		t.Fatalf("no overlay check: %v", m)
+		return nil
+	}
+	if c := check(); c["status"] != "warn" {
+		t.Errorf("no overlay anywhere: %v", c)
+	}
+	n = 1
+	if c := check(); c["status"] != "ok" || c["vars"].(map[string]any)["n"] != "1" {
+		t.Errorf("an overlay on the other PC counts: %v", c)
 	}
 }

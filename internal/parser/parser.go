@@ -50,6 +50,14 @@ type Options struct {
 	Aliases      []string
 	BareNumberAs string // "beatmap" (default) or "set"
 	Search       bool   // text that is not an ID or link is a song name
+	MaxMaps      int    // ParseAll: maps one message may ask for; 0 or 1 = one
+}
+
+// Part is one map of a chat message (ParseAll) and the words it was read
+// from, e.g. "456 HDHR".
+type Part struct {
+	Request
+	Text string
 }
 
 // Search queries shorter than this are ignored, longer ones are cut.
@@ -73,6 +81,91 @@ func Parse(comment string, o Options) (Request, bool) {
 		return Request{}, false
 	}
 	return ParseInput(fields[1:], o.BareNumberAs, o.Search)
+}
+
+// ParseAll is Parse for a message that may ask for several maps
+// (Options.MaxMaps > 1): "!req 123 456 HDHR 789" is three requests, and mods
+// belong to the ID or link just before them. That reading is used only when
+// every word is an ID, an osu! link or mods and there are two maps or more;
+// anything else (a song name, chat after the ID) is one request read by
+// Parse, as before. A map named twice counts once; maps past MaxMaps are
+// left out and counted in extra.
+func ParseAll(comment string, o Options) (parts []Part, extra int, ok bool) {
+	fields := strings.Fields(strings.TrimSpace(comment))
+	if o.MaxMaps > 1 && len(fields) > 2 && isCommand(fields[0], o) {
+		if parts, extra, ok := parseMany(fields[1:], o); ok {
+			return parts, extra, true
+		}
+	}
+	r, ok := Parse(comment, o)
+	if !ok {
+		return nil, 0, false
+	}
+	return []Part{{Request: r, Text: strings.Join(fields[1:], " ")}}, 0, true
+}
+
+// parseMany reads IDs and links, each followed by its own mods words.
+func parseMany(words []string, o Options) ([]Part, int, bool) {
+	type group struct {
+		req   Request
+		words []string // the ID or link, then its mods
+	}
+	var groups []group
+	for _, w := range words {
+		if r, ok := ParseArg(w, o.BareNumberAs); ok {
+			groups = append(groups, group{req: r, words: []string{w}})
+			continue
+		}
+		if len(groups) == 0 || !modsWord(w) {
+			return nil, 0, false
+		}
+		g := &groups[len(groups)-1]
+		g.words = append(g.words, w)
+	}
+	var parts []Part
+	extra := 0
+	seen := map[[3]int]bool{}
+	for _, g := range groups {
+		key := [3]int{int(g.req.Kind), g.req.SetID, g.req.BeatmapID}
+		if g.req.Kind == KindBeatmap {
+			key = [3]int{int(KindBeatmap), 0, g.req.BeatmapID} // a bare ID and a link to it are the same map
+		}
+		if seen[key] {
+			continue // named twice: the first one counts, with its mods
+		}
+		seen[key] = true
+		if len(parts) == o.MaxMaps {
+			extra++
+			continue
+		}
+		r := g.req
+		// Every word after the ID is meant as mods here, so a clash between
+		// them ("HD DT HT") is an error for this map, not chat to ignore.
+		if len(g.words) > 1 {
+			m, err := mods.Parse(g.words[1:]...)
+			if err != nil {
+				r.ModsErr = asModsErr(err)
+			} else {
+				r.Mods = m
+			}
+		}
+		parts = append(parts, Part{Request: r, Text: strings.Join(g.words, " ")})
+	}
+	if len(parts) < 2 {
+		return nil, 0, false // one map: Parse reads it exactly as before
+	}
+	return parts, extra, true
+}
+
+// modsWord: a word ParseAll takes for mods. "+..." always (so "+HDXX" is a
+// wrong mod, not chat), capitals made of mod codes ("EZHR"), or mods in any
+// case that make sense ("hd", "hdhr").
+func modsWord(w string) bool {
+	if strings.HasPrefix(w, "+") || looksLikeMods(w) {
+		return true
+	}
+	_, err := mods.Parse(w)
+	return err == nil
 }
 
 // ParseInput reads what follows the command. An ID or osu! link in the

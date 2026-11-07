@@ -150,3 +150,54 @@ func TestDirectBackOff(t *testing.T) {
 		t.Errorf("rate limited wait %v", w)
 	}
 }
+
+func TestDirectViewers(t *testing.T) {
+	var seen []int
+	c := New(Env{}, func() Settings { return Settings{} })
+	c.OnViewers = func(n int) { seen = append(seen, n) }
+	c.Direct = func(ctx context.Context, user, apiKey string, ev DirectEvents) error {
+		ev.Connected()
+		ev.Viewers(1234)
+		if st := c.Status(); st.Viewers != 1234 || st.Code != "live" {
+			t.Errorf("viewers while live: %+v", st)
+		}
+		ev.Viewers(-5) // not a count: unknown
+		if st := c.Status(); st.Viewers != 0 {
+			t.Errorf("negative count: %+v", st)
+		}
+		ev.Viewers(77)
+		return fmt.Errorf("dial: connection reset")
+	}
+	s := Settings{Direct: true, User: "x", Reconnect: time.Second}
+	c.direct(context.Background(), s)
+	if st := c.Status(); st.Viewers != 0 || st.Connected {
+		t.Errorf("the connection dropped, the count must be gone: %+v", st)
+	}
+	if fmt.Sprint(seen) != "[1234 0 77 0]" {
+		t.Errorf("OnViewers = %v", seen)
+	}
+
+	// Stopping while live clears it too.
+	c.Direct = func(ctx context.Context, user, apiKey string, ev DirectEvents) error {
+		ev.Connected()
+		ev.Viewers(5)
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { c.direct(ctx, s); close(done) }()
+	waitStatus(t, c, func(st Status) bool { return st.Viewers == 5 })
+	cancel()
+	<-done
+	if st := c.Status(); st.Viewers != 0 {
+		t.Errorf("stopped: %+v", st)
+	}
+	// Another account starts from unknown, even if the last drop was never seen.
+	c.set(func(st *Status) { st.Viewers = 9 })
+	c.Direct = func(context.Context, string, string, DirectEvents) error { return ErrOffline }
+	c.direct(context.Background(), Settings{Direct: true, User: "y", Reconnect: time.Second})
+	if st := c.Status(); st.Viewers != 0 || st.User != "y" {
+		t.Errorf("other account: %+v", st)
+	}
+}
