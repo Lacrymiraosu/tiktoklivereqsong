@@ -132,6 +132,109 @@ func TestTTSEngine(t *testing.T) {
 	}
 }
 
+func TestTTSVoicesAndGender(t *testing.T) {
+	d := Default()
+	if d.TTS.Gender != "any" || d.TTS.Voices == nil || len(d.TTS.Voices) != 0 {
+		t.Errorf("defaults: gender any, no chosen voices: %q %v", d.TTS.Gender, d.TTS.Voices)
+	}
+
+	// a config.json from before the new keys gets the defaults
+	path := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(path, []byte(`{"tts":{"lang":"auto","voice":"Microsoft Zira - English (United States)"}}`), 0o644)
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tts := s.Get().TTS; tts.Gender != "any" || len(tts.Voices) != 0 || tts.Voice != "Microsoft Zira - English (United States)" {
+		t.Errorf("old config: %+v", tts)
+	}
+
+	// with the new keys: loaded, saved and loaded again unchanged
+	path = filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(path, []byte(`{"tts":{"gender":"female","voices":{"th":"Microsoft Premwadee Online (Natural) - Thai (Thailand)","ja":"Microsoft Nanami Online (Natural) - Japanese (Japan)"}}}`), 0o644)
+	if s, err = Load(path); err != nil {
+		t.Fatal(err)
+	}
+	c := s.Get()
+	if c.TTS.Gender != "female" || c.TTS.Voices["th"] != "Microsoft Premwadee Online (Natural) - Thai (Thailand)" || len(c.TTS.Voices) != 2 {
+		t.Errorf("new keys: %+v", c.TTS)
+	}
+	c.TTS.Gender, c.TTS.Voices["hi"] = "male", "Microsoft Madhur Online (Natural) - Hindi (India)"
+	if err := s.Set(c); err != nil {
+		t.Fatal(err)
+	}
+	s2, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s2.Get().TTS; got.Gender != "male" || len(got.Voices) != 3 || got.Voices["hi"] != "Microsoft Madhur Online (Natural) - Hindi (India)" {
+		t.Errorf("round trip: %+v", got)
+	}
+
+	c = Default()
+	c.TTS.Gender = ""
+	if err := c.Validate(); err != nil || c.TTS.Gender != "any" {
+		t.Errorf("an empty gender is any: %v %q", err, c.TTS.Gender)
+	}
+	c.TTS.Voices = nil
+	if err := c.Validate(); err != nil {
+		t.Errorf("voices may be null: %v", err)
+	}
+	c.TTS.Voices = map[string]string{"en": ""}
+	if err := c.Validate(); err != nil {
+		t.Errorf("an empty name is the automatic choice: %v", err)
+	}
+
+	code := func(c Config) string {
+		var ve *ValidationError
+		if err := c.Validate(); errors.As(err, &ve) && len(ve.Problems) == 1 {
+			return ve.Problems[0].Code
+		}
+		return "not one problem"
+	}
+	bad := map[string]func(c *Config){
+		"gender other":     func(c *Config) { c.TTS.Gender = "robot" },
+		"gender caps":      func(c *Config) { c.TTS.Gender = "Female" },
+		"voices language":  func(c *Config) { c.TTS.Voices = map[string]string{"vi": "Microsoft HoaiMy Online (Natural)"} },
+		"voices long name": func(c *Config) { c.TTS.Voices = map[string]string{"th": strings.Repeat("ก", 121)} },
+		"voices control":   func(c *Config) { c.TTS.Voices = map[string]string{"en": "Microsoft Guy\nOnline"} },
+	}
+	want := map[string]string{"gender other": "tts_gender", "gender caps": "tts_gender", "voices language": "tts_voices", "voices long name": "tts_voices", "voices control": "tts_voices"}
+	for name, f := range bad {
+		c := Default()
+		f(&c)
+		if got := code(c); got != want[name] {
+			t.Errorf("%s: got %q, want %q", name, got, want[name])
+		}
+		for _, p := range c.Validate().(*ValidationError).Problems {
+			if strings.Contains(p.Msg, "robot") || strings.Contains(p.Msg, "HoaiMy") || strings.Contains(p.Msg, "Guy") || len(p.Vars) != 0 {
+				t.Errorf("%s: the message must not quote the value: %+v", name, p)
+			}
+		}
+	}
+	c = Default()
+	c.TTS.Voices = map[string]string{"th": strings.Repeat("ก", 120), "zh": "Microsoft Xiaoxiao Online (Natural) - Chinese (Mainland)"}
+	if err := c.Validate(); err != nil {
+		t.Errorf("120 letters, spaces, parentheses and hyphens are fine: %v", err)
+	}
+
+	// the new languages and genders are new keys only: older fields keep their values
+	for _, v := range []string{"ja", "ko", "zh", "hi", "female"} {
+		c := Default()
+		c.TTS.Lang = v
+		if code(c) != "tts_lang" {
+			t.Errorf("tts.lang must still refuse %q", v)
+		}
+	}
+	for _, v := range []string{"edge", "female", "ja"} {
+		c := Default()
+		c.TTS.Engine = v
+		if code(c) != "tts_engine" {
+			t.Errorf("tts.engine must still refuse %q", v)
+		}
+	}
+}
+
 func TestAnnounceOnByDefault(t *testing.T) {
 	if !Default().TTS.Announce {
 		t.Error("request announcements should be on in a new config")

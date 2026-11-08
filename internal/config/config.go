@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/Lacrymiraosu/tiktoklivereqsong/internal/mods"
 )
@@ -225,6 +226,13 @@ type TTS struct {
 	Enabled bool   `json:"enabled"`
 	Lang    string `json:"lang"`  // auto (by the message's letters) | th | en
 	Voice   string `json:"voice"` // a voice name from the browser; empty = best for the language
+	// Voices are the browser voices chosen per language (TTSVoiceLangs ->
+	// voice name; missing or empty = best for the language). The older Voice
+	// still counts for its own language when that language has no entry.
+	Voices map[string]string `json:"voices"`
+	// Gender is preferred when a voice is picked by itself: any, female or
+	// male (known from the voice's name in the dashboard; unknown never matches).
+	Gender string `json:"gender"`
 	// Engine is who speaks: auto (the browser's voice when it has one for the
 	// language, Google's otherwise), browser, or google (always Google's
 	// voice; the text is sent to Google).
@@ -245,6 +253,10 @@ type TTS struct {
 	Announce  bool              `json:"announce"`
 	Templates map[string]string `json:"templates"`
 }
+
+// TTSVoiceLangs are the languages tts.voices may choose a voice for: the
+// ones the dashboard tells apart by their letters.
+var TTSVoiceLangs = []string{"th", "en", "ja", "ko", "zh", "hi"}
 
 // AnnounceEvents are the events that can be spoken, in the order the
 // settings show them. "rejected" is used for any rejection without its own
@@ -380,7 +392,7 @@ func Default() Config {
 		Overlay: Overlay{Visible: 5, Requester: true, Theme: "pink", Scale: 100, Position: "top-left", Feedback: true, FeedbackSec: 7, Lang: "auto", Avatars: true},
 		Gifts:   Gifts{Enabled: false, CoinsPerPriority: 30, CreditMinutes: 60},
 		Remote:  Remote{Port: 21281},
-		TTS:     TTS{Lang: "auto", Engine: "auto", Rate: 1, Volume: 80, ReadName: true, MaxLength: 120, CooldownSec: 3, Announce: true, Templates: ThaiAnnouncements()},
+		TTS:     TTS{Lang: "auto", Voices: map[string]string{}, Gender: "any", Engine: "auto", Rate: 1, Volume: 80, ReadName: true, MaxLength: 120, CooldownSec: 3, Announce: true, Templates: ThaiAnnouncements()},
 		Hotkeys: Hotkeys{Enabled: false, Next: "Ctrl+Alt+N", Skip: "Ctrl+Alt+S", Remove: "Ctrl+Alt+Backspace", Toggle: "Ctrl+Alt+R"},
 	}
 }
@@ -523,6 +535,19 @@ func (c *Config) Validate() error {
 	}
 	if t := c.TTS; !slices.Contains([]string{"auto", "browser", "google"}, t.Engine) {
 		add("tts_engine", nil, "TTS voice must be auto, browser or google")
+	}
+	switch c.TTS.Gender {
+	case "":
+		c.TTS.Gender = "any"
+	case "any", "female", "male":
+	default:
+		add("tts_gender", nil, "TTS voice gender must be any, female or male")
+	}
+	for k, v := range c.TTS.Voices {
+		if !slices.Contains(TTSVoiceLangs, k) || len([]rune(v)) > 120 || strings.ContainsFunc(v, unicode.IsControl) {
+			add("tts_voices", nil, "TTS voices: languages th, en, ja, ko, zh or hi, names of at most 120 letters without control characters")
+			break
+		}
 	}
 	if t := c.TTS; t.Rate < 0.5 || t.Rate > 2 || t.Volume < 0 || t.Volume > 100 || t.MaxLength < 10 || t.MaxLength > 500 || t.CooldownSec < 0 {
 		add("tts_range", nil, "TTS: speed 0.5-2, volume 0-100, max length 10-500, cooldown 0 or more")

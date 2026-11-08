@@ -246,6 +246,40 @@ func TestPutConfigValidates(t *testing.T) {
 	}
 }
 
+// tts.gender and tts.voices go through PUT /api/config and come back from
+// GET; an unknown gender is refused with its code.
+func TestPutConfigTTSVoices(t *testing.T) {
+	s, h := newTestServer(t)
+	c := s.App.Cfg.Get()
+	c.TTS.Gender = "female"
+	c.TTS.Voices = map[string]string{"th": "Microsoft Premwadee Online (Natural) - Thai (Thailand)", "ko": "Microsoft SunHi Online (Natural) - Korean (Korea)"}
+	b, _ := json.Marshal(c)
+	if m := decode(t, do(h, http.MethodPut, "/api/config", string(b))); m["ok"] != true {
+		t.Fatalf("PUT: %v", m)
+	}
+	var got struct {
+		Config struct {
+			TTS struct {
+				Gender string            `json:"gender"`
+				Voices map[string]string `json:"voices"`
+			} `json:"tts"`
+		} `json:"config"`
+	}
+	json.Unmarshal(do(h, http.MethodGet, "/api/config", "").Body.Bytes(), &got)
+	if g := got.Config.TTS; g.Gender != "female" || len(g.Voices) != 2 || g.Voices["ko"] != "Microsoft SunHi Online (Natural) - Korean (Korea)" {
+		t.Errorf("GET after PUT: %+v", g)
+	}
+
+	c.TTS.Gender = "robot"
+	b, _ = json.Marshal(c)
+	if m := decode(t, do(h, http.MethodPut, "/api/config", string(b))); m["code"] != "tts_gender" {
+		t.Errorf("want code tts_gender: %v", m)
+	}
+	if s.App.Cfg.Get().TTS.Gender != "female" {
+		t.Error("an invalid gender must not be stored")
+	}
+}
+
 func TestSimulateAndBan(t *testing.T) {
 	s, h := newTestServer(t)
 	if m := decode(t, do(h, http.MethodPost, "/api/simulate", `{"user":"fan","message":"hello there"}`)); m["code"] != "ignored" {

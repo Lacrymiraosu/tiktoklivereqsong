@@ -139,7 +139,8 @@ func (a *App) Speech() []Speech {
 
 // SpeakableText cleans a chat message for a TTS voice: no links, no emoji,
 // no runs longer than four of the same character, capitals softened
-// (SoftenCaps), at most max letters.
+// (SoftenCaps), at most max letters. A cut never parts a letter from its
+// marks (Thai tone marks, Devanagari vowel signs).
 func SpeakableText(s string, max int) string {
 	s = reLink.ReplaceAllString(s, " ")
 	var b strings.Builder
@@ -162,7 +163,13 @@ func SpeakableText(s string, max int) string {
 	out := strings.TrimSpace(reSpaces.ReplaceAllString(b.String(), " "))
 	if max > 0 {
 		if r := []rune(out); len(r) > max {
-			out = strings.TrimSpace(string(r[:max])) + "…"
+			n := max
+			for n < len(r) && unicode.Is(unicode.M, r[n]) {
+				n++
+			}
+			if n < len(r) {
+				out = strings.TrimSpace(string(r[:n])) + "…"
+			}
 		}
 	}
 	if strings.IndexFunc(out, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }) < 0 {
