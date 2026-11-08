@@ -459,14 +459,158 @@ the marks that follow, and adds no "…" when they reach the end of the text.
 
 **Announcements** (`tts.announce`, `app/announce.go`): `App.emit` passes every feed event to `announce`, which picks the template
 (`tts.templates[event]`; a rejection uses `rejected_<code>` if that key exists, else `rejected`), fills it (`RenderAnnouncement`: unknown or
-empty placeholders vanish, `@` is dropped because voices say "at") and queues it as a `say` speech item. Events (`config.AnnounceEvents`):
+empty lowercase placeholders vanish, `@` is dropped because voices say "at") and queues it as a `say` speech item. Events (`config.AnnounceEvents`):
 `added`, `rejected`, `rejected_stars_high|stars_low|mod_stars|too_long|duplicate|recently_played|cooldown|user_limit|search_none`, `nowplaying`
 (from `play`), `np` / `np_none` / `pos` (the `!np` and `!pos` answers; default `กำลังเล่น {artist} - {title} {setid}`), `result_passed|result_failed`, `gift` (once per gift, from `gift`), `voteskip`, `auto_off` (also the closing time), `auto_on`.
-Empty or `-` is silent. Placeholders: `{user}` (display name) `{title}` `{artist}` `{mapper}` `{diff}` `{mods}` (spaced: "HD HR") `{stars}`
-`{pos}` `{setid}` (`{setid_digits}`: "3 9 8 0 4", read digit by digit); `!np` adds `{requester}` (empty when tosu shows a map nobody requested); rejections add `validator.Rejection.Vars` (`{max}` `{min}` `{length}` `{wait}` `{n}` …) and `{reason}` (Thai when the template has
-Thai letters, else English); results `{acc}` `{rank}` `{combo}` `{misses}` `{pp}`; gifts `{coins}` `{gift}`. Defaults are
-`config.ThaiAnnouncements()`; the settings tab can load those or `EnglishAnnouncements()` (sent with `GET /api/config` as `announcements`).
+Empty or `-` is silent. Which placeholders each event has, where every value comes from, the rejection `Vars`, the `reasons` table, the limits and how to add a
+placeholder or an event are in [Announcement lines and placeholders](#announcement-lines-and-placeholders) below. Defaults are `config.ThaiAnnouncements()`;
+the settings tab can load those or `EnglishAnnouncements()` (sent with `GET /api/config` as `announcements`).
 A `config.json` from an older version gets the lines added since then in the language of its own `added` line (`TTS.fillTemplates`).
+
+### Announcement lines and placeholders
+
+The streamer-facing version of this (what each placeholder says, examples, tips) is in the README, section *What you can put in an announcement line* ([English](../README.md#what-you-can-put-in-an-announcement-line), Thai in [README.th.md](README.th.md)). This is the precise one. The in-app help (`tplHelp` in `app.js`, English and Thai) is only a compact list of the names and does not mention `{n}` and `{mode}`; the labels of the boxes are the `tpl_<event>` strings next to it.
+
+**Flow.** A code path builds a `FeedEvent` (`feed.go`) and calls `App.emit`, which numbers it, adds it to the feed and calls `announce(e)` unless the unexported `e.quiet` is set (see *Several maps in one message*). Two events skip the feed and call `announce` themselves: `nowplaying` (`announcePlaying`, from `play` and `Previous`) and the gift thanks (`Kind: "giftthanks"`, from `gift`). Then:
+
+1. `announceKey(e)` maps the event to a template key (table below); `""` = nothing to say.
+2. `announce` returns when `tts.announce` is off or the key is empty. It takes `tts.templates[key]`; only when that **key is missing** and starts with `rejected_` does it fall back to `tts.templates["rejected"]`. A key that is present but empty or `-` (after `TrimSpace`) is silent and does not fall back. The dashboard saves every box, so only the nine `rejected_<code>` codes have a box of their own; every other rejection code uses `rejected`.
+3. It builds the `vars` map from the event (table below), then copies every entry of `e.Vars` over it: `mods` goes through `spokenMods`, every other value through `SoftenCaps`. So a key in `Vars` wins over a built-in one with the same name (a rejection's `title`, a result's `mods`). Last, `setid_digits` is derived from `vars["setid"]` (one space between the characters; empty when there is no set ID).
+4. `RenderAnnouncement(tpl, vars)` replaces every `\{[a-z_]+\}` with `vars[name]` (unknown or empty = nothing; a token with capitals, digits or spaces such as `{User}` is not matched and stays as typed), deletes `@`, collapses runs of whitespace to one space and trims. An empty result is not spoken.
+5. `queueSpeech(Speech{User: e.User, Text, Test: e.Test, Kind: "say"})`. `Name` stays empty, so the dashboard adds no "name says"; the text is not cut at `tts.maxLength` (that is for chat) and `tts.allow`, `tts.blockedWords` and `tts.cooldownSec` do not apply. The last 20 items go out as `speech`; the dashboard keeps 5 waiting. In the dashboard `ttsLangOf` picks the language: a fixed `tts.lang` wins; with `auto`, announcements are `th` when the finished text has Thai letters, else `en` (a Japanese nickname does not switch it). Only a page where TTS is on speaks, and only while `tts.enabled` or `tts.announce` is true.
+
+**Events** (`config.AnnounceEvents`, which is also the order of the boxes in Settings; `config.ThaiAnnouncements()` and `config.EnglishAnnouncements()` hold the default line of every one, and the Settings buttons load them through `announcements` in `GET /api/config`):
+
+| Template key | `FeedEvent` (`announceKey`) | Emitted from |
+|---|---|---|
+| `added` | `Kind: "added"` | `submit` after `Queue.Add`: chat, the Test panel and quick add (those two with `Test` set) |
+| `rejected`, `rejected_<code>` | `Kind: "rejected"`, `Code` = the rejection code | `App.rejected`; `HandleChat` for `requests_off` |
+| `nowplaying` | `Kind: "nowplaying"` | `announcePlaying`, after `Queue.Promote` in `play` and in `Previous` |
+| `np` | `Kind: "command"`, `Code: "np"` | `infoEvent`, for `command.nowCmd` |
+| `np_none` | `Code: "np_none"` | `infoEvent`: nothing playing |
+| `pos` | `Code: "pos"` | `infoEvent`, for `command.posCmd` (`pos_none`, a viewer with no request, is not announced) |
+| `result_passed`, `result_failed` | `Kind: "result"`, `Code` = `Outcome` | `OnGame`, when the tracker reaches the results screen (`passed`) or the map ended after a failed play with a score above 0 (`failed`) |
+| `gift` | `Kind: "giftthanks"` | `gift`, once per gift, before the priority and paid-request logic (the `Kind: "gift"` events for priority, credit and paid requests are never spoken) |
+| `voteskip` | `Kind: "command"`, `Code: "voteskip"` | `voteSkip`, only when the vote reaches `command.voteSkipVotes` (single votes are `Code: "vote"`, not spoken) |
+| `auto_off` | `Kind: "status"`, `Code: "auto_off"` or `"time_off"` | `autoRequests`: queue reached `queue.autoCloseAt`, or the clock reached `queue.closeAt` |
+| `auto_on` | `Code: "auto_on"` | `autoRequests`: reopened at `queue.autoReopenAt` |
+
+Never spoken: `result_quit` (the key exists in `announceKey`, but it is not in `AnnounceEvents`, so it can have no line), the `command` codes `remove`, `skip`, `on`, `off`, `vote` and `pos_none`, the other `status` codes, and `too_many_maps` (marked as already spoken in `submitAll`). `!np` and `!pos` are answered once per viewer and command every 20 seconds (`infoAllowed`); a repeat inside that time is ignored completely, the overlay included.
+
+**Placeholders and where they come from.** "Kinds" lists the events that fill it; any other event renders it as nothing.
+
+| Placeholder | Set in | Value | Kinds |
+|---|---|---|---|
+| `{user}` | `announce`: `speakName(e.Nick, e.User)` | `SpeakableText(nick, 40)` (no links or emoji, runs of 5 or more equal characters trimmed to 4, `SoftenCaps`, cut at 40 letters with `…`), else `e.User` (the TikTok user name, without `@`). Whose name: `added`, `rejected*`, `nowplaying`, results: the requester; `np`, `pos`: the viewer who typed it; `voteskip`: the viewer whose vote made it pass; `gift`: the sender; empty for `auto_on`, `auto_off` | all but `auto_*` |
+| `{title}` `{artist}` `{mapper}` `{diff}` | `announce`: `SoftenCaps(e.Title / Artist / Mapper / Version)` | text as osu! has it, ALL-CAPS softened | `added`, `nowplaying`, `np`, `pos`, results (`now.*`); rejections that got past the lookup (from `rej.Vars`); `voteskip` has title, artist and diff only |
+| `{mods}` | `announce`: `spokenMods(e.Mods)` | `mods.List` (two-letter codes) joined by spaces: `HDHR` becomes `HD HR`; empty when none | `added`, `nowplaying`: the request's mods; rejections: the mods asked for (`req.Mods`); `np`: the mods being played (`g.Play.Mods`, only in the play state), else the request's; `pos`: the first request's; results: `Vars["mods"]` = `res.Mods`, the mods played, passed on as tosu gives them |
+| `{stars}` | `announce`: `e.Stars > 0` | `FormatFloat(stars, 'f', 2, 64)`, `7.25`; empty when unknown (`<= 0`) | `added`, `nowplaying`, `np`, `pos`; `stars_high`, `stars_low`, `mod_stars` rejections through `Vars["stars"]` |
+| `{pos}` | `announce`: `e.Pos > 0` | queue position, 1 = next | `added` (`Queue.Position`), `pos` (the viewer's first request) |
+| `{setid}` | `announce`: `e.SetID > 0`; rejections through `Vars["setid"]` (`WithMap`) | `39804` | `added`, `nowplaying`, `np`, `pos`; rejections after the lookup |
+| `{setid_digits}` | `announce`, from `vars["setid"]` | `3 9 8 0 4` | same as `{setid}` |
+| `{requester}` | `announce`: `e.Target` when `Kind` is `command` and `Code` is `np` | the `User` (the user name, not the nickname, not softened) of the queue item being played; empty when tosu shows another map, or nothing is queued | `np` |
+| `{reason}` | `announce`: `reasonText(e.Code, hasThai(tpl))` | the phrase from `reasons` below, Thai when the **template** has Thai letters, else English; empty for a code that is not in `reasons` | `rejected*` |
+| `{n}` | `Vars["n"]` | `QueueLen` (`queue_full`) or `UserActive` (`user_limit`): how many are waiting | `queue_full`, `user_limit` (`too_many_maps` too, but it is never spoken) |
+| `{max}` | `Vars["max"]` | integer limit for `queue_full` (`queue.maxSize`) and `user_limit` (`perUserLimit`, or `subscriberPerUserLimit` for a subscriber); `f2` stars for `stars_high` and `mod_stars` (`hardModMaxStars`); `m:ss` (`clock`) for `too_long` | those four |
+| `{min}` | `Vars["min"]` | `f2` minimum stars for `stars_low`; **whole minutes since it was played** (`int(minutes)`, `0` under one minute) for `recently_played`: not a limit | `stars_low`, `recently_played` |
+| `{length}` | `Vars["length"]` | `m:ss` of the map length divided by the mods' rate (DT/NC 1.5, HT 0.75) | `too_long` |
+| `{wait}` | `Vars["wait"]` | seconds left of `queue.cooldownSec`, `int(seconds + 0.999)` | `cooldown` |
+| `{mode}` | `Vars["mode"]` | `modeLabel`: `osu!`, `catch` (for `fruits`), `taiko`, `mania` | `mode` |
+| `{acc}` | `OnGame` result `Vars["acc"]` | `FormatFloat(res.Accuracy, 'f', 2, 64)`, `98.52`, no `%` | results |
+| `{rank}` | result `Vars["rank"]` | `res.Rank` as tosu sends it (results block, or the last live play block), for example `S` | results |
+| `{combo}` `{misses}` | result `Vars` | `res.MaxCombo`, `res.Misses` as integers | results |
+| `{pp}` | result `Vars["pp"]` | `int(res.PP + 0.5)`, `301` | results |
+| `{coins}` `{gift}` | `gift`: `Vars` | `g.Coins` as an integer, `g.Name` | `gift` |
+
+**What each event fills** (checked by running each event through `announce` with a probe line that lists every placeholder; `-` = renders as nothing):
+
+| Event | `{user}` | `{title} {artist} {mapper}` | `{diff}` | `{mods}` | `{stars}` | `{pos}` | `{setid}`, `{setid_digits}` | Others |
+|---|---|---|---|---|---|---|---|---|
+| `added` | requester | yes | yes | asked | yes | yes | yes | - |
+| `rejected*` after the lookup | requester | yes | only `stars_high`, `stars_low`, `mod_stars`, `too_long`, `mode` | asked | only `stars_high`, `stars_low`, `mod_stars` | - | yes | `{reason}` and the code's `Vars` |
+| `rejected*` before the lookup (`CheckUser` codes, `bad_mods`, `needs_gift`, `requests_off`, `search_none`, `search_error`, and `not_found`, `meta_error` from the lookup itself) | requester | - | - | asked | - | - | - | `{reason}`; `{n} {max}` (`queue_full`, `user_limit`), `{wait}` |
+| `nowplaying` | requester | yes | yes | request's | yes | - | yes | - |
+| `np` | asker | yes | yes | playing or request's | yes | - | yes | `{requester}` |
+| `np_none` | asker | - | - | - | - | - | - | - |
+| `pos` | asker | yes | yes | yes | yes | yes | yes | - |
+| `result_passed`, `result_failed` | requester | yes | yes | played | - | - | - | `{acc} {rank} {combo} {misses} {pp}` |
+| `gift` | sender | - | - | - | - | - | - | `{coins} {gift}` |
+| `voteskip` | voter | title and artist only | yes | - | - | - | - | - |
+| `auto_off`, `auto_on` | - | - | - | - | - | - | - | - |
+
+**Rejection `Vars`** (`validator.Rejection.Vars`, built with `Rejection.set`; `Rejection.Short` is for the overlay and is not a placeholder). `App.rejected` copies `title`, `artist`, `mapper` and `diff` into the event fields and passes the whole map as `e.Vars`.
+
+| Code | Keys | Set in |
+|---|---|---|
+| `queue_full` | `n`, `max` | `validator.CheckUser`. The quick-add path in `resolve` (`fromQuick`) rejects it without `Vars` |
+| `user_limit` | `n`, `max` | `CheckUser` |
+| `cooldown` | `wait` | `CheckUser` |
+| `recently_played` | `min` | `CheckMap` |
+| `mode` | `mode`, `diff` | `checkDiff` |
+| `stars_low` | `stars`, `min`, `diff` | `checkDiff` |
+| `stars_high` | `stars`, `max`, `diff` | `checkDiff` |
+| `mod_stars` | `stars`, `max`, `diff` | `checkDiff` |
+| `too_long` | `length`, `max`, `diff` | `checkDiff` |
+| `too_many_maps` | `n`, `max` | `submitAll` (never spoken) |
+| every code from `CheckMap` and from `find` (search) | adds `title`, `artist`, `mapper`, `setid` | `Rejection.WithMap`, called in `resolve` after `CheckMap` and in `find` |
+
+All other codes carry no `Vars`.
+
+**`{reason}` phrases** (`reasons` in `announce.go`, code, English, Thai):
+
+| Code | English | Thai |
+|---|---|---|
+| `user_blacklisted` | you cannot request right now | ตอนนี้ขอเพลงไม่ได้ |
+| `queue_full` | the queue is full | คิวเต็มแล้ว |
+| `user_limit` | you already have requests waiting | มีคำขอรออยู่แล้ว |
+| `cooldown` | please wait a little | รอสักครู่ก่อนนะ |
+| `followers_only` | follow the stream to request | ต้องกดติดตามก่อน |
+| `requests_off` | requests are closed | ปิดรับคำขออยู่ |
+| `set_blacklisted` | that map is blocked | แมพนี้ถูกบล็อก |
+| `mapper_blacklisted` | that mapper is blocked | แมพเปอร์นี้ถูกบล็อก |
+| `song_blacklisted` | that song is blocked | เพลงนี้ถูกบล็อก |
+| `artist_blacklisted` | that artist is blocked | ศิลปินนี้ถูกบล็อก |
+| `status` | that map status is not allowed | สถานะแมพนี้ไม่รับ |
+| `now_playing` | it is playing right now | เพลงนี้กำลังเล่นอยู่ |
+| `duplicate` | it is already in the queue | อยู่ในคิวแล้ว |
+| `recently_played` | it was played recently | เพิ่งเล่นไป |
+| `not_found` | the map was not found | ไม่พบแมพ |
+| `mode` | that mode is not accepted | ไม่รับโหมดนี้ |
+| `no_convert` | that mode cannot be converted | แปลงโหมดไม่ได้ |
+| `stars_low` | it is too easy | ง่ายเกินไป |
+| `stars_high` | it is too hard | ยากเกินไป |
+| `mod_stars` | it is too hard with those mods | ยากเกินไปเมื่อใส่ mod |
+| `too_long` | it is too long | ยาวเกินไป |
+| `meta_error` | the map could not be checked | ตรวจแมพไม่ได้ |
+| `bad_input` | that is not a map | ไม่ใช่แมพ |
+| `search_none` | no map has that name | ไม่พบแมพชื่อนี้ |
+| `search_error` | the search did not work | ค้นหาไม่ได้ |
+| `needs_gift` | send a gift to request | ต้องส่งของขวัญก่อน |
+| `bad_mods` | those mods do not work | mod ไม่ถูกต้อง |
+| `mods_off` | mods are not allowed | ไม่รับคำขอที่มี mod |
+| `mod_not_allowed` | that mod is not allowed | ไม่อนุญาต mod นี้ |
+
+**Limits and validation.** `config.Validate` checks every key of `tts.templates` against `AnnounceEvents` (`tts_template`, vars `event`) and every line's length in letters, runes, not bytes, of the template text as typed, placeholders included, at most 300 (`tts_template_long`, vars `event`). The dashboard shows them as `e_tts_template` and `e_tts_template_long` (for example "Announcement rejected_cooldown is longer than 300 letters": the key is shown as is). The dashboard form has a box for every key, so the unknown-key error only comes from a hand-edited `config.json` or the API. A line with only spaces is the same as an empty one. `TTS.fillTemplates` (on load) adds every key a `config.json` lacks, in the Thai set unless the saved `added` line exists and has no Thai letters (then English).
+
+**Several maps in one message.** `batch.quiet` (see [Several maps in one message](#several-maps-in-one-message)) lets each outcome (`added`, `rejected_<code>`) be spoken once per message and at most `spokenPerMessage` (2) lines in all; the quiet events are still in the feed.
+
+**How to add a placeholder or an event**
+
+A placeholder:
+
+1. Decide where the value comes from. Either put it in `Vars` where the event is built (a `Rejection.set(...)` call, the result map in `OnGame`, the gift map in `gift`): `announce` copies every `Vars` key and softens its value, so nothing else in Go changes. Or add a field to `FeedEvent` (`feed.go`), fill it at the emit sites and add it to the `vars` map in `announce`, softening free text with `SoftenCaps`. The overlay's `OverlayEvent` (`remote.go`) only needs it if the overlay shows it.
+2. Update the placeholder list in the comment at the top of `announce.go`.
+3. Update `tplHelp` in `app.js`, English and Thai (keep it compact).
+4. Update the placeholder and event tables here and in the README (`README.md`, `docs/README.th.md`), and the Changelog.
+5. Test it in `announce_test.go` (use `newTestApp` or `searchApp`, `a.Cfg.Get().TTS.Templates[...]`, then `spoken(a)`), and in `validator_test.go` when it is a rejection `Var`.
+
+An event:
+
+1. Make sure something calls `emit` (or `announce`) with a `FeedEvent` and add a `case` to `announceKey` returning the new key; keep it out of the feed (`announce` directly) only when the overlay should not show it.
+2. Add the key to `config.AnnounceEvents` (the order is the order in Settings) and a default line to **both** `ThaiAnnouncements()` and `EnglishAnnouncements()` (`-` to be silent by default). Old configs get it through `fillTemplates`.
+3. In `app.js` add the box to the `tts` section of `SCHEMA` (`F("tts.templates.<key>", "template", …, { when: "tts.announce" })`) and the label `tpl_<key>` (English and Thai) next to `tpl_added`.
+4. Add any new placeholder as above, then update the tables here and in both READMEs.
+5. Add a test next to `TestAnnouncements` and check `config_test.go` (defaults).
 
 ### Pre-stream check
 
@@ -1050,7 +1194,7 @@ All settings are editable in the dashboard (gear icon; the `rules` section with 
 | | `allow` | empty | Whose chat is read: `subscriber` (ใจส้ม), `follower`, `gifter`, `mod`; any one; empty = everyone |
 | | `blockedWords` | empty | |
 | | `announce` | `true` | Speak what happens to requests (only in a dashboard tab where TTS is on) |
-| | `templates` | Thai set | Event → line with placeholders (see [Chat TTS](#chat-tts)); empty or `-` = silent |
+| | `templates` | Thai set | Event → line with placeholders (events, placeholders and limits: [Announcement lines and placeholders](#announcement-lines-and-placeholders); at most 300 letters, `tts_template_long`; unknown event `tts_template`); empty or `-` = silent |
 | hotkeys | `enabled` | `false` | Global hotkeys (work while osu! has focus) |
 | | `next` / `skip` / `removeLast` / `toggleRequests` | `Ctrl+Alt+N` / `Ctrl+Alt+S` / `Ctrl+Alt+Backspace` / `Ctrl+Alt+R` | |
 | test | `dryRun` | `false` | Next/Play never open osu! or touch Songs |
@@ -1258,6 +1402,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
+| unreleased | branch `docs/announcement-placeholders` | Documentation only, no code change: a reference for the placeholders of spoken announcement lines (`{title}`, `{user}`, …). The README (English and Thai) gets *What you can put in an announcement line* (placeholder table, which event has which placeholders, tips, example lines rendered by the real code); this guide gets *Announcement lines and placeholders* (flow from `emit` to `queueSpeech`, where each value is set, rejection `Vars`, the `reasons` table, limits, and how to add a placeholder or an event) |
 | 1.5.1 | PR #20 | **Toasts above dialogs** (fix): messages raised while Settings, the pre-stream drawer or the Map rules drawer was open were hidden behind it; `#toasts` is now a manual popover in the top layer that moves into the newest open modal and back to the body (`placeToasts`, `modalChange`, a `MutationObserver` on dialogs' `open`, `hide.bs.dialog` / `hide.bs.drawer`); needs the Popover API and Bootstrap firing the hide events first. **Chat TTS: voice gender and more languages** (free, browser voices only): new `tts.gender` (`any`, `female`, `male`; `tts_gender`) and `tts.voices` (voice per language `th en ja ko zh hi`; `tts_voices`), the old `tts.voice` is the fallback for its language and the Settings form migrates it; with `tts.lang` `auto` chat is told apart as Thai, Japanese (kana), Korean, Chinese, Hindi or English (Latin-script languages are read as English); Japanese, Korean, Chinese and Hindi use browser voices only and are skipped, with one notice per language, when there is none; voice gender from a table of Microsoft voice first names (`ttsGenderOf`, `?` when unknown); Settings shows ♀/♂/? and the voice test says which voice read; `SpeakableText` no longer cuts between a letter and its combining marks. New keys only, so 1.5.0 still starts with the config (going back loses the chosen voice). Tests `TestSpeakableTextScripts`, `TestTTSVoicesAndGender`, `TestPutConfigTTSVoices`; browser side tried with fake voice lists only |
 | 1.5.0 | PR #19 | **Viewer count**: 👁 in the status pill and the mod panel (`tikfinity.Status.Viewers`, `DirectEvents.Viewers`, `Client.OnViewers`; TikTok direct reads `WebcastRoomUserSeqMessage.Total`; TikFinity's `roomUser` / `viewerCount` / `viewer` event is unverified on a real stream). **KIKI map player** (KIKI Beatmap Viewer, player.kiki-bm.app): ▶ under queue, now-playing and history cards and on the mod panel, an iframe plus osureq's own postMessage code (no script is loaded from KIKI); the dashboard offers the cached .osz through `GET /api/osz/{setId}` (`Downloader.CachedFile`, checked files only), the mod panel and uncached maps use the mirrors; `osu.kikiPlayer`, `osu.kikiPlayerMod`. **Several maps per message** (`command.maxPerMessage`, 1-5, default 1; `parser.ParseAll`, `App.submitAll`: the cooldown is checked once per message, one paid request per map). **Overlay for a second PC**: `overlay.remote`, `overlay.remoteToken`; `/o/{token}` and `/o/{token}/ws` on the mod panel's server send a read-only `OverlayState`; `POST /api/overlay/token` makes a new link. **Map rules** moved from Settings to a drawer on the dashboard (button above the queue); saving merges with a fresh config (`mergeEdits`) so bans made meanwhile survive, and the Settings save merges the same way. The default `osu.viewerUrl` is now `https://kiki-bm.app/` (a stored old default is migrated on load) |
 | 1.4.9 | PR #18 | **Auto download switch** above the queue on the dashboard (`import.preload`; `POST /api/action/toggleAutoDownload`; `State.autoDownload`, `autoDownloadN`); the setting is renamed Auto download. **New dashboard on Bootstrap 6** (6.0.0-alpha.1, vendored): sticky top bar (not sticky on phones) with the requests switch, volume, language, settings and a ⋮ menu (pre-stream check, support file, close tosu/TikFinity, quit); light and dark by the browser; now playing and queue rows with the cover as a soft banner inside the box (drawn with a CSS mask, so it fades into the box colour in light and dark; strongest on the right, fading out towards the text and at the edges), play and remove buttons and a ⋮ menu (move, skip, preview, open elsewhere, bans); rejected / activity / history / LIVE events as tabs; settings as a dialog of one fixed height on every tab, with a side menu that stays put while only the pane scrolls (a full-screen page on phones, with the tabs in one scrolling row); the pre-stream check in a drawer; Bootstrap toasts. The server sets the content type of `.js`, `.css` and `.svg` itself. Needs Chrome/Edge 130, Firefox 132 or Safari 18 or newer. Bootstrap, Floating UI and Vanilla Calendar Pro licences added |
