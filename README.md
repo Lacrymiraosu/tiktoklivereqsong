@@ -61,6 +61,8 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 2. Start TikFinity, tosu and osu!.
 3. Double-click `osureq.exe`. A CMD window shows the log (closing it stops osureq) and the dashboard opens at <http://127.0.0.1:21280/>.
 4. In **Settings → osu!**, choose stable or lazer. Set the rules you want (stars, length, modes, bans …) with the **Map rules** button above the queue.
+   Turn on **I have osu! supporter** only if you have it: without supporter, osu! stable sends `osu://b` links to the browser, so with the switch off (default)
+   osureq opens every map through its `.osz`. If the browser opens the map's page when you press Next, leave it off.
 5. For the overlay, add a **Browser Source** in OBS with `http://127.0.0.1:21280/overlay` (transparent background).
 
 Use the **Test** panel on the dashboard to try the whole chain before you go live.
@@ -326,7 +328,7 @@ You need [Go](https://go.dev/dl/) 1.23 or newer on Windows (`winget install GoLa
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
 cd tiktoklivereqsong
-.\build.ps1 -Version 1.5.1
+.\build.ps1 -Version 1.5.2
 ```
 
 `build.ps1` runs `go vet` and `go test`, generates the Windows resources (icon, name, version) and builds `dist\osureq.exe`.
@@ -334,19 +336,19 @@ If PowerShell refuses to run scripts, build by hand:
 
 ```powershell
 $env:CGO_ENABLED = "0"
-go run ./tools/winres -version 1.5.1
-go build -trimpath -ldflags "-X main.version=1.5.1" -o dist\osureq.exe .
+go run ./tools/winres -version 1.5.2
+go build -trimpath -ldflags "-X main.version=1.5.2" -o dist\osureq.exe .
 ```
 
 ### Automatic builds and releases (GitHub Actions)
 
 * Every push to `main` and every pull request is vetted, tested and built; the exe stays on the Actions page for 14 days.
 * To release a new version, update the version number in `build.ps1` (and the changelog) and merge it into `main`. Then either
-  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.5.1`) and press **Run workflow**, or push a tag:
+  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.5.2`) and press **Run workflow**, or push a tag:
 
   ```powershell
-  git tag v1.5.1
-  git push origin v1.5.1
+  git tag v1.5.2
+  git push origin v1.5.2
   ```
 
   GitHub builds with the tag's version and publishes a release with `osureq-<version>-windows-x64.zip` (the exe, `LICENSE` and `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.

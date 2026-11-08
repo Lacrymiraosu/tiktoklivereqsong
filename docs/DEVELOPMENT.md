@@ -50,7 +50,7 @@ Thai: see [README.th.md](README.th.md).
 
 | | |
 |---|---|
-| Version | **1.5.1** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.5.2** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
 | Tests | `go test ./...`: 20 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
@@ -75,6 +75,10 @@ The 1.5.1 changes (toasts above dialogs; chat TTS voice gender, a voice per lang
 has Go tests (`TestSpeakableTextScripts`, `TestTTSVoicesAndGender`, `TestPutConfigTTSVoices`), and its browser side was tried only with fake voice lists
 (`speechSynthesis.getVoices` and `speak` replaced), never with real voices or audible playback. Which voices Microsoft Edge exposes to web pages, and whether
 its Natural voices work from a web page at all, are not verified (see [Known limitations and open items](#known-limitations-and-open-items)).
+
+The 1.5.2 fix (no `osu://b` link without osu! supporter) has Go tests with recording fakes for every combination (`supporter_test.go`), and its Settings
+side was tried in a browser in dry run. It was never run against a real osu!: that opening the `.osz` of a set already in Songs makes osu! jump to it, with no
+browser page, is not confirmed on a real non-supporter account (see [Known limitations and open items](#known-limitations-and-open-items)).
 
 ---
 
@@ -263,6 +267,20 @@ Mods are the users in **Settings → Command → Mods**, plus TikTok moderators 
 
    **Auto download** (`import.preload`) downloads and verifies the next N maps in the background, and on stable copies them into Songs so Next is instant.
    It has a switch above the queue on the dashboard (`toggleAutoDownload`, `State.autoDownload` / `autoDownloadN`). Off, a map is fetched when it is opened (Next, Play now, or the one auto mode opens next); downloads already running finish. Switching on with `preloadCount` 0 sets it to 2.
+
+   **osu://b and osu! supporter** (`osu.supporter`, off by default; `App.osuLinks`): stable jumps to an `osu://b/{id}` link in the game only
+   with osu! supporter (osu!direct); without it osu! opens the map's web page in the browser. So on stable osureq opens `osu://b/{id}` only when
+   **I have osu! supporter** is on; otherwise every map goes through its `.osz` (opening the `.osz` of a set that is already in Songs makes osu! jump to it,
+   as for preloaded maps). lazer always keeps its `osu://b/{id}` handling. The three places that used the link:
+   * the `osu.useOsuDb` shortcut in `download` (map already in `osu!.db`: no download, `MD5 "installed"`, opened with `osu://b`) is taken only with supporter on;
+   * `play` turns an item marked `installed` (marked while supporter was on, or from an old `queue.json`) back into a normal queued item when supporter is off
+     (state, source, MD5, file and attempts reset), so it is downloaded and opened as `.osz`; a failed download gives the usual `get_failed` error. With supporter
+     off `download` never marks a map `installed`, so this cannot loop;
+   * `Previous` (file gone) and `Jump` (history **Open in osu!**) call `openOsz`: the file this run already checked (`Downloader.CachedFile`), else
+     the osu! page's MD5s and `DL.Get`, as for a queued map, bounded to 60 s (`reopenTimeout`), then `importer.Open`. `DL.Get` looks in the cache folder first and checks the file
+     again, so after a restart (when `CachedFile` trusts nothing yet) a set still in the cache is reused without downloading. A `Jump` entry with only a beatmap ID
+     gets its set from `Meta.ResolveSet`. Dry run neither looks up nor downloads anything and says `dry run: would open set {id} (.osz)`. No file means
+     `open_failed`, never a browser tab from osureq itself (when every mirror fails, the official source still opens its download page, as for any download).
 
 Rejection reason codes (shown translated on the dashboard): `user_blacklisted`, `queue_full`, `user_limit`, `cooldown`, `set_blacklisted`,
 `mapper_blacklisted`, `status`, `duplicate`, `recently_played`, `not_found`, `mode`, `stars_low`, `stars_high`, `too_long`, `meta_error`,
@@ -748,7 +766,7 @@ tiktoklivereqsong/
 | File | Lines | What is in it | Key symbols |
 |---|---:|---|---|
 | `main.go` | ~250 | Parses `-dir` / `-no-browser`, titles the CMD window, picks the base folder (exe folder, or cwd under `go run`), sets up `osureq.log` (rotates at 5 MB), loads config, fixes the osu! folder from the registry, builds every module, wires callbacks (chat/gift → app, tosu → app, status → push, config changes → hotkeys/reconnects), hands off to an already running copy, starts the goroutines, waits for Ctrl+C / window close / Quit | `main`, `exeDir`, `setupLog`, `fatal`, `alreadyRunning` |
-| `internal/app/app.go` | ~750 | The brain. Turns chat into queue items (a message with several maps: `submitAll`, one `batch` per message), runs downloads/preload, handles Next/Play/Skip/Remove/Retry, auto mode and play results via tosu, dry run, test panel, notices | `App`, `HandleChat`, `SimulateChat`, `TestRequest`, `submit`/`submitAll`/`resolve`/`lookup`, `SimulateMessage`, `batch`, `Run`/`tick`, `OnGame`, `ResultShort`, `startDownload`/`download`, `preImport`, `Next`, `Play`/`play`, `Skip`, `ClearTest`, `ToggleDryRun`, `Hotkey`, `warnOnce`; `origin` (`fromChat`/`fromSim`/`fromQuick`) |
+| `internal/app/app.go` | ~750 | The brain. Turns chat into queue items (a message with several maps: `submitAll`, one `batch` per message), runs downloads/preload, handles Next/Play/Skip/Remove/Retry, auto mode and play results via tosu, dry run, test panel, notices | `App`, `HandleChat`, `SimulateChat`, `TestRequest`, `submit`/`submitAll`/`resolve`/`lookup`, `SimulateMessage`, `batch`, `Run`/`tick`, `OnGame`, `ResultShort`, `startDownload`/`download`, `preImport`, `Next`, `Play`/`play`, `Previous`, `Jump`/`jumpOsz`, `osuLinks`/`openOsz` (osu://b only with supporter or lazer, else the `.osz`), `Skip`, `ClearTest`, `ToggleDryRun`, `Hotkey`, `warnOnce`; `origin` (`fromChat`/`fromSim`/`fromQuick`) |
 | `internal/app/feed.go` | ~50 | Events for the overlay pop-ups (added, rejected, command, gift, result), newest first, 30 kept; the unexported `quiet` keeps an event off TTS | `FeedEvent`, `emit`, `Feed` |
 | `internal/app/commands.go` | ~100 | Chat commands other than requests; `IsMod` (Mods list or TikTok moderator flag) | `command`, `IsMod` |
 | `internal/app/gifts.go` | ~60 | Gift coins → priority tokens → prioritised requests; simulated gifts | `HandleGift`, `SimulateGift`, `applyCredit` |
@@ -785,7 +803,7 @@ tiktoklivereqsong/
 | `internal/server/web/bootstrap.min.css`, `bootstrap.bundle.min.js` | | Bootstrap 6.0.0-alpha.1 as published on npm (source map comments removed); the licences of Bootstrap, Floating UI and Vanilla Calendar Pro are in `THIRD_PARTY_LICENSES.txt` | |
 | `internal/server/web/overlay.html` | ~160 | OBS page: transparent, now playing + upcoming (priority ★), pop-ups from the feed with their own en/th text table `TX`, theme/scale/position/language from config, reconnecting WebSocket (`/ws?client=overlay`; loaded from `/o/{token}` it uses `<that path>/ws`) | `render`, `showToasts`, `toastHTML` |
 | `internal/verifier/testdata/*.osz` | | `set_good`, `set_outdated` (old Hard diff), `set_extra` (extra `.osu`), `set_no_osu`, `not_zip` (HTML) | regenerate: `go test ./internal/verifier -update` |
-| `*_test.go` | | parser (link forms, hostile inputs, `ParseAll`), validator (every rule, exempt users), verifier (fixtures, levels), downloader (fake mirrors: fallthrough, cache, skip/warn, MD5 off, cleanup), importer (traversal, Songs dir, osu!.db scan), queue (limits, ClearTest, gift credits and ordering), app (chat commands, play results, bans, several maps per message), osumeta (page JSON, .osu header), tikfinity (chat parsing, roles, gifts, levels, viewer count), tosu (payload incl. scores, Tracker paths, client vs fake server), platform (hotkey parsing) | |
+| `*_test.go` | | parser (link forms, hostile inputs, `ParseAll`), validator (every rule, exempt users), verifier (fixtures, levels), downloader (fake mirrors: fallthrough, cache, skip/warn, MD5 off, cleanup), importer (traversal, Songs dir, osu!.db scan), queue (limits, ClearTest, gift credits and ordering), app (chat commands, play results, bans, several maps per message, `supporter_test.go`: which of `osu://b` and `.osz` Next/Previous/Jump open for supporter × `useOsuDb` × in `osu!.db` × stable/lazer × dry run, with recording fakes), osumeta (page JSON, .osu header), tikfinity (chat parsing, roles, gifts, levels, viewer count), tosu (payload incl. scores, Tracker paths, client vs fake server), platform (hotkey parsing) | |
 
 ---
 
@@ -959,7 +977,7 @@ favours obscure uploads and tag matches, hence `Rank`: title contains every word
 
 * `.osz` association `HKCR\osustable.File.osz\shell\open\command` → osu! stable folder.
 * `osu!.<WindowsUser>.cfg` → `BeatmapDirectory` (relative to the osu! folder, or absolute).
-* `ShellExecuteW("open", file)` for `.osz`, URLs and `osu://b/{id}`.
+* `ShellExecuteW("open", file)` for `.osz`, URLs and `osu://b/{id}` (on stable only with `osu.supporter`, see *osu://b and osu! supporter*).
 
 ---
 
@@ -990,7 +1008,7 @@ Errors meant for the streamer also carry `code` and `vars` (from `app.UserError`
 | `POST /api/tts` | `{"lang": "th"\|"en", "text": "…"}` (at most 600 letters) → `audio/mpeg` from Google's voice; 502 with the reason if Google fails |
 | `POST /api/tts/speaker` | `{"page": "<id>", "on": bool}`: this dashboard page reads TTS (`on`), or switched it off; see [Chat TTS](#chat-tts) |
 | `PUT /api/preview` | `{"setId": n}`: the set the dashboard is playing a preview of (0 = none), shown on the mod panel |
-| `POST /api/jump` | `{"setId": n, "beatmapId": n}`: osu! jumps to a history map (`osu://b/<beatmapId>`; without `beatmapId`, the set's first difficulty from osu!); the queue is not touched |
+| `POST /api/jump` | `{"setId": n, "beatmapId": n}`: osu! jumps to a history map; the queue is not touched. With `osu.supporter` (or on lazer) `osu://b/<beatmapId>` (without `beatmapId`, the set's first difficulty from osu!); on stable without it the set's `.osz` is opened (cached file of this run, else downloaded, at most 60 s; without `setId` the set is looked up on osu!), `open_failed` when it cannot be had |
 | `POST /api/ban` | `{"kind": "user" \| "set" \| "mapper", "value": "…"}` → `{ok, removed}` |
 | `GET /api/osz/{setId}` (and `HEAD`) | the cached `.osz` for the map player, `?novideo=1` asks for the no-video file first (else the other one). Only a file that exists and is trusted (`Downloader.CachedFile`: checked by this run of the helper); otherwise 404, and the player uses the mirrors. 400 for a bad id. `Content-Type: application/x-osu-beatmap-archive`, `Cache-Control: no-store`; no CORS headers, so only the dashboard itself can read it. `HEAD` needs `X-Osureq: 1` like every non-GET |
 
@@ -1121,7 +1139,8 @@ All settings are editable in the dashboard (gear icon; the `rules` section with 
 | | `folder` | `%LOCALAPPDATA%\osu!` | osu! stable folder. If it has no Songs folder, the folder from the `.osz` association is used at startup and saved |
 | | `cacheFolder` | `cache` | Relative to the exe (or `-dir`) |
 | | `downloadsFolder` | `%USERPROFILE%\Downloads` | Watched by the official source |
-| | `useOsuDb` | `false` | Experimental (stable): if `osu!.db` already has the map, skip the download and open `osu://b/{id}` |
+| | `supporter` | `false` | **I have osu! supporter**. On: stable may open maps with `osu://b/{id}` (osu!direct is a supporter feature) and `useOsuDb` works. Off: every map is opened through its `.osz`, so non-supporters are never sent to the map's web page; configs without the key get `false` |
+| | `useOsuDb` | `false` | Experimental (stable, needs `supporter`): if `osu!.db` already has the map, skip the download and open `osu://b/{id}`. Ignored while `supporter` is off; Settings shows it only then |
 | | `viewerUrl` | `https://kiki-bm.app/` | Beatmap viewer (KIKI Beatmap Viewer) for the "viewer ↗" link; empty hides it. The old default `https://osu-beatmap-viewer.vercel.app/` becomes this one on load |
 | | `kikiPlayer` | `true` | **▶ view map** on the dashboard's queue, now-playing and history cards: KIKI Beatmap Viewer's player under the card (osu!standard only); configs without the key get `true` |
 | | `kikiPlayerMod` | `true` | The same ▶ on the mod panel (always from the community mirrors) |
@@ -1246,15 +1265,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.5.1          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.5.2          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.5.1      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.5.1" -o dist\osureq.exe .
+go run ./tools/winres -version 1.5.2      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.5.2" -o dist\osureq.exe .
 ```
 
 ### Releases (GitHub Actions)
@@ -1262,15 +1281,15 @@ go build -trimpath -ldflags "-X main.version=1.5.1" -o dist\osureq.exe .
 `.github/workflows/build.yml` runs on every push to `main` and every pull request: `go vet`, `go test` and a build on
 `windows-latest`; the exe is kept as a workflow artifact for 14 days (version `0.0.0-dev+<commit>`).
 To publish a release, bump the version (Changelog row, Version row, `build.ps1` default) and merge it into `main`, then
-either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.5.1`) or tag and push:
+either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.5.2`) or tag and push:
 
 ```powershell
-git tag v1.5.1
-git push origin v1.5.1
+git tag v1.5.2
+git push origin v1.5.2
 ```
 
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
-creates the tag `v1.5.1` on that commit together with the release (a tag made by the workflow does not start another run).
+creates the tag `v1.5.2` on that commit together with the release (a tag made by the workflow does not start another run).
 The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 To fix the text of a release that is already out, change its file, merge it, and run the workflow with **notes** set to the version
 (only `gh release edit --notes-file`, nothing is rebuilt). Every build runs `.github/check-release-notes.sh`, which fails on a bare `@word`
@@ -1356,7 +1375,9 @@ Read this before changing anything.
 | Official download fallback | implemented, not exercised (needs a logged-in browser) |
 | osu! lazer | supported via `open` and tosu, not tested |
 | osu.direct no-video URL | `?noVideo=1` is a guess |
-| `useOsuDb` / `osu://b/{id}` | experimental, off by default |
+| `useOsuDb` / `osu://b/{id}` | experimental, off by default; only with `osu.supporter` on |
+| Non-supporter path (`osu.supporter` off) | the non-supporter path was reasoned from the reported behaviour and could not be run here: osu! cannot run in the test environment; confirm on a real non-supporter account that Next/Previous/Open in osu! jump in the game with no browser tab. Covered by tests with fakes only (`supporter_test.go`) |
+| Previous / Open in osu! after a restart | `Downloader.CachedFile` trusts only files checked in the current run (in memory). After a restart `openOsz` goes through `DL.Get`, which checks a set still in the cache folder again and reuses it; a set that cache cleanup removed is downloaded again (at most 60 s) |
 | Overlay "now playing" card | rendered and styled, only partly checked visually |
 | Ideas | show tosu's live map on the dashboard; answering in TikTok chat through TikFinity's chatbot (TikFinity can relay `sendChatbotMessage` from Streamer.bot; not built) |
 
@@ -1378,6 +1399,7 @@ Read this before changing anything.
 | Every download is "MD5 mismatch" | The map was updated recently and mirrors lag behind. Enable the official source, or set **If every source fails** to "open with warning". |
 | Official download times out | Be logged in to osu.ppy.sh in the **default** browser, and let it save to the configured Downloads folder without asking. |
 | Next does nothing in osu! | Double-click an `.osz` once so Windows opens it with osu!. Make sure dry run is off. |
+| The browser opens the map's page when I press Next / Previous / Open in osu! | `osu://b` links jump in osu! stable only with osu! supporter. Leave **Settings → osu! → I have osu! supporter** off: osureq then opens every map through its `.osz` |
 | Port already in use | Another copy is running, or change `dashboardPort`. |
 | Phone cannot open the mod panel | Same Wi-Fi (not a guest network, which isolates devices)? Allowed in the Windows firewall for **private** networks? Windows network profile set to Private? Use an address from Settings → Mod panel. |
 | Overlay link answers 404 | **Settings → Overlay → Let another PC load the overlay** must be on **and saved**, and the mod panel must be on. The link must be the current one (**New link** replaces it at once). Five wrong links or PINs from one PC lock it for 10 minutes, and a locked PC gets 404 even with the right link; `osureq.log` has `overlay link: wrong link from <ip>` lines. A PC outside the private networks gets 403 |
@@ -1402,7 +1424,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
-| unreleased | branch `docs/announcement-placeholders` | Documentation only, no code change: a reference for the placeholders of spoken announcement lines (`{title}`, `{user}`, …). The README (English and Thai) gets *What you can put in an announcement line* (placeholder table, which event has which placeholders, tips, example lines rendered by the real code); this guide gets *Announcement lines and placeholders* (flow from `emit` to `queueSpeech`, where each value is set, rejection `Vars`, the `reasons` table, limits, and how to add a placeholder or an event) |
+| 1.5.2 | PR #22 | **Fix: the browser opened instead of osu! for players without osu! supporter.** `osu://b/{id}` jumps in osu! stable only with supporter (osu!direct), and osureq used it for maps found in `osu!.db` (`useOsuDb`), for **Previous** when the cached file was gone, and for the history's **Open in osu!** (`POST /api/jump`). New `osu.supporter` ("I have osu! supporter", off by default; configs without the key get `false`): on stable `osu://b` is used only with it on, otherwise every map is opened through its `.osz` (`App.osuLinks`, `App.openOsz`: the file this run checked, else `DL.Get` with osu!'s MD5s, at most 60 s, then `importer.Open`; `Jump` resolves a set from a beatmap ID). The `useOsuDb` shortcut needs supporter and Settings shows it only then; a queued item marked `installed` is downloaded again when supporter is off. lazer unchanged. History jump texts no longer name `osu://b`. Tests `supporter_test.go` (recording fakes for every combination), `TestSupporterOffByDefault`, `TestPutConfigSupporter`; not tried with a real osu! or a real non-supporter account. **Documentation** (no code change): a reference for the placeholders of spoken announcement lines (`{title}`, `{user}`, …). The README (English and Thai) gets *What you can put in an announcement line* (placeholder table, which event has which placeholders, tips, example lines rendered by the real code); this guide gets *Announcement lines and placeholders* (flow from `emit` to `queueSpeech`, where each value is set, rejection `Vars`, the `reasons` table, limits, and how to add a placeholder or an event) |
 | 1.5.1 | PR #20 | **Toasts above dialogs** (fix): messages raised while Settings, the pre-stream drawer or the Map rules drawer was open were hidden behind it; `#toasts` is now a manual popover in the top layer that moves into the newest open modal and back to the body (`placeToasts`, `modalChange`, a `MutationObserver` on dialogs' `open`, `hide.bs.dialog` / `hide.bs.drawer`); needs the Popover API and Bootstrap firing the hide events first. **Chat TTS: voice gender and more languages** (free, browser voices only): new `tts.gender` (`any`, `female`, `male`; `tts_gender`) and `tts.voices` (voice per language `th en ja ko zh hi`; `tts_voices`), the old `tts.voice` is the fallback for its language and the Settings form migrates it; with `tts.lang` `auto` chat is told apart as Thai, Japanese (kana), Korean, Chinese, Hindi or English (Latin-script languages are read as English); Japanese, Korean, Chinese and Hindi use browser voices only and are skipped, with one notice per language, when there is none; voice gender from a table of Microsoft voice first names (`ttsGenderOf`, `?` when unknown); Settings shows ♀/♂/? and the voice test says which voice read; `SpeakableText` no longer cuts between a letter and its combining marks. New keys only, so 1.5.0 still starts with the config (going back loses the chosen voice). Tests `TestSpeakableTextScripts`, `TestTTSVoicesAndGender`, `TestPutConfigTTSVoices`; browser side tried with fake voice lists only |
 | 1.5.0 | PR #19 | **Viewer count**: 👁 in the status pill and the mod panel (`tikfinity.Status.Viewers`, `DirectEvents.Viewers`, `Client.OnViewers`; TikTok direct reads `WebcastRoomUserSeqMessage.Total`; TikFinity's `roomUser` / `viewerCount` / `viewer` event is unverified on a real stream). **KIKI map player** (KIKI Beatmap Viewer, player.kiki-bm.app): ▶ under queue, now-playing and history cards and on the mod panel, an iframe plus osureq's own postMessage code (no script is loaded from KIKI); the dashboard offers the cached .osz through `GET /api/osz/{setId}` (`Downloader.CachedFile`, checked files only), the mod panel and uncached maps use the mirrors; `osu.kikiPlayer`, `osu.kikiPlayerMod`. **Several maps per message** (`command.maxPerMessage`, 1-5, default 1; `parser.ParseAll`, `App.submitAll`: the cooldown is checked once per message, one paid request per map). **Overlay for a second PC**: `overlay.remote`, `overlay.remoteToken`; `/o/{token}` and `/o/{token}/ws` on the mod panel's server send a read-only `OverlayState`; `POST /api/overlay/token` makes a new link. **Map rules** moved from Settings to a drawer on the dashboard (button above the queue); saving merges with a fresh config (`mergeEdits`) so bans made meanwhile survive, and the Settings save merges the same way. The default `osu.viewerUrl` is now `https://kiki-bm.app/` (a stored old default is migrated on load) |
 | 1.4.9 | PR #18 | **Auto download switch** above the queue on the dashboard (`import.preload`; `POST /api/action/toggleAutoDownload`; `State.autoDownload`, `autoDownloadN`); the setting is renamed Auto download. **New dashboard on Bootstrap 6** (6.0.0-alpha.1, vendored): sticky top bar (not sticky on phones) with the requests switch, volume, language, settings and a ⋮ menu (pre-stream check, support file, close tosu/TikFinity, quit); light and dark by the browser; now playing and queue rows with the cover as a soft banner inside the box (drawn with a CSS mask, so it fades into the box colour in light and dark; strongest on the right, fading out towards the text and at the edges), play and remove buttons and a ⋮ menu (move, skip, preview, open elsewhere, bans); rejected / activity / history / LIVE events as tabs; settings as a dialog of one fixed height on every tab, with a side menu that stays put while only the pane scrolls (a full-screen page on phones, with the tabs in one scrolling row); the pre-stream check in a drawer; Bootstrap toasts. The server sets the content type of `.js`, `.css` and `.svg` itself. Needs Chrome/Edge 130, Firefox 132 or Safari 18 or newer. Bootstrap, Floating UI and Vanilla Calendar Pro licences added |

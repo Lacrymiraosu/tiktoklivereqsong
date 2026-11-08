@@ -3,7 +3,7 @@
 // a description, publisher name, icon and an "asInvoker" manifest looks far
 // less suspicious to Windows Defender and SmartScreen than a bare Go binary.
 //
-//	go run ./tools/winres -version 1.5.1
+//	go run ./tools/winres -version 1.5.2
 package main
 
 import (

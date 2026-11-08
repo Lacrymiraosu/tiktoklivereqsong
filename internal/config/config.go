@@ -43,8 +43,12 @@ type Osu struct {
 	Folder       string `json:"folder"`
 	CacheFolder  string `json:"cacheFolder"`
 	DownloadsDir string `json:"downloadsFolder"`
-	UseOsuDB     bool   `json:"useOsuDb"`  // stable: skip download when osu!.db already has the map
+	UseOsuDB     bool   `json:"useOsuDb"`  // stable + Supporter: skip download when osu!.db already has the map
 	ViewerURL    string `json:"viewerUrl"` // beatmap viewer opened with ?s={set}&b={map}; empty hides the button
+	// Supporter says the player has osu! supporter. stable jumps to osu://b/{id}
+	// in the game only for supporters (osu!direct); without it the browser
+	// opens the map's page, so osureq then opens every map through its .osz.
+	Supporter bool `json:"supporter"`
 	// KikiPlayer and KikiPlayerMod show the "▶ view map" button on the
 	// dashboard and on the mod panel: KIKI Beatmap Viewer's player
 	// (player.kiki-bm.app) folds out under the card (osu!standard maps only).
@@ -368,6 +372,7 @@ func Default() Config {
 			CacheFolder:   "cache",
 			DownloadsDir:  filepath.Join(home, "Downloads"),
 			UseOsuDB:      false,
+			Supporter:     false,
 			ViewerURL:     "https://kiki-bm.app/",
 			KikiPlayer:    true,
 			KikiPlayerMod: true,

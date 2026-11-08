@@ -293,6 +293,33 @@ func TestKikiPlayerOnByDefault(t *testing.T) {
 	}
 }
 
+func TestSupporterOffByDefault(t *testing.T) {
+	if Default().Osu.Supporter {
+		t.Error("osu! supporter should be off in a new config")
+	}
+	path := filepath.Join(t.TempDir(), "config.json")
+	os.WriteFile(path, []byte(`{"osu":{"game":"stable","useOsuDb":true}}`), 0o644)
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o := s.Get().Osu; o.Supporter || !o.UseOsuDB {
+		t.Errorf("a config from before the supporter switch should load with it off and keep useOsuDb: %+v", o)
+	}
+	c := s.Get()
+	c.Osu.Supporter = true
+	if err := s.Set(c); err != nil {
+		t.Fatal(err)
+	}
+	s2, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !s2.Get().Osu.Supporter {
+		t.Error("a streamer who has supporter must keep the switch on")
+	}
+}
+
 func TestViewerURL(t *testing.T) {
 	if v := Default().Osu.ViewerURL; v != "https://kiki-bm.app/" {
 		t.Errorf("the default beatmap viewer should be KIKI Beatmap Viewer, got %q", v)
