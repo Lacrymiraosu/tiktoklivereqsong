@@ -171,7 +171,8 @@ func TestPrevious(t *testing.T) {
 }
 
 func TestJumpOpensHistoryMap(t *testing.T) {
-	a := newTestApp(t, nil)
+	// osu://b/{id} is what a supporter's osu! opens; without supporter Jump goes through the .osz (supporter_test.go)
+	a := newTestApp(t, func(c *config.Config) { c.Osu.Supporter = true })
 	var opened []string
 	a.OpenURL = func(u string) error { opened = append(opened, u); return nil }
 	a.Queue.Add(&queue.Item{ID: "x", User: "u", SetID: 39804, BeatmapID: 86324, Title: "FREEDOM DiVE", AddedAt: time.Now()})

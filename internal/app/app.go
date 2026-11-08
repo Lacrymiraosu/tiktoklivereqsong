@@ -892,8 +892,9 @@ func (a *App) download(ctx context.Context, id string) error {
 		return err
 	}
 
-	// Already installed in osu! stable?
-	if cfg.MD5.Enabled && cfg.Osu.Game == "stable" && cfg.Osu.UseOsuDB && !it.BySet {
+	// Already installed in osu! stable? It is then opened with osu://b/{id},
+	// which jumps in the game only with osu! supporter (osuLinks).
+	if cfg.MD5.Enabled && cfg.Osu.Game == "stable" && cfg.Osu.UseOsuDB && cfg.Osu.Supporter && !it.BySet {
 		if sum := ref.Checksums[it.BeatmapID]; sum != "" && a.OsuDB.Has(cfg.Osu.Folder, []string{sum}) {
 			a.Queue.Update(id, func(x *queue.Item) {
 				x.State, x.Source, x.MD5, x.File = queue.Ready, "osu!.db", "installed", ""
@@ -967,6 +968,61 @@ func target(it queue.Item) importer.Target {
 	return importer.Target{SetID: it.SetID, Artist: it.Artist, Title: it.Title}
 }
 
+// osuLinks reports whether a map may be opened with osu://b/{id}. lazer
+// handles the link itself; stable jumps to it only with osu! supporter
+// (osu!direct), without it the browser opens the map's page instead, so
+// osureq opens the map's .osz (openOsz).
+func osuLinks(o config.Osu) bool { return o.Game == "lazer" || o.Supporter }
+
+// reopenTimeout bounds getting a map's .osz again for Previous and Jump.
+const reopenTimeout = 60 * time.Second
+
+// openOsz opens set t.SetID in osu! through its .osz, for a player without
+// osu! supporter: osu! imports a set it does not have, and jumps to one that
+// is already in Songs. The file is the one this run already checked
+// (Downloader.CachedFile; that trust list is in memory only), else DL.Get
+// with osu!'s MD5s as for a queued map. DL.Get looks in the cache folder
+// first and checks the file again, so after a restart a cached set is reused
+// without downloading unless cache cleanup removed it. beatmapID is the
+// difficulty that must match, unless wholeSet (every one is checked then).
+func (a *App) openOsz(cfg config.Config, t importer.Target, beatmapID int, wholeSet bool) error {
+	if a.DL == nil || a.Import == nil {
+		return errors.New("downloads are not set up")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), reopenTimeout)
+	defer cancel()
+	file, ok := a.DL.CachedFile(t.SetID, cfg.Download.NoVideo)
+	if !ok {
+		ref := verifier.Reference{Checksums: map[int]string{}}
+		if !wholeSet {
+			ref.RequestedID = beatmapID
+		}
+		var set *osumeta.Set
+		err := errors.New("osu! lookup is not set up")
+		if a.Meta != nil {
+			mctx, mcancel := context.WithTimeout(ctx, time.Duration(max(cfg.MD5.MetaTimeoutSec, 5))*time.Second)
+			set, err = a.Meta.Get(mctx, t.SetID, beatmapID)
+			mcancel()
+		}
+		if err == nil {
+			for _, d := range set.Diffs {
+				ref.Checksums[d.ID] = d.Checksum
+			}
+		} else if cfg.MD5.Enabled {
+			return fmt.Errorf("could not fetch reference MD5 from osu!: %w", err)
+		}
+		out, err := a.DL.Get(ctx, downloader.Job{SetID: t.SetID, Ref: ref, HasVideo: set == nil || set.Video}, nil)
+		if err != nil {
+			if ctx.Err() != nil {
+				return fmt.Errorf("the download took longer than %d s", int(reopenTimeout.Seconds()))
+			}
+			return err
+		}
+		file = out.File
+	}
+	return a.Import.Import(file, importer.Open, cfg.Osu.Game, cfg.Osu.Folder, t)
+}
+
 // Next finishes now playing with result ("played" or "skipped") and opens the
 // first playable item.
 func (a *App) Next(result string) error {
@@ -997,6 +1053,21 @@ func (a *App) play(id, result string) error {
 	it, ok := a.Queue.Get(id)
 	if !ok {
 		return uerr("not_found", "request not found", nil)
+	}
+	cfg := a.Cfg.Get()
+	if it.MD5 == "installed" && !osuLinks(cfg.Osu) {
+		// found in osu!.db while "I have osu! supporter" was on, or an old
+		// queue.json: without supporter osu://b/{id} opens the browser, so the
+		// map is downloaded and opened through its .osz like any other. With
+		// supporter off download() never marks a map "installed" again.
+		a.Queue.Update(id, func(x *queue.Item) {
+			if x.MD5 == "installed" {
+				x.State, x.Source, x.MD5, x.File, x.Attempts = queue.Queued, "", "", "", nil
+			}
+		})
+		if it, ok = a.Queue.Get(id); !ok {
+			return uerr("not_found", "request was removed", nil)
+		}
 	}
 	if it.State != queue.Ready {
 		a.mu.Lock()
@@ -1032,7 +1103,7 @@ func (a *App) play(id, result string) error {
 			return uerr("get_failed", fmt.Sprintf("could not get %s - %s: %s", it.Artist, it.Title, it.Error), map[string]string{"title": it.Artist + " - " + it.Title, "msg": it.Error})
 		}
 	}
-	cfg := a.Cfg.Get()
+	cfg = a.Cfg.Get()
 	var err error
 	switch {
 	case cfg.Test.DryRun:
@@ -1076,6 +1147,9 @@ func (a *App) Previous() error {
 	case it.File != "" && statErr == nil:
 		// it was imported when it played, so opening the .osz again only jumps to it
 		err = a.Import.Import(it.File, importer.Open, cfg.Osu.Game, cfg.Osu.Folder, target(it))
+	case !osuLinks(cfg.Osu):
+		// no osu://b without supporter: the same, with the .osz fetched again
+		err = a.openOsz(cfg, target(it), it.BeatmapID, it.BySet)
 	case it.BeatmapID > 0:
 		err = a.OpenURL(fmt.Sprintf("osu://b/%d", it.BeatmapID))
 	default:
@@ -1094,10 +1168,14 @@ func (a *App) Previous() error {
 
 // Jump opens a map from the history in osu! (osu://b/…), so the streamer can
 // go back to it without touching the queue. Entries from before beatmap IDs
-// were recorded open the set's first difficulty, looked up on osu!.
+// were recorded open the set's first difficulty, looked up on osu!. Without
+// osu! supporter (stable) the set's .osz is opened instead (openOsz).
 func (a *App) Jump(setID, beatmapID int) error {
 	if setID <= 0 && beatmapID <= 0 {
 		return uerr("not_found", "no map to open", nil)
+	}
+	if cfg := a.Cfg.Get(); !osuLinks(cfg.Osu) {
+		return a.jumpOsz(cfg, setID, beatmapID)
 	}
 	if beatmapID <= 0 {
 		if a.Meta == nil {
@@ -1120,6 +1198,36 @@ func (a *App) Jump(setID, beatmapID int) error {
 		return uerr("open_failed", fmt.Sprintf("could not open %s: %v", url, err), map[string]string{"title": url, "msg": err.Error()})
 	}
 	log.Printf("jumped to %s in osu!", url)
+	return nil
+}
+
+// jumpOsz is Jump through the set's .osz. An entry with only a beatmap ID
+// gets its set from osu!. Dry run neither looks anything up nor downloads.
+func (a *App) jumpOsz(cfg config.Config, setID, beatmapID int) error {
+	name := fmt.Sprintf("set %d (.osz)", setID)
+	if setID <= 0 {
+		name = fmt.Sprintf("beatmap %d (.osz)", beatmapID)
+	}
+	if cfg.Test.DryRun {
+		a.Say("info", "dryOpen", map[string]string{"title": name}, "dry run: would open %s", name)
+		return nil
+	}
+	if setID <= 0 {
+		if a.Meta == nil {
+			return uerr("open_failed", "the set is unknown", map[string]string{"title": name, "msg": "the set is unknown"})
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		id, err := a.Meta.ResolveSet(ctx, beatmapID)
+		cancel()
+		if err != nil {
+			return uerr("open_failed", fmt.Sprintf("could not find beatmap %d on osu!: %v", beatmapID, err), map[string]string{"title": name, "msg": err.Error()})
+		}
+		setID, name = id, fmt.Sprintf("set %d (.osz)", id)
+	}
+	if err := a.openOsz(cfg, importer.Target{SetID: setID}, beatmapID, beatmapID <= 0); err != nil {
+		return uerr("open_failed", fmt.Sprintf("could not open %s: %v", name, err), map[string]string{"title": name, "msg": err.Error()})
+	}
+	log.Printf("opened %s in osu!", name)
 	return nil
 }
 

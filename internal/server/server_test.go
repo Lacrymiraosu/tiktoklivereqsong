@@ -246,6 +246,32 @@ func TestPutConfigValidates(t *testing.T) {
 	}
 }
 
+// osu.supporter goes through PUT /api/config and comes back from GET.
+func TestPutConfigSupporter(t *testing.T) {
+	s, h := newTestServer(t)
+	var got struct {
+		Config struct {
+			Osu map[string]any `json:"osu"`
+		} `json:"config"`
+	}
+	json.Unmarshal(do(h, http.MethodGet, "/api/config", "").Body.Bytes(), &got)
+	if v, ok := got.Config.Osu["supporter"]; !ok || v != false {
+		t.Fatalf("a new config should send supporter false, got %v (%v)", v, ok)
+	}
+	for _, on := range []bool{true, false} {
+		c := s.App.Cfg.Get()
+		c.Osu.Supporter = on
+		b, _ := json.Marshal(c)
+		if m := decode(t, do(h, http.MethodPut, "/api/config", string(b))); m["ok"] != true {
+			t.Fatalf("PUT: %v", m)
+		}
+		json.Unmarshal(do(h, http.MethodGet, "/api/config", "").Body.Bytes(), &got)
+		if got.Config.Osu["supporter"] != on || s.App.Cfg.Get().Osu.Supporter != on {
+			t.Errorf("supporter %v: GET %v, stored %v", on, got.Config.Osu["supporter"], s.App.Cfg.Get().Osu.Supporter)
+		}
+	}
+}
+
 // tts.gender and tts.voices go through PUT /api/config and come back from
 // GET; an unknown gender is refused with its code.
 func TestPutConfigTTSVoices(t *testing.T) {

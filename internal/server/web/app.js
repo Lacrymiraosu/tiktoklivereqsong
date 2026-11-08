@@ -148,7 +148,7 @@ const T = {
   nowPlaying: ["Now playing", "กำลังเล่น"],
   nothingPlaying: ["Nothing playing. Press Next to open the first map in the queue.", "ยังไม่มีเพลงที่เล่นอยู่ กด ถัดไป เพื่อเปิดแมพแรกในคิว"],
   next: ["Next", "ถัดไป"],
-  jump: ["Open in osu!", "เปิดใน osu!"], jumpTitle: ["osu! jumps to this map (osu://b/…); the queue stays as it is", "osu! กระโดดไปที่แมพนี้ (osu://b/…) คิวไม่เปลี่ยน"],
+  jump: ["Open in osu!", "เปิดใน osu!"], jumpTitle: ["osu! jumps to this map; the queue stays as it is", "osu! กระโดดไปที่แมพนี้ คิวไม่เปลี่ยน"],
   prev: ["Previous", "ก่อนหน้า"], prevTitle: ["Back to {title}: osu! opens it again and the current map goes back to the front of the queue", "กลับไป {title}: osu! เปิดเพลงนั้นอีกครั้ง และแมพปัจจุบันกลับไปอยู่หน้าคิว"],
   e_no_previous: ["No map was played before this one", "ยังไม่มีแมพก่อนหน้า"], e_open_failed: ["Could not open {title}: {msg}", "เปิด {title} ไม่ได้: {msg}"],
   skip: ["Skip", "ข้าม"],
@@ -1067,7 +1067,7 @@ function renderSide() {
   fill("#histLog", hist.map(p => {
     const li = logItem(p.result === "played" ? "ok" : "warn", p.title + (p.mods ? " +" + p.mods : ""), "@" + p.user, p.at,
       t(p.result) + (p.play ? " · " + t("res_" + p.play.outcome) + " " + resultShort(p.play) : ""));
-    // jump back to it in osu! (osu://b/…) without touching the queue; ▶ view map opens the player under the entry
+    // jump back to it in osu! (osu://b/… with supporter, else its .osz) without touching the queue; ▶ view map opens the player under the entry
     const key = "h:" + p.at + ":" + p.setId;
     li.dataset.kiki = key;
     li.append(h("div", { class: "tplinks" },
@@ -1616,7 +1616,11 @@ const SCHEMA = {
     F("osu.kikiPlayerMod", "switch", "KIKI map viewer on the mod panel", "ตัวดูแมพ KIKI บนแผงม็อด",
       "The same \"▶ view map\" on the phone's mod panel. The phone loads the map from KIKI's community mirrors itself.",
       "ปุ่ม \"▶ ดูแมพ\" แบบเดียวกันบนแผงม็อดในมือถือ มือถือจะโหลดแมพจากมิเรอร์ของชุมชนผ่าน KIKI เอง"),
-    F("osu.useOsuDb", "switch", "Skip maps already in osu!", "ข้ามแมพที่มีใน osu! แล้ว", "stable only: reads osu!.db and opens osu://b/{id} instead of downloading. Best effort.", "เฉพาะ stable: อ่าน osu!.db แล้วเปิด osu://b/{id} แทนการดาวน์โหลด"),
+    F("osu.supporter", "switch", "I have osu! supporter", "ฉันมี osu! supporter",
+      "osu!direct and osu://b links are an osu! supporter feature. On: maps osu! already has can be opened with osu://b/{id} and skipped from download (see \"Skip maps already in osu!\"). Off (default): osureq opens every map through its .osz file, so nobody is sent to the browser. If the browser opens the map's page when you press Next, leave this off.",
+      "osu!direct และลิงก์ osu://b ใช้ได้เฉพาะคนที่มี osu! supporter ถ้าเปิด: แมพที่มีใน osu! แล้วจะเปิดด้วย osu://b/{id} และข้ามการดาวน์โหลดได้ (ดู \"ข้ามแมพที่มีใน osu! แล้ว\") ถ้าปิด (ค่าเริ่มต้น): osureq จะเปิดทุกแมพผ่านไฟล์ .osz จะไม่มีใครถูกพาไปหน้าเว็บในเบราว์เซอร์ ถ้ากดถัดไปแล้วเบราว์เซอร์เปิดหน้าแมพขึ้นมา ให้ปิดตัวเลือกนี้ไว้",
+      { rerender: true }),
+    F("osu.useOsuDb", "switch", "Skip maps already in osu!", "ข้ามแมพที่มีใน osu! แล้ว", "stable with osu! supporter: reads osu!.db and opens osu://b/{id} instead of downloading. Best effort. Needs \"I have osu! supporter\".", "เฉพาะ stable ที่มี osu! supporter: อ่าน osu!.db แล้วเปิด osu://b/{id} แทนการดาวน์โหลด ต้องเปิด \"ฉันมี osu! supporter\" ไว้ด้วย", { when: "osu.supporter" }),
   ],
   command: [
     F("command.enabled", "switch", "Accept requests", "รับคำขอ"),
