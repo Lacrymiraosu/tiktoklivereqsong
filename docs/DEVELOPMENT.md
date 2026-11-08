@@ -50,7 +50,7 @@ Thai: see [README.th.md](README.th.md).
 
 | | |
 |---|---|
-| Version | **1.5.0** (`git log` for history, [Changelog](#changelog) below) |
+| Version | **1.5.1** (`git log` for history, [Changelog](#changelog) below) |
 | Language / build | Go 1.23+, `CGO_ENABLED=0`, Windows x64 only |
 | Tests | `go test ./...`: 20 packages with tests, all passing (`go test ./internal/...` also runs on Linux; only `main` needs Windows) |
 | Repository | <https://github.com/Lacrymiraosu/tiktoklivereqsong>, branch `main`; builds and releases by GitHub Actions |
@@ -70,6 +70,11 @@ The 1.5.0 changes (viewer count, KIKI map player, several maps per message, over
 default viewer) are covered by unit tests and were tried together in a browser against a test server on one PC (the overlay link through its LAN
 address; the rules merge also with a node script). They were not yet tried on a real stream, on a second PC or in OBS. What is still unverified is in
 [Known limitations and open items](#known-limitations-and-open-items).
+
+The 1.5.1 changes (toasts above dialogs; chat TTS voice gender, a voice per language and Japanese, Korean, Chinese and Hindi)
+has Go tests (`TestSpeakableTextScripts`, `TestTTSVoicesAndGender`, `TestPutConfigTTSVoices`), and its browser side was tried only with fake voice lists
+(`speechSynthesis.getVoices` and `speak` replaced), never with real voices or audible playback. Which voices Microsoft Edge exposes to web pages, and whether
+its Natural voices work from a web page at all, are not verified (see [Known limitations and open items](#known-limitations-and-open-items)).
 
 ---
 
@@ -103,7 +108,7 @@ address; the rules merge also with a node script). They were not yet tried on a 
 * **Song and artist bans**: rules like `artist="a_hisa"`, `title="Ghost"` or both; every set of a song (TV size, cut, remaps) is caught, also by Japanese/Thai names.
 * **Mod panel** (opt-in): a PIN-protected phone page on the home network for Next, Skip, moving/removing requests and requests on/off.
 * **Overlay on a second PC** (opt-in, `overlay.remote`): the mod panel's listener serves the overlay and a read-only state feed under a secret link `/o/<token>`; see [Overlay link](#overlay-link).
-* **Chat TTS** (opt-in): reads chat aloud in the dashboard and never reads commands (`!req …`), links or emoji; replaces TikFinity's TTS, which cannot skip them.
+* **Chat TTS** (opt-in): reads chat aloud in the dashboard and never reads commands (`!req …`), links or emoji; replaces TikFinity's TTS, which cannot skip them. Thai, English, Japanese, Korean, Chinese and Hindi, a browser voice per language and a female/male preference (see [Chat TTS](#chat-tts)).
 * **Spoken announcements** (opt-in): "test1 ขอเพลง …", "เพลง … ยากเกินไป 7.25 ดาว", next map, results, gifts, from templates the streamer edits.
 * **Support file**: one zip (log, raw TikFinity events, settings, state) to send after a stream with a problem.
 * **Viewer roles**: followers-only mode and a higher per-user limit for subscribers (when TikFinity sends these flags).
@@ -388,12 +393,12 @@ subscriber or follower flag counts as no, with one Activity warning (`ttsSubUnkn
 character, lowercases capital words of three letters or more (`SoftenCaps`: Google's Thai voice spells "KIKI" as K, I, K, I; two-letter ones such as GG or FC
 stay), and cuts at `tts.maxLength`. Announcement values (title, artist, mapper, …) are softened the same way. The last 20 go out in the state as `speech` (newest first, increasing `id`).
 
-The dashboard speaks them with the Web Speech API (`speechSynthesis`, i.e. the voices of Windows and the browser; Edge has natural ones).
+The dashboard speaks them with the Web Speech API (`speechSynthesis`, i.e. the voices of Windows and the browser; Edge may offer natural ones, which is not verified for web pages: see [Known limitations and open items](#known-limitations-and-open-items)).
 TTS starts by itself when the dashboard loads (`ttsAutoStart`): a tenth of a second of silence is played to see whether the browser allows sound yet;
 if it answers `NotAllowedError`, the pill says **Click anywhere to start TTS** and the first click or key on the page starts it (Edge can allow it outright
 under Media autoplay). The top-bar 🔊 button switches it off, which is remembered in that browser (`localStorage` `osureq.ttsOff`) until it is started again.
-Nothing from before TTS started is read, and at most five messages wait. With `tts.lang` `auto`, Thai letters pick Thai, else English
-(natural/online voices first); `tts.voice` picks a browser voice, used only for its own language. OBS records it as desktop audio.
+Nothing from before TTS started is read, and at most five messages wait. The language and the voice are picked as described under
+the paragraph *Languages, voices and gender* below. OBS records it as desktop audio.
 Streamers should turn TikFinity's TTS off.
 
 Only one dashboard page speaks, so a second window or tab does not double the voice. Each page makes a random id at load and connects
@@ -407,7 +412,50 @@ Windows ships no Thai voice, and Chrome-based browsers (Chrome, Dia) can only us
 `auto` (default) uses the browser's voice when it has one for the language and Google Translate's voice otherwise; `browser` never goes
 online; `google` always does. Google's voice goes through the helper (`POST /api/tts`, `internal/gtts`): it fetches
 `https://translate.google.com/translate_tts` in pieces of at most 180 letters, joins the MP3s, keeps the last 30 lines, and the dashboard
-plays the result with `<audio>` at the TTS volume and speed. The text being read is sent to Google.
+plays the result with `<audio>` at the TTS volume and speed. The text being read is sent to Google. Google reads only Thai and English.
+
+**Languages, voices and gender** (free, browser voices only, no keys; `ttsScript`, `ttsLangOf`, `ttsPickVoice`, `ttsGenderOf` in `app.js`).
+*Language.* With `tts.lang` `auto` (chat and the Settings voice test), a line's language is told by its letters: Thai letters in the text or the viewer's name
+→ `th` (as before); else kana → `ja` (checked before Han, because Japanese mixes both); Hangul → `ko`; Han without kana → `zh`; Devanagari → `hi`; otherwise `en`.
+Languages written with Latin letters (Indonesian, Malay, Vietnamese, Spanish, French, German) cannot be told apart by letters and are read as English. A fixed
+`th` or `en` does no detection. Announcements (speech kind `say`) keep the old rule, Thai letters in the line or the name → Thai, else English, so a Japanese
+nickname does not switch an English announcement. For `th` and `en` everything is as before (`tts.engine`, the Google fallback, "name says", volume, rate).
+For `ja`, `ko`, `zh` and `hi` only browser voices are used: the line is never sent to `POST /api/tts` (`tts.engine` `google` does not apply to them); with no voice
+for the language it is skipped and one toast per language (`ttsNoVoiceLang`) says to install a voice in Windows (Settings → Time & language → Speech) or to use
+Microsoft Edge. The line read is `{name}: {text}` (there is no "says" template for these languages).
+
+*Voice choice.* The voice chosen for the language wins when it is one of the language's voices (those whose `lang` starts with the code): `tts.voices[lang]`, else
+the older `tts.voice`, which still counts for its own language only. Otherwise, with `tts.gender` `any` the choice is unchanged: a natural or online voice first, then
+a local one, then the first. With `female` or `male`, the same order is applied among the voices whose gender is known to be that one. If none is known for the
+language, the best available voice reads (or Google, when the browser has none for Thai or English) and one toast per language and gender (`ttsGenderMiss`) names it;
+a Google voice chosen on purpose (`tts.engine` `google`) gives no such toast. The Settings voice test reports it together with its result (`ttsTested`) instead.
+
+*Gender.* The Web Speech API has no gender field, so `ttsGenderOf` looks up the voice's first name in a table taken from Microsoft's official voice lists (the speech
+service voice catalogue and Narrator's voice table, so Windows desktop voices are included). The name must be a whole word of the voice's name and the voice must be
+of that table's language, so "Guy" cannot match another language's voice; any other voice is `?` in the Settings lists and is never guessed:
+
+| Language | Female | Male |
+|---|---|---|
+| th | Premwadee, Achara | Niwat, Krit, Nattapong, Pattara |
+| en | Jenny, Aria, Ava, Emma, Sonia, Neerja, Zira, Hazel, Susan, Catherine, Linda, Heera | Guy, Andrew, Brian, Christopher, Ryan, Prabhat, David, Mark, George, James, Richard, Ravi, Sean |
+| ja | Nanami, Haruka, Ayumi | Keita, Ichiro |
+| ko | SunHi, Heami | InJoon |
+| zh | Xiaoxiao, Huihui, Yaoyao, Yating, Hanhan | Yunxi, Kangkang, Zhiwei |
+| hi | Swara, Kalpana | Madhur, Hemant |
+
+*Settings.* **Settings → TTS** has a gender selector (`tts.gender`) and a dropdown (`tts.voices`, field type `voices`) for each of the six languages that has at least one
+installed voice, with ♀, ♂ or ? after each name. The voice list can load late, so it is drawn again when the browser says `voiceschanged`. The older single `tts.voice`
+moves into the dropdown of its language when it names an installed voice: the form fills `tts.voices[lang]` (unless that is already set) and clears `tts.voice`, and Save
+stores both. The **Test the voice** box reads what is typed (its language picked like chat), or a sample, and then says which voice read it with its mark (for example
+"Read by Microsoft Niwat ♂"), "Read by Google", or the no-voice notice, and shows an error if a voice fails (`ttsTested`).
+
+*Config and going back.* Everything new is a new key (`tts.gender`, `tts.voices`; `tts.lang` is still `auto`, `th` or `en` and `tts.engine` is unchanged) because the released
+1.5.0 rejects unknown values of existing fields but ignores unknown keys, so it still starts with such a config. After the migration `tts.voice` is empty and 1.5.0 ignores
+`tts.voices`, so going back to 1.5.0 loses the chosen voice. Validation: `tts_gender` (not `any`, `female` or `male`; empty becomes `any`) and `tts_voices` (a key not in
+`config.TTSVoiceLangs`, a name over 120 letters or with a control character); the dashboard translates them as `e_tts_gender` and `e_tts_voices`.
+
+*Length cut.* `SpeakableText` cuts at `tts.maxLength` letters but no longer parts a letter from the combining marks after it (Devanagari vowel signs, Thai tone marks): it keeps
+the marks that follow, and adds no "…" when they reach the end of the text.
 
 **Announcements** (`tts.announce`, `app/announce.go`): `App.emit` passes every feed event to `announce`, which picks the template
 (`tts.templates[event]`; a rejection uses `rejected_<code>` if that key exists, else `rejected`), fills it (`RenderAnnouncement`: unknown or
@@ -860,6 +908,12 @@ stays on 127.0.0.1. `main.go` gives `remote.Server` the page (`server.OverlayPag
   the migration guide is at getbootstrap.com/docs/6.0/guides/migration. To update it, replace the two files from the npm package, keep the licence block in `THIRD_PARTY_LICENSES.txt` current and run the dashboard in a browser.
 * **Browsers:** Bootstrap 6 needs Chrome or Edge 130, Firefox 132 or Safari 18 or newer (`light-dark()`, `:has()`, native `<dialog>`). Older browsers show a broken page. The overlay and the mod panel do not use Bootstrap.
 * **Menus on queue cards** are Bootstrap menus (`data-bs-container="body"`, `data-bs-strategy="fixed"`). A card whose menu is open is not rebuilt (`data-menu-open`), otherwise a state push would pull the menu away from its button.
+* **Toasts in the top layer.** A toast raised while Settings, the pre-stream drawer or the Map rules drawer was open used to be hidden behind it (a server validation error on Save, for example). `#toasts` is now a manual popover
+  (`popover="manual"` in `index.html`; `app.css` drops the browser's popover box with `.toast-container[popover]` and keeps it hidden while not open), shown by `toast()` while it holds a message and hidden when the last one goes.
+  A popover shown before a modal lies below it, and a modal makes the rest of the page inert, so while a modal dialog or drawer is open `placeToasts` moves `#toasts` into the newest open one (the `modals` list, newest last) and shows it again;
+  when that one closes it goes back to `<body>` (or to the next modal). `modalChange(d, open)` keeps the list; it is called by a `MutationObserver` on every dialog's `open` attribute and by `hide.bs.dialog` and `hide.bs.drawer` listeners on `document`.
+  Those two events matter: Bootstrap hides the components inside a dialog (the toasts too) together with it, so the container has to leave when hiding starts, not when `open` is removed. This relies on Bootstrap firing the hide events before it hides
+  child components: check it when the vendored Bootstrap is updated. It also needs the Popover API (`popover`, `showPopover()`, `:popover-open`), which every browser the dashboard already requires has (next bullet).
 * **Rendering rule (important):** state arrives up to ~4 times per second during downloads. Never rebuild a section unconditionally.
   `same(el, key)` skips a section whose input did not change; queue cards are kept in a `Map` by item id and rebuilt only when their own data changes;
   download bars are updated in place (`updateAttempts`); cards that were already shown get the `seen` class so their entrance animation does not replay.
@@ -868,7 +922,7 @@ stays on 127.0.0.1. `main.go` gives `remote.Server` the page (`server.OverlayPag
   [KIKI Beatmap Viewer player](#kiki-beatmap-viewer-player). The viewer count is written straight into the status pill (`#tfViewers`) and left out of the banner's `same` key, so a new number does not redraw it.
 * **i18n:** every UI string is a key in the `T` table: `key: ["English", "Thai"]`. Use `t("key", {vars})`; static HTML uses `data-t` / `data-tp`. Add both languages.
 * **Settings form** is generated from `SCHEMA` (`F(path, type, labelEn, labelTh, hintEn, hintTh, extra)`); the map rules are the separate `RULES` list (see below). Types: `switch`, `text`, `hotkey`, `number`,
-  `list`, `numlist`, `seg`, `select`, `multi`, `button`, `overlaylink`, `ovremote` (the overlay link), `sources`. A new config field needs: Go struct field + default + validation (if any) +
+  `list`, `numlist`, `seg`, `select`, `multi`, `button`, `overlaylink`, `ovremote` (the overlay link), `sources`, `voices` (one browser voice per TTS language). A new config field needs: Go struct field + default + validation (if any) +
   a `SCHEMA` entry + a row in the [Settings reference](#settings-reference-configjson).
 * **Design language:** osu! pink as the one accent on a violet-tinted neutral ground, light and dark by the browser's setting (`prefers-color-scheme`). All colours are tokens in `:root` of `app.css`
   (`--brand`, `--bg`, `--surface`, `--ink`, `--muted`, `--line`, `--ok`, `--warn`, `--bad`, `--info`) and Bootstrap's `--bs-*` tokens are set from them, so Bootstrap components follow both themes.
@@ -890,7 +944,7 @@ A field is a key of a section (`rules.minStars`) or a top-level value (`masterVo
 so a rule saved from the drawer, or a ban, made while Settings was open is kept. A list edited in the form replaces the server's list as a whole, and a
 change the server makes between that GET and the PUT (milliseconds) is still lost.
 
-A validation error from Save is shown in a toast and, in the drawer, under its field (`RULE_ERR`: `stars_order` → min and max stars, `stars_negative`,
+A validation error from Save is shown in a toast (above the dialog or drawer, see [Dashboard internals](#dashboard-internals)) and, in the drawer, under its field (`RULE_ERR`: `stars_order` → min and max stars, `stars_negative`,
 `stars_order_mode`, `mode_unknown` → stars per mode, `song_rule`, `hard_mod_stars`, `banned_mod`). The server reports only the first problem.
 
 ---
@@ -985,7 +1039,10 @@ All settings are editable in the dashboard (gear icon; the `rules` section with 
 | | `port` | `21281` | Its port (not the dashboard port) |
 | | `pin` | empty | 6-12 digits, not all the same, not `123456`/`987654`-style; required when enabled (the dashboard generates one) |
 | tts | `enabled` | `false` | Read chat aloud in the dashboard, without commands |
-| | `lang` / `voice` | `auto` / empty | `auto`, `th` or `en`; a browser voice name, used for its own language only |
+| | `lang` | `auto` | `auto`, `th` or `en`. `auto` picks the language of each message by its letters (Thai, Japanese, Korean, Chinese, Hindi, else English); `th` or `en` does no detection. See [Chat TTS](#chat-tts) |
+| | `voice` | empty | The older single browser voice name, still used for its own language when `voices` has no entry for it. The Settings form moves it into `voices` on save and clears it |
+| | `voices` | `{}` | Browser voice per language: keys `th`, `en`, `ja`, `ko`, `zh`, `hi`, values a voice name (at most 120 letters, no control characters; `tts_voices`). Missing or empty = best for the language |
+| | `gender` | `any` | `any`, `female` or `male` (`tts_gender`): preferred when a voice is picked by itself. A voice's gender is known only from the name table in [Chat TTS](#chat-tts) |
 | | `engine` | `auto` | Who speaks: `auto` (browser voice, Google's when the browser has none for the language), `browser`, `google` (text goes to Google) |
 | | `rate` / `volume` | `1` / `80` | Speed 0.5-2, volume 0-100 |
 | | `readName` | `true` | "name says …" |
@@ -1045,15 +1102,15 @@ All live in the base folder (next to the exe, or `-dir`):
 ```powershell
 go vet ./...
 go test ./...
-.\build.ps1 -Version 1.5.0          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
+.\build.ps1 -Version 1.5.1          # vet + test + build → dist\osureq.exe (also rewrites rsrc_windows_amd64.syso)
 ```
 
 If PowerShell blocks scripts, build directly:
 
 ```powershell
 $env:GOOS="windows"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
-go run ./tools/winres -version 1.5.0      # icon, version info, manifest → rsrc_windows_amd64.syso
-go build -trimpath -ldflags "-X main.version=1.5.0" -o dist\osureq.exe .
+go run ./tools/winres -version 1.5.1      # icon, version info, manifest → rsrc_windows_amd64.syso
+go build -trimpath -ldflags "-X main.version=1.5.1" -o dist\osureq.exe .
 ```
 
 ### Releases (GitHub Actions)
@@ -1061,15 +1118,15 @@ go build -trimpath -ldflags "-X main.version=1.5.0" -o dist\osureq.exe .
 `.github/workflows/build.yml` runs on every push to `main` and every pull request: `go vet`, `go test` and a build on
 `windows-latest`; the exe is kept as a workflow artifact for 14 days (version `0.0.0-dev+<commit>`).
 To publish a release, bump the version (Changelog row, Version row, `build.ps1` default) and merge it into `main`, then
-either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.5.0`) or tag and push:
+either run the workflow by hand (**Actions → build → Run workflow** on `main`, version `1.5.1`) or tag and push:
 
 ```powershell
-git tag v1.5.0
-git push origin v1.5.0
+git tag v1.5.1
+git push origin v1.5.1
 ```
 
 Run workflow checks that the version is `x.y.z`, that it runs on `main` and that it matches the `build.ps1` default, then
-creates the tag `v1.5.0` on that commit together with the release (a tag made by the workflow does not start another run).
+creates the tag `v1.5.1` on that commit together with the release (a tag made by the workflow does not start another run).
 The release text is `.github/release-notes/v<version>.md` when that file exists (write it in the version-bump PR), else a short default.
 To fix the text of a release that is already out, change its file, merge it, and run the workflow with **notes** set to the version
 (only `gh release edit --notes-file`, nothing is rebuilt). Every build runs `.github/check-release-notes.sh`, which fails on a bare `@word`
@@ -1149,6 +1206,8 @@ Read this before changing anything.
 | KIKI map player | depends on KIKI's embed protocol (`ready`, `load`, `need-file`, `file`, `cache-clear`, `pause`, `play`, `error`, envelope `v: 1`); if it changes the player stays empty until `app.js` and `mod.html` follow. osu!standard only, files over 100 MiB are not offered, and after a restart cached files are not trusted until the set is downloaded again (the player then uses the mirrors) |
 | Several maps per message | `PUT /api/config` from a Settings dialog opened before updating would send 0 for `command.maxPerMessage` and fail validation (like other range fields): reload the dashboard first |
 | Overlay link (second PC) | not tried on a real second PC or in real OBS: only in a browser on the same PC, also through the LAN address. An open connection from an address that is locked later stays connected, and if the mod panel port changes an open connection survives the listener restart. Replaced links (last 4) answer 404 without counting as failures, in memory only: after a restart the old link counts as a wrong guess |
+| Chat TTS voices and gender | tried only with fake voice lists in a browser (`speechSynthesis.getVoices` and `speak` replaced), not with real voices or audible playback. Not verified: which voice names Microsoft Edge exposes to web pages, and whether its Natural (online) voices work from a web page at all (an unofficial report says Edge 156 failed with `synthesis-failed`; the older claim that Edge has natural voices, Thai included, is just as unverified); whether Windows' Thai voice Pattara reaches browsers. Chrome-based browsers only see Windows' voices, and macOS voice names and genders are not in the `ttsGenderOf` table (they show `?`). Female and male Thai voices therefore depend on the browser: Edge Natural voices, if they work for web pages, otherwise only what Windows provides. The test box in Settings → TTS shows what the user's own browser really has |
+| Chat TTS languages | Indonesian, Malay, Vietnamese, Spanish, French and German use Latin letters like English and are read as English; announcements stay Thai or English; the new languages need a browser voice and are skipped without one (with a notice). Not built: a voice per viewer, and a cloud voice service |
 | Song search | depends on catboy's search API; when it is down, names are rejected with `search_error` (IDs and links still work) |
 | Official download fallback | implemented, not exercised (needs a logged-in browser) |
 | osu! lazer | supported via `open` and tosu, not tested |
@@ -1187,6 +1246,10 @@ Read this before changing anything.
 | TikFinity's TTS reads `!req 123…` | Turn TikFinity's TTS off and use **Settings → TTS**, which never reads commands. |
 | Chat TTS is read twice | Another program reads chat too (turn TikFinity's TTS off). Two osureq dashboards no longer both speak: only the last one started reads, the other says **TTS in another window**. |
 | Chat TTS is silent | If the top bar says **TTS in another window**, another dashboard window or tab reads it: close that one or press the button here. If it says **Click anywhere to start TTS**, click the page once (the browser wants a click before sound), or allow Media autoplay for the dashboard in Edge. If it says **Start TTS**, it was switched off: press it. Thai is silent with **Settings → TTS → Who speaks** on `browser` in Chrome or Dia (no Thai voice there): use `auto` or `Google`, or open the dashboard in Edge. |
+| Chat in Japanese, Korean, Chinese or Hindi is not read | These languages are read only by a browser voice and never by Google. One message per language says so. Install a voice for it in Windows (Settings → Time & language → Speech) or open the dashboard in Microsoft Edge; the lines are skipped until then. **Settings → TTS** lists a voice dropdown only for languages that have a voice |
+| Every voice shows `?` instead of ♀ or ♂ | The voice's first name is not in osureq's list (`ttsGenderOf`: Microsoft's voice names; macOS and other voices are not listed). The gender is never guessed: pick the voice by hand in its language's dropdown |
+| The female/male choice is read by another voice | No voice of that gender is known for the language in this browser. The notice (once per language and gender) names the voice that reads; install such a voice, try Edge, or choose a voice by hand. Google's voice is a single voice |
+| An error toast did not show while Settings was open | Fixed in 1.5.1: toasts were hidden behind Settings, the pre-stream drawer and the Map rules drawer, and now sit above them |
 | Anything else | `osureq.log` next to the exe. |
 
 ---
@@ -1195,6 +1258,7 @@ Read this before changing anything.
 
 | Version | Commit | Changes |
 |---|---|---|
+| 1.5.1 | PR #20 | **Toasts above dialogs** (fix): messages raised while Settings, the pre-stream drawer or the Map rules drawer was open were hidden behind it; `#toasts` is now a manual popover in the top layer that moves into the newest open modal and back to the body (`placeToasts`, `modalChange`, a `MutationObserver` on dialogs' `open`, `hide.bs.dialog` / `hide.bs.drawer`); needs the Popover API and Bootstrap firing the hide events first. **Chat TTS: voice gender and more languages** (free, browser voices only): new `tts.gender` (`any`, `female`, `male`; `tts_gender`) and `tts.voices` (voice per language `th en ja ko zh hi`; `tts_voices`), the old `tts.voice` is the fallback for its language and the Settings form migrates it; with `tts.lang` `auto` chat is told apart as Thai, Japanese (kana), Korean, Chinese, Hindi or English (Latin-script languages are read as English); Japanese, Korean, Chinese and Hindi use browser voices only and are skipped, with one notice per language, when there is none; voice gender from a table of Microsoft voice first names (`ttsGenderOf`, `?` when unknown); Settings shows ♀/♂/? and the voice test says which voice read; `SpeakableText` no longer cuts between a letter and its combining marks. New keys only, so 1.5.0 still starts with the config (going back loses the chosen voice). Tests `TestSpeakableTextScripts`, `TestTTSVoicesAndGender`, `TestPutConfigTTSVoices`; browser side tried with fake voice lists only |
 | 1.5.0 | PR #19 | **Viewer count**: 👁 in the status pill and the mod panel (`tikfinity.Status.Viewers`, `DirectEvents.Viewers`, `Client.OnViewers`; TikTok direct reads `WebcastRoomUserSeqMessage.Total`; TikFinity's `roomUser` / `viewerCount` / `viewer` event is unverified on a real stream). **KIKI map player** (KIKI Beatmap Viewer, player.kiki-bm.app): ▶ under queue, now-playing and history cards and on the mod panel, an iframe plus osureq's own postMessage code (no script is loaded from KIKI); the dashboard offers the cached .osz through `GET /api/osz/{setId}` (`Downloader.CachedFile`, checked files only), the mod panel and uncached maps use the mirrors; `osu.kikiPlayer`, `osu.kikiPlayerMod`. **Several maps per message** (`command.maxPerMessage`, 1-5, default 1; `parser.ParseAll`, `App.submitAll`: the cooldown is checked once per message, one paid request per map). **Overlay for a second PC**: `overlay.remote`, `overlay.remoteToken`; `/o/{token}` and `/o/{token}/ws` on the mod panel's server send a read-only `OverlayState`; `POST /api/overlay/token` makes a new link. **Map rules** moved from Settings to a drawer on the dashboard (button above the queue); saving merges with a fresh config (`mergeEdits`) so bans made meanwhile survive, and the Settings save merges the same way. The default `osu.viewerUrl` is now `https://kiki-bm.app/` (a stored old default is migrated on load) |
 | 1.4.9 | PR #18 | **Auto download switch** above the queue on the dashboard (`import.preload`; `POST /api/action/toggleAutoDownload`; `State.autoDownload`, `autoDownloadN`); the setting is renamed Auto download. **New dashboard on Bootstrap 6** (6.0.0-alpha.1, vendored): sticky top bar (not sticky on phones) with the requests switch, volume, language, settings and a ⋮ menu (pre-stream check, support file, close tosu/TikFinity, quit); light and dark by the browser; now playing and queue rows with the cover as a soft banner inside the box (drawn with a CSS mask, so it fades into the box colour in light and dark; strongest on the right, fading out towards the text and at the edges), play and remove buttons and a ⋮ menu (move, skip, preview, open elsewhere, bans); rejected / activity / history / LIVE events as tabs; settings as a dialog of one fixed height on every tab, with a side menu that stays put while only the pane scrolls (a full-screen page on phones, with the tabs in one scrolling row); the pre-stream check in a drawer; Bootstrap toasts. The server sets the content type of `.js`, `.css` and `.svg` itself. Needs Chrome/Edge 130, Firefox 132 or Safari 18 or newer. Bootstrap, Floating UI and Vanilla Calendar Pro licences added |
 | 1.4.8 | PR #13 | **TikTok direct**: chat and gifts straight from TikTok without TikFinity (`connection.source` `tiktok`, `tiktokUser`, optional `eulerApiKey`; new package `internal/tiktok`, signed by Euler Stream, keyless or with a key; switch back to TikFinity any time). Status pill, pre-stream check, mod panel and support file (key hidden) know the source. Only one dashboard page reads TTS (`POST /api/tts/speaker`, `State.ttsSpeaker`): the last one started, the others say **TTS in another window**. `osu.viewerUrl` can be a template with `{set}`, `{map}`, `{file}` |

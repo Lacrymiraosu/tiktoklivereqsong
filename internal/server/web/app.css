@@ -361,7 +361,15 @@ label.frow { cursor: pointer; }
 }
 
 /* ---------- toasts ---------- */
+/* the container is a manual popover (top layer, see toast() in app.js): drop the UA popover box and its display */
+@supports selector(:popover-open) { .toast-container:not(:popover-open) { display: none; } }
+.toast-container[popover] { top: auto; left: auto; margin: 0; width: max-content; height: auto; max-height: none; border: 0; background: none; color: inherit; overflow: visible; }
 .toast-container { z-index: 1090; padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important; padding-right: calc(1rem + env(safe-area-inset-right, 0px)) !important; display: flex; flex-direction: column; gap: .5rem; align-items: flex-end; }
+/* inside a dialog or drawer the toasts sit at the top, so they do not cover its Save and Cancel buttons (and the pointer, resting on a button
+   after a click, is not over a toast, which would stop it from fading) */
+dialog > .toast-container { top: 0 !important; bottom: auto !important; padding-top: calc(1rem + env(safe-area-inset-top, 0px)) !important; padding-bottom: 1rem !important; }
+/* ... and click-through: a toast over the title, the close button or a field never blocks them, and a pointer resting under it cannot pause its fade */
+dialog > .toast-container, dialog > .toast-container .toast { pointer-events: none; }
 .toast { --bs-toast-max-width: min(24rem, calc(100vw - 2rem)); }
 .toast .toast-body { display: flex; gap: .6rem; align-items: flex-start; overflow-wrap: anywhere; }
 .toast .toast-ico { flex: none; margin-top: 2px; }

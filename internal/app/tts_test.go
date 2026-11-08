@@ -31,6 +31,45 @@ func TestSpeakableText(t *testing.T) {
 	}
 }
 
+// Chat in other scripts reaches the dashboard as written: kana, Hangul, Han
+// and Devanagari letters with their marks; only emoji and links go.
+func TestSpeakableTextScripts(t *testing.T) {
+	cases := map[string]string{
+		"このマップめっちゃ難しいけど楽しい！次はHDでお願いします":            "このマップめっちゃ難しいけど楽しい！次はHDでお願いします",
+		"이 노래 진짜 좋아요 ㅋㅋㅋ 다음 곡도 부탁해요":               "이 노래 진짜 좋아요 ㅋㅋㅋ 다음 곡도 부탁해요",
+		"这首歌太好听了，主播加油！":                            "这首歌太好听了，主播加油！",
+		"यह गाना बहुत अच्छा है, अगला गाना भी बजाओ": "यह गाना बहुत अच्छा है, अगला गाना भी बजाओ",
+		"เพลงนี้เพราะมาก 😍🔥 ขอบคุณครับ":            "เพลงนี้เพราะมาก ขอบคุณครับ",
+		"次の曲 https://osu.ppy.sh/b/123 お願い🙏":        "次の曲 お願い",
+	}
+	for in, want := range cases {
+		if got := SpeakableText(in, 120); got != want {
+			t.Errorf("SpeakableText(%q) = %q, want %q", in, got, want)
+		}
+	}
+	// the cut counts letters, not bytes, and keeps a letter's marks
+	if got := SpeakableText("あいうえおかきくけこさしすせそ", 10); got != "あいうえおかきくけこ…" {
+		t.Errorf("kana cut: %q", got)
+	}
+	if got := SpeakableText("नमस्ते दोस्तों", 3); got != "नमस्…" { // not "नमस…": the virama stays
+		t.Errorf("Devanagari cut before a virama: %q", got)
+	}
+	if got := SpeakableText("नमस्ते दोस्तों", 5); got != "नमस्ते…" { // not "नमस्त…"
+		t.Errorf("Devanagari cut before a vowel sign: %q", got)
+	}
+	if got := SpeakableText("ที่นี่", 1); got != "ที่…" {
+		t.Errorf("Thai cut before a vowel and a tone mark: %q", got)
+	}
+
+	a := newTestApp(t, func(c *config.Config) { c.TTS.Enabled, c.TTS.CooldownSec = true, 0 })
+	for i, msg := range []string{"楽しい！次もお願いします", "진짜 좋아요", "主播加油", "बहुत अच्छा है"} {
+		a.speakChat(tikfinity.Chat{User: "v" + string(rune('a'+i)), Nick: "viewer", Comment: msg}, false)
+		if s := a.Speech(); s[0].Text != msg {
+			t.Errorf("speakChat(%q) queued %q", msg, s[0].Text)
+		}
+	}
+}
+
 func TestSoftenCaps(t *testing.T) {
 	cases := map[string]string{
 		"WOW":                    "wow",

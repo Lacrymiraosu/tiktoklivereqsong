@@ -322,10 +322,17 @@ const T = {
   ttsTitleAway: ["Another dashboard window or tab is reading TTS, so this one stays quiet (no double voice). Click to read it here instead.", "แดชบอร์ดอีกหน้าต่างหรือแท็บกำลังอ่านอยู่ หน้านี้จึงเงียบ (ไม่ให้เสียงซ้อน) คลิกเพื่อย้ายเสียงอ่านมาที่หน้านี้"],
   sg_chat: ["Reading chat", "อ่านแชท"], sg_voice: ["Voice", "เสียง"], sg_announce: ["Announcements", "ประกาศเหตุการณ์"],
   modOn: ["on", "เปิดอยู่"], ttsSkip: ["Skip this message", "ข้ามข้อความนี้"],
-  ttsNoVoice: ["This browser has no voice for {lang}. Set Settings → TTS → Who speaks to auto or Google, or open the dashboard in Microsoft Edge.", "เบราว์เซอร์นี้ไม่มีเสียงภาษา{lang} ตั้ง การตั้งค่า → TTS → ใครพูด เป็น auto หรือ Google หรือเปิดแดชบอร์ดใน Microsoft Edge"],
+  ttsNoVoice: ["This browser has no voice for {lang}. Set Settings → TTS → Who speaks to auto or Google, or open the dashboard in Microsoft Edge.", "เบราว์เซอร์นี้ไม่มีเสียงภาษา{lang} ตั้ง การตั้งค่า → เสียงอ่าน → ใครพูด เป็น auto หรือ Google หรือเปิดแดชบอร์ดใน Microsoft Edge"],
   ttsOnlineFail: ["Google's voice did not answer ({err}).", "เสียงของ Google ไม่ตอบ ({err})"],
   ttsSays_en: ["{name} says {text}", "{name} says {text}"], ttsSays_th: ["{name} บอกว่า {text}", "{name} บอกว่า {text}"],
   ttsSample: ["This is how chat will sound.", "เสียงอ่านแชทจะเป็นแบบนี้"], ttsAuto: ["best for the language", "เลือกให้ตามภาษา"],
+  ttsNoVoiceLang: ["This browser has no voice for {lang}. Install a voice for it in Windows (Settings → Time & language → Speech) or use Microsoft Edge.", "เบราว์เซอร์นี้ไม่มีเสียงสำหรับ {lang} ติดตั้งเสียงภาษานี้ใน Windows (Settings → Time & language → Speech) หรือใช้ Microsoft Edge"],
+  ttsGenderMiss: ["This browser has no {gender} voice for {lang} that osureq knows, so {voice} reads it.", "เบราว์เซอร์นี้ไม่มีเสียง{gender}สำหรับ {lang} ที่ osureq รู้จัก จึงใช้ {voice} อ่านแทน"],
+  ttsG_female: ["female", "ผู้หญิง"], ttsG_male: ["male", "ผู้ชาย"],
+  ttsReadBy: ["Read by {voice}", "อ่านโดย {voice}"], ttsVoiceFail: ["The voice {voice} could not read ({err}).", "เสียง {voice} อ่านไม่ได้ ({err})"],
+  ttsNoVoices: ["No browser voices yet (the list can take a moment to load).", "ยังไม่มีรายชื่อเสียงของเบราว์เซอร์ (อาจใช้เวลาโหลดสักครู่)"],
+  e_tts_gender: ["TTS voice gender must be any, female or male", "เพศของเสียงอ่านต้องเป็น ไม่เลือก ผู้หญิง หรือผู้ชาย"],
+  e_tts_voices: ["TTS voices: only Thai, English, Japanese, Korean, Chinese and Hindi, names of at most 120 letters", "เสียงอ่าน: เลือกได้เฉพาะไทย อังกฤษ ญี่ปุ่น เกาหลี จีน และฮินดี ชื่อเสียงยาวไม่เกิน 120 ตัวอักษร"],
   e_tts_lang: ["TTS language must be auto, Thai or English", "ภาษาอ่านแชทต้องเป็น auto ไทย หรืออังกฤษ"],
   e_tts_range: ["TTS: speed 0.5-2, volume 0-100, max length 10-500", "อ่านแชท: ความเร็ว 0.5-2 ระดับเสียง 0-100 ความยาว 10-500"],
   n_ttsSubUnknown: ["TTS: TikFinity did not say whether viewers are subscribers (ใจส้ม), so only your other groups are read", "TTS: TikFinity ไม่ได้บอกว่าผู้ชมเป็นสมาชิก (ใจส้ม) หรือไม่ จึงอ่านเฉพาะกลุ่มอื่นที่เลือกไว้"],
@@ -397,15 +404,38 @@ async function api(method, path, body) {
   return j;
 }
 // toast: a Bootstrap toast in the corner; errors stay longer.
+// The container is a manual popover, so it sits in the top layer where a modal dialog or drawer cannot cover it. A popover
+// shown before a modal lies below it, and a modal makes the rest of the page inert (a toast there could not be read out or
+// pointed at), so while a modal is open the container moves into the newest one and is shown again; it goes back to the body
+// when that one hides.
+const toastBox = $("#toasts");
+const modals = []; // the open modal dialogs and drawers, the newest last
+function placeToasts() {
+  const host = modals[modals.length - 1] || document.body;
+  if (toastBox.parentNode !== host) host.append(toastBox); // moving it hides the popover
+  else if (toastBox.matches(":popover-open")) toastBox.hidePopover(); // shown again above the newest layer
+  if (toastBox.children.length) toastBox.showPopover();
+}
+function modalChange(d, open) {
+  const i = modals.indexOf(d);
+  if (open && i < 0) modals.push(d); else if (!open && i >= 0) modals.splice(i, 1); else return;
+  placeToasts();
+}
+new MutationObserver(list => list.forEach(r => r.target instanceof HTMLDialogElement && modalChange(r.target, r.target.open && r.target.matches(":modal"))))
+  .observe(document.body, { subtree: true, attributes: true, attributeFilter: ["open"] });
+// Bootstrap hides the components inside a dialog with it (the toasts would go too): leave when the hiding starts
+document.addEventListener("hide.bs.dialog", e => modalChange(e.target, false));
+document.addEventListener("hide.bs.drawer", e => modalChange(e.target, false));
 function toast(msg, bad) {
-  const box = $("#toasts");
+  const box = toastBox;
   const el = h("div", { class: "toast " + (bad ? "bad" : "ok"), role: bad ? "alert" : "status", "aria-atomic": "true", "data-bs-delay": bad ? 4200 : 2400 },
     h("div", { class: "toast-body" },
       h("span", { class: "toast-ico" }, svg(bad ? ICON.alert : ICON.check)),
       h("span", {}, msg)));
   while (box.children.length >= 4) box.firstChild.remove();
   box.append(el);
-  el.addEventListener("hidden.bs.toast", () => el.remove());
+  if (!box.matches(":popover-open")) box.showPopover();
+  el.addEventListener("hidden.bs.toast", () => { el.remove(); if (!box.children.length && box.matches(":popover-open")) box.hidePopover(); });
   bootstrap.Toast.getOrCreateInstance(el).show();
 }
 // errText shows a coded error in the dashboard's language, else the English text.
@@ -1172,48 +1202,149 @@ function ttsClaim(on) {
 }
 const ttsQueue = [], ttsWarned = {};
 const hasThai = s => /[\u0E00-\u0E7F]/.test(s);
+const TTS_LANGS = ["th", "en", "ja", "ko", "zh", "hi"]; // the languages ttsScript tells apart (config.TTSVoiceLangs)
 let ttsAudio = null; // Google's voice playing, if any
-// ttsVoice picks the browser voice for lang. The chosen voice is only used
-// for its own language: an English voice reads nothing of a Thai message.
-function ttsVoice(lang, voiceName) {
-  const voices = "speechSynthesis" in window ? speechSynthesis.getVoices() : [];
-  const m = voices.filter(v => v.lang.toLowerCase().startsWith(lang));
-  if (voiceName) { const v = m.find(v => v.name === voiceName); if (v) return v; }
-  return m.find(v => /natural|online/i.test(v.name)) || m.find(v => v.localService) || m[0] || null;
+// ttsScript tells a chat line's language by its letters (tts.lang auto):
+// Thai letters in the text or the viewer's name; else, in the text only,
+// kana (Japanese mixes kana with Han, so it comes first), Hangul, Han
+// without kana (Chinese), Devanagari (Hindi); else English. Indonesian,
+// Vietnamese, Spanish … use Latin letters like English and are read as English.
+function ttsScript(text, name) {
+  if (hasThai(text + " " + (name || ""))) return "th";
+  if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text)) return "ja";
+  if (/\p{Script=Hangul}/u.test(text)) return "ko";
+  if (/\p{Script=Han}/u.test(text)) return "zh";
+  if (/\p{Script=Devanagari}/u.test(text)) return "hi";
+  return "en";
 }
-// ttsSay reads one line and calls done when it has finished (or failed).
+// ttsLangOf is the language a line is read in: tts.lang when it is fixed;
+// for chat (and the voice test) its letters (ttsScript). Announcements (kind
+// "say") stay Thai or English as before: their template is written in one of
+// the two, and a viewer's name or a title in it may be in any script.
+function ttsLangOf(cfg, text, name, kind) {
+  if (cfg.lang !== "auto") return cfg.lang;
+  if (kind === "say") return hasThai(text + " " + (name || "")) ? "th" : "en";
+  return ttsScript(text, name);
+}
+// ttsLangName is a language's name in toasts, the same in both UI languages.
+function ttsLangName(lang) {
+  return { th: "ไทย", en: "English", ja: "日本語", ko: "한국어", zh: "中文", hi: "हिन्दी" }[lang] || lang;
+}
+// ttsGenderOf gives a browser voice's gender, "f" or "m", or "" when it is not
+// known. The Web Speech API has no gender, so this is a list of first names
+// whose gender Microsoft's voice lists state (its speech service catalogue
+// and the voice table of Narrator's documentation, Windows desktop voices included). A name counts only as a whole word of the voice's
+// name and only for a voice of its own language, so "Guy" cannot match
+// some other voice. Voices not listed stay unknown: never guessed.
+function ttsGenderOf(voice) {
+  const names = {
+    th: { premwadee: "f", achara: "f", niwat: "m", krit: "m", nattapong: "m", pattara: "m" },
+    en: { jenny: "f", aria: "f", ava: "f", emma: "f", guy: "m", andrew: "m", brian: "m", christopher: "m", ryan: "m", sonia: "f", prabhat: "m", neerja: "f",
+      david: "m", mark: "m", zira: "f", george: "m", hazel: "f", susan: "f", james: "m", catherine: "f", richard: "m", linda: "f", ravi: "m", heera: "f", sean: "m" },
+    ja: { nanami: "f", haruka: "f", ayumi: "f", keita: "m", ichiro: "m" },
+    ko: { sunhi: "f", heami: "f", injoon: "m" },
+    zh: { xiaoxiao: "f", yunxi: "m", kangkang: "m", huihui: "f", yaoyao: "f", zhiwei: "m", yating: "f", hanhan: "f" },
+    hi: { swara: "f", madhur: "m", hemant: "m", kalpana: "f" },
+  };
+  const lang = String((voice && voice.lang) || "").toLowerCase();
+  const table = names[Object.keys(names).find(l => lang.startsWith(l))];
+  if (!table || !voice.name) return "";
+  for (const w of String(voice.name).toLowerCase().split(/[^\p{L}\p{N}]+/u)) if (Object.hasOwn(table, w)) return table[w];
+  return "";
+}
+// ttsMark is the gender sign shown after a voice's name: ♀, ♂ or ? (unknown).
+function ttsMark(voice) {
+  return { f: "♀", m: "♂" }[ttsGenderOf(voice)] || "?";
+}
+// ttsPickVoice picks the browser voice for lang from voices. The voice chosen
+// for the language (explicitName) wins when it is one of them; otherwise the
+// best one: natural or online voices first, then local ones, then any, among
+// the voices of the preferred gender (female | male) when one is known.
+// missed: a gender was asked for but no voice of it is known for the
+// language, so the best other one (or none) reads.
+function ttsPickVoice(voices, lang, gender, explicitName) {
+  const m = voices.filter(v => v.lang.toLowerCase().startsWith(lang));
+  const best = list => list.find(v => /natural|online/i.test(v.name)) || list.find(v => v.localService) || list[0] || null;
+  if (explicitName) { const v = m.find(v => v.name === explicitName); if (v) return { voice: v, missed: false }; }
+  if (gender !== "female" && gender !== "male") return { voice: best(m), missed: false };
+  const g = best(m.filter(v => ttsGenderOf(v) === gender[0]));
+  return g ? { voice: g, missed: false } : { voice: best(m), missed: true };
+}
+// ttsVoiceFor is the voice name chosen for lang: tts.voices, else the older
+// single tts.voice, which ttsPickVoice only takes when it is a voice of lang.
+function ttsVoiceFor(cfg, lang) {
+  return (cfg.voices && cfg.voices[lang]) || cfg.voice || "";
+}
+// ttsSay reads one line and calls done when it has finished (or failed),
+// with what happened: {lang, gender, voice, google, missed, skipped, err}.
 // Who speaks follows tts.engine: the browser's voice, or Google's through
 // the helper (/api/tts) when the browser has none for the language, which
-// is the usual case for Thai in Chrome-based browsers.
-function ttsSay(text, name, cfg, done) {
-  const lang = cfg.lang !== "auto" ? cfg.lang : hasThai(text + " " + (name || "")) ? "th" : "en";
-  const line = cfg.readName && name ? (T["ttsSays_" + lang][0]).replace("{name}", name).replace("{text}", text) : text;
+// is the usual case for Thai in Chrome-based browsers. Google reads only
+// Thai and English: other languages need a browser voice, or are skipped.
+// opt.kind is the line's Speech kind (ttsLangOf); opt.test (the Settings
+// voice test) leaves the notices to its done.
+function ttsSay(text, name, cfg, done, opt = {}) {
+  const test = !!opt.test, lang = ttsLangOf(cfg, text, name, opt.kind);
+  const says = T["ttsSays_" + lang]; // "name says" in Thai and English; other languages "name: text"
+  const line = cfg.readName && name ? (says ? says[0] : "{name}: {text}").replace("{name}", name).replace("{text}", text) : text;
   const volume = Math.max(0, Math.min(1, (cfg.volume ?? 80) / 100)), rate = cfg.rate || 1;
-  const v = ttsVoice(lang, cfg.voice), engine = cfg.engine || "auto";
-  if (engine === "google" || (engine === "auto" && !v)) {
+  const voices = "speechSynthesis" in window ? speechSynthesis.getVoices() : [];
+  const gender = cfg.gender || "any", engine = cfg.engine || "auto", google = lang === "th" || lang === "en";
+  const pick = ttsPickVoice(voices, lang, gender, ttsVoiceFor(cfg, lang)), v = pick.voice;
+  const missed = pick.missed && !(google && engine === "google"); // Google chosen on purpose: one voice
+  let over = false;
+  const finish = r => { if (over) return; over = true; done({ lang, gender, voice: v, google: false, missed, ...r }); };
+  // never silently another gender: once per language and gender, naming who reads instead
+  const note = who => {
+    const k = "g:" + lang + ":" + gender;
+    if (!missed || test || ttsWarned[k]) return;
+    ttsWarned[k] = true; toast(t("ttsGenderMiss", { gender: t("ttsG_" + gender), lang: ttsLangName(lang), voice: who }), true);
+  };
+  if (google && (engine === "google" || (engine === "auto" && !v))) {
+    note("Google");
     const r = fetch("/api/tts", { method: "POST", headers: { "X-Osureq": "1", "Content-Type": "application/json" }, body: JSON.stringify({ lang, text: line }) })
       .then(async r => { if (!r.ok) throw new Error((await r.text()).trim() || "HTTP " + r.status); return r.blob(); });
     r.then(b => {
       const a = new Audio(URL.createObjectURL(b));
       a.volume = volume; a.playbackRate = rate;
       let over = false; // pause and ended both fire at the end
-      const end = () => { if (over) return; over = true; URL.revokeObjectURL(a.src); if (ttsAudio === a) ttsAudio = null; done(); };
+      const end = () => { if (over) return; over = true; URL.revokeObjectURL(a.src); if (ttsAudio === a) ttsAudio = null; finish({ voice: null, google: true }); };
       a.onended = a.onerror = a.onpause = end;
       ttsAudio = a;
       a.play().catch(end);
     }).catch(e => {
-      if (!ttsWarned.online) { ttsWarned.online = true; toast(t("ttsOnlineFail", { err: e.message }), true); }
-      done();
+      if (!ttsWarned.online && !test) { ttsWarned.online = true; toast(t("ttsOnlineFail", { err: e.message }), true); }
+      finish({ voice: null, google: true, err: e.message });
     });
     return;
   }
-  if (!v && !ttsWarned[lang]) { ttsWarned[lang] = true; toast(t("ttsNoVoice", { lang: lang === "th" ? "ไทย" : "English" }), true); }
-  const u = new SpeechSynthesisUtterance(line);
-  if (v) u.voice = v;
-  u.lang = v ? v.lang : lang === "th" ? "th-TH" : "en-US";
-  u.rate = rate; u.volume = volume;
-  u.onend = u.onerror = () => done();
-  speechSynthesis.speak(u);
+  if (!v && !google) { // no voice for the language: skipped, never read by another language's voice
+    if (!ttsWarned[lang] && !test) { ttsWarned[lang] = true; toast(t("ttsNoVoiceLang", { lang: ttsLangName(lang) }), true); }
+    finish({ skipped: true });
+    return;
+  }
+  if (!v && !ttsWarned[lang] && !test) { ttsWarned[lang] = true; toast(t("ttsNoVoice", { lang: ttsLangName(lang) }), true); }
+  if (v) note(v.name + " " + ttsMark(v));
+  try {
+    const u = new SpeechSynthesisUtterance(line);
+    if (v) u.voice = v;
+    u.lang = v ? v.lang : lang === "th" ? "th-TH" : "en-US";
+    u.rate = rate; u.volume = volume;
+    u.onend = () => finish({});
+    u.onerror = e => finish({ err: (e && e.error) || "error" }); // e.g. an online voice that fails: the queue goes on
+    speechSynthesis.speak(u);
+  } catch (e) { finish({ err: e.message }); }
+}
+// ttsTested tells, after the Settings voice test, which voice read it (with
+// its gender sign) or why nothing was read.
+function ttsTested(r) {
+  if (r.err === "canceled" || r.err === "interrupted") return; // stopped by the next test or Skip
+  if (r.err) return toast(r.google ? t("ttsOnlineFail", { err: r.err }) : t("ttsVoiceFail", { voice: r.voice ? r.voice.name : ttsLangName(r.lang), err: r.err }), true);
+  if (r.skipped) return toast(t("ttsNoVoiceLang", { lang: ttsLangName(r.lang) }), true);
+  const who = r.google ? "Google" : r.voice ? r.voice.name + " " + ttsMark(r.voice) : "";
+  if (!who) return toast(t("ttsNoVoice", { lang: ttsLangName(r.lang) }), true);
+  if (r.missed) toast(t("ttsGenderMiss", { gender: t("ttsG_" + r.gender), lang: ttsLangName(r.lang), voice: who }), true);
+  toast(t("ttsReadBy", { voice: who }));
 }
 // ttsStop silences whichever voice is speaking.
 function ttsStop() {
@@ -1224,7 +1355,7 @@ function ttsNext() {
   if (ttsBusy || !ttsOn || ttsAway() || !ttsQueue.length) return;
   const s = ttsQueue.shift();
   ttsBusy = true;
-  ttsSay(s.text, s.name, S.tts, () => { ttsBusy = false; renderTTS(); ttsNext(); });
+  ttsSay(s.text, s.name, S.tts, () => { ttsBusy = false; renderTTS(); ttsNext(); }, { kind: s.kind });
   renderTTS();
 }
 function handleSpeech() {
@@ -1576,9 +1707,10 @@ const SCHEMA = {
       { options: [["subscriber", ["ใจส้ม (subscriber)", "ใจส้ม (สมาชิก)"]], ["follower", ["follower", "ผู้ติดตาม"]], ["gifter", ["sent a gift", "ส่งของขวัญแล้ว"]], ["mod", ["mod", "ม็อด"]]] }),
     F("tts.blockedWords", "list", "Blocked words", "คำต้องห้าม", "Comma separated. Messages containing one are not read.", "คั่นด้วยจุลภาค ข้อความที่มีคำเหล่านี้จะไม่ถูกอ่าน"),
     F("", "group", "sg_voice"),
-    F("tts.lang", "seg", "Language", "ภาษา", "auto picks Thai or English for each message by its letters.", "auto เลือกไทยหรืออังกฤษตามตัวอักษรของแต่ละข้อความ", { options: [["auto", "auto"], ["th", "ไทย"], ["en", "English"]] }),
+    F("tts.lang", "seg", "Language", "ภาษา", "auto picks the language of each message by its letters: Thai, Japanese, Korean, Chinese or Hindi, otherwise English (Indonesian, Vietnamese and other languages with Latin letters are read as English). Languages other than Thai and English are read only by a browser voice for them.", "auto เลือกภาษาตามตัวอักษรของแต่ละข้อความ: ไทย ญี่ปุ่น เกาหลี จีน หรือฮินดี นอกนั้นอ่านเป็นอังกฤษ (อินโดนีเซีย เวียดนาม และภาษาอื่นที่ใช้ตัวอักษรละตินจะอ่านเป็นอังกฤษ) ภาษาอื่นนอกจากไทยและอังกฤษจะอ่านด้วยเสียงของเบราว์เซอร์สำหรับภาษานั้นเท่านั้น", { options: [["auto", "auto"], ["th", "ไทย"], ["en", "English"]] }),
     F("tts.engine", "seg", "Who speaks", "ใครพูด", "auto uses the browser's voice when it has one for the language and Google's voice when it does not (Windows has no Thai voice, and Chrome or Dia only use Windows voices). Google sends the text being read to Google and needs internet.", "auto ใช้เสียงของเบราว์เซอร์ถ้ามีเสียงภาษานั้น ถ้าไม่มีจะใช้เสียงของ Google (Windows ไม่มีเสียงไทยมาให้ และ Chrome หรือ Dia ใช้ได้แค่เสียงของ Windows) แบบ Google จะส่งข้อความที่อ่านไปที่ Google และต้องต่ออินเทอร์เน็ต", { options: [["auto", "auto"], ["browser", ["browser", "เบราว์เซอร์"]], ["google", "Google"]] }),
-    F("tts.voice", "voice", "Browser voice", "เสียงของเบราว์เซอร์", "Used for its own language only. Voices come from Windows and the browser (Edge has natural ones, including Thai).", "ใช้กับภาษาของเสียงนั้นเท่านั้น เสียงมาจาก Windows และเบราว์เซอร์ (Edge มีเสียงแบบธรรมชาติ รวมถึงภาษาไทย)"),
+    F("tts.gender", "seg", "Voice gender", "เพศของเสียง", "Preferred when the voice is picked by itself; a voice chosen below always wins. A voice's gender is known only from osureq's list of voice names (♀ female, ♂ male, ? not known), and unknown voices never count as either. When the language has no voice of that gender, another voice reads and a notice says which. Google's voice is a single voice.", "ใช้เมื่อเลือกเสียงให้อัตโนมัติ ถ้าเลือกเสียงไว้ด้านล่างจะใช้เสียงนั้นเสมอ เพศของเสียงรู้ได้จากรายชื่อเสียงของ osureq เท่านั้น (♀ ผู้หญิง ♂ ผู้ชาย ? ไม่ทราบ) เสียงที่ไม่ทราบจะไม่นับเป็นเพศใด ถ้าภาษานั้นไม่มีเสียงเพศที่เลือก จะใช้เสียงอื่นอ่านและแจ้งว่าใช้เสียงไหน เสียงของ Google มีเสียงเดียว", { options: [["any", ["any", "ไม่เลือก"]], ["female", ["female ♀", "ผู้หญิง ♀"]], ["male", ["male ♂", "ผู้ชาย ♂"]]] }),
+    F("tts.voices", "voices", "Browser voices", "เสียงของเบราว์เซอร์", "One per language, for each language this browser has voices for. Voices come from Windows and the browser (Microsoft Edge may offer natural ones; the Test the voice box below shows what this browser really has).", "เลือกได้ภาษาละหนึ่งเสียง สำหรับภาษาที่เบราว์เซอร์นี้มีเสียง เสียงมาจาก Windows และเบราว์เซอร์ (Microsoft Edge อาจมีเสียงแบบธรรมชาติ ปุ่มทดลองเสียงด้านล่างจะบอกว่าเบราว์เซอร์นี้มีเสียงอะไรจริง ๆ)"),
     F("tts.rate", "number", "Speed", "ความเร็ว", null, null, { min: 0.5, max: 2, step: 0.1 }),
     F("tts.volume", "number", "Volume (%)", "ระดับเสียง (%)", null, null, { min: 0, max: 100 }),
     F("", "ttstest", "Test the voice", "ทดลองเสียง"),
@@ -1772,12 +1904,24 @@ function field(f) {
       const gen = h("button", { class: "btn-outline theme-secondary btn-sm", type: "button", onclick: () => { i.value = newPin(); set(i.value); } }, t("genPin"));
       return h("div", { class: "frow" }, text, h("div", { class: "ovlink" }, i, gen));
     }
-    case "voice": {
+    case "voices": { // tts.voices: a dropdown per language that has voices; the list may come late (voiceschanged draws it again)
       const voices = "speechSynthesis" in window ? speechSynthesis.getVoices() : [];
-      const s = h("select", { class: "form-control", "aria-label": lbl(f.label) }, h("option", { value: "" }, t("ttsAuto")),
-        ...voices.filter(x => /^(th|en)/i.test(x.lang)).map(x => h("option", { value: x.name }, `${x.name} (${x.lang})`)));
-      s.value = v || ""; s.addEventListener("change", () => set(s.value));
-      return h("div", { class: "frow stack" }, text, s);
+      const chosen = d.tts.voices = d.tts.voices || {};
+      // the older single tts.voice moves to its language's dropdown (saved there, so it can be cleared),
+      // once its language is known from an installed voice
+      const old = d.tts.voice && voices.find(x => x.name === d.tts.voice);
+      const oldLang = old && TTS_LANGS.find(l => old.lang.toLowerCase().startsWith(l));
+      if (oldLang) { if (!chosen[oldLang]) chosen[oldLang] = d.tts.voice; d.tts.voice = ""; }
+      const rows = TTS_LANGS.map(l => {
+        const list = voices.filter(x => x.lang.toLowerCase().startsWith(l));
+        if (!list.length) return null;
+        const s = h("select", { class: "form-control", "aria-label": lbl(f.label) + ": " + ttsLangName(l) }, h("option", { value: "" }, t("ttsAuto")),
+          ...list.map(x => h("option", { value: x.name }, `${x.name} (${x.lang}) ${ttsMark(x)}`)));
+        s.value = chosen[l] || "";
+        s.addEventListener("change", () => { if (s.value) chosen[l] = s.value; else delete chosen[l]; });
+        return h("div", { class: "ovlink" }, h("small", { style: "min-width:4.5rem" }, ttsLangName(l)), s);
+      }).filter(Boolean);
+      return h("div", { class: "frow stack" }, text, ...(rows.length ? rows : [h("small", { class: "hint" }, t("ttsNoVoices"))]));
     }
     case "tplpreset": {
       const preset = which => api("GET", "/api/config").then(j => { draft.tts.templates = structuredClone(j.announcements[which]); renderSettings(); });
@@ -1793,9 +1937,9 @@ function field(f) {
       return h("div", { class: "frow stack" }, h("div", { class: "swt" }, h("b", {}, t("tpl_" + ev))), i);
     }
     case "ttstest": {
-      // reads what is typed (Thai or English, picked like chat), or the sample when empty
+      // reads what is typed (its language picked like chat), or the sample when empty; then says which voice read it
       const i = h("input", { type: "text", class: "form-control", placeholder: t("ttsSample"), maxlength: "500", "aria-label": lbl(f.label) });
-      const say = () => { ttsStop(); ttsSay(i.value.trim() || t("ttsSample"), "osureq", draft.tts, () => {}); };
+      const say = () => { ttsStop(); ttsSay(i.value.trim() || t("ttsSample"), "osureq", draft.tts, ttsTested, { test: true }); };
       i.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); say(); } });
       return h("div", { class: "frow stack" }, text, h("div", { class: "ovlink" }, i, h("button", { class: "btn-outline theme-secondary btn-sm", type: "button", onclick: say }, "▶ " + lbl(f.label))));
     }

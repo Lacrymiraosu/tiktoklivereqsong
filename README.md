@@ -39,7 +39,7 @@ dashboard for managing the queue (English/Thai) and an overlay for OBS. Everythi
 * How many people are watching (👁 1,234) next to the connection status, in the dashboard and on the mod panel
 * Optional mod panel: run the queue from a phone on the same Wi-Fi, protected by a PIN
 * Streaming from **two PCs**: OBS on the other PC loads the overlay with a secret link ([Two PCs: overlay on the OBS PC](#two-pcs-overlay-on-the-obs-pc))
-* Optional chat TTS that reads chat aloud but never the commands (`!req …`), links or emoji, instead of TikFinity's TTS, and spoken announcements ("test1 requested …", "… is too hard, 7.25 stars") from lines you write ([recommended](#text-to-speech-use-osureqs-own-tts))
+* Optional chat TTS that reads chat aloud but never the commands (`!req …`), links or emoji, instead of TikFinity's TTS, in Thai, English, Japanese, Korean, Chinese or Hindi with one voice per language and a female or male preference (the browser's own voices, free, no key), and spoken announcements ("test1 requested …", "… is too hard, 7.25 stars") from lines you write ([recommended](#text-to-speech-use-osureqs-own-tts))
 * A support file (log, raw events, settings) to send after a stream with a problem
 * Switches between stable and lazer to match tosu, and updates itself: a new osureq is downloaded from the GitHub releases, checked and installed the next time you start it
 * Close tosu, TikFinity or everything from the dashboard
@@ -88,12 +88,26 @@ text, so it reads `!req 129891 HDHR` out as a string of numbers and letters. osu
   map, `!np`, play results and gifts. Every line can be changed in **Settings → TTS**, with `{title}`, `{artist}`, `{mapper}`,
   `{diff}`, `{mods}`, `{stars}` and more.
 * It reads the rest of the chat but never commands (`!req …`), links or emoji.
+* It reads each message in its own language: Thai, English, Japanese, Korean, Chinese or Hindi, told apart by the letters (Thai letters
+  in the text or the viewer's name mean Thai; kana, Japanese; Hangul, Korean; Han characters without kana, Chinese; Devanagari, Hindi). Languages
+  written with Latin letters (Indonesian, Malay, Vietnamese, Spanish, French, German) cannot be told apart from English by letters, so they are read as English.
+* In **Settings → TTS** you pick one voice per language and prefer a female or male voice. Each voice shows ♀, ♂ or ? after its name. Browsers do not
+  say a voice's gender, so osureq knows it only for the voices whose names are in its list (taken from Microsoft's voice lists); any other voice shows
+  `?` and is never guessed. When the language has no voice of the gender you chose, another voice reads and a message says which.
+* The **Test the voice** box says which voice read the line, for example “Read by Microsoft Niwat ♂”.
 * It can read only subscribers (ใจส้ม), followers, gifters or mods.
 
 To use it, turn on **Read chat aloud** and **Announce requests** in **Settings → TTS**, and if TikFinity is running, **turn its TTS off** so chat
 is not read twice. TTS starts when the dashboard opens (if the browser asks for a click first, click anywhere on the page) and
 OBS records it as desktop audio. Windows has no Thai voice, so **Who speaks: auto** uses Google's voice for Thai, which sends the
 text being read to Google.
+
+Only Thai and English can go to Google. Japanese, Korean, Chinese and Hindi are read by a browser voice only and are never sent to Google;
+with no voice for the language the line is skipped, and one message per language says to install a voice in Windows
+(Settings → Time & language → Speech) or to use Microsoft Edge.
+Which voices you can pick depends on your browser and Windows: Microsoft Edge may offer natural voices, while Chrome-based browsers (Chrome, Dia)
+only have the voices Windows provides. So a female or male voice for a language exists only if your browser has one; the voice lists and the
+**Test the voice** box show what it really has. Google's voice is a single voice.
 
 ### What viewers type
 
@@ -201,7 +215,7 @@ You need [Go](https://go.dev/dl/) 1.23 or newer on Windows (`winget install GoLa
 ```powershell
 git clone https://github.com/Lacrymiraosu/tiktoklivereqsong.git
 cd tiktoklivereqsong
-.\build.ps1 -Version 1.5.0
+.\build.ps1 -Version 1.5.1
 ```
 
 `build.ps1` runs `go vet` and `go test`, generates the Windows resources (icon, name, version) and builds `dist\osureq.exe`.
@@ -209,19 +223,19 @@ If PowerShell refuses to run scripts, build by hand:
 
 ```powershell
 $env:CGO_ENABLED = "0"
-go run ./tools/winres -version 1.5.0
-go build -trimpath -ldflags "-X main.version=1.5.0" -o dist\osureq.exe .
+go run ./tools/winres -version 1.5.1
+go build -trimpath -ldflags "-X main.version=1.5.1" -o dist\osureq.exe .
 ```
 
 ### Automatic builds and releases (GitHub Actions)
 
 * Every push to `main` and every pull request is vetted, tested and built; the exe stays on the Actions page for 14 days.
 * To release a new version, update the version number in `build.ps1` (and the changelog) and merge it into `main`. Then either
-  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.5.0`) and press **Run workflow**, or push a tag:
+  open **Actions → build → Run workflow**, keep `main`, type the version (e.g. `1.5.1`) and press **Run workflow**, or push a tag:
 
   ```powershell
-  git tag v1.5.0
-  git push origin v1.5.0
+  git tag v1.5.1
+  git push origin v1.5.1
   ```
 
   GitHub builds with the tag's version and publishes a release with `osureq-<version>-windows-x64.zip` (the exe, `LICENSE` and `THIRD_PARTY_LICENSES.txt`) and its `.sha256`.
