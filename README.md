@@ -86,7 +86,7 @@ text, so it reads `!req 129891 HDHR` out as a string of numbers and letters. osu
 
 * It announces what happens to requests: added, rejected with the reason (“FREEDOM DiVE is too hard, 7.25 stars”), the next
   map, `!np`, play results and gifts. Every line can be changed in **Settings → TTS**, with `{title}`, `{artist}`, `{mapper}`,
-  `{diff}`, `{mods}`, `{stars}` and more.
+  `{diff}`, `{mods}`, `{stars}` and more (the full list is in [What you can put in an announcement line](#what-you-can-put-in-an-announcement-line)).
 * It reads the rest of the chat but never commands (`!req …`), links or emoji.
 * It reads each message in its own language: Thai, English, Japanese, Korean, Chinese or Hindi, told apart by the letters (Thai letters
   in the text or the viewer's name mean Thai; kana, Japanese; Hangul, Korean; Han characters without kana, Chinese; Devanagari, Hindi). Languages
@@ -108,6 +108,117 @@ with no voice for the language the line is skipped, and one message per language
 Which voices you can pick depends on your browser and Windows: Microsoft Edge may offer natural voices, while Chrome-based browsers (Chrome, Dia)
 only have the voices Windows provides. So a female or male voice for a language exists only if your browser has one; the voice lists and the
 **Test the voice** box show what it really has. Google's voice is a single voice.
+
+#### What you can put in an announcement line
+
+An announcement line is plain text with **placeholders** in curly braces. When something happens, osureq fills in the real values and says the result:
+
+| Line | Said aloud |
+|---|---|
+| `Got it, {user}! {title} by {artist} is number {pos} in the queue.` | Got it, test1! freedom DiVE by xi is number 1 in the queue. |
+
+Change the lines in **Settings → TTS → Announcement lines** (**Announce requests** must be on), then press **Save**. The **Thai examples** and **English examples**
+buttons load a whole ready-made set into the boxes (every line is replaced; nothing is saved until you press Save). A placeholder is lowercase letters
+and underscores between `{` and `}`, and a line can hold at most 300 letters.
+
+**Placeholders.** Which ones have a value depends on the event; see the second table.
+
+| Placeholder | What it says | Example |
+|---|---|---|
+| `{user}` | The viewer's name (their TikTok nickname with emoji removed and cut at 40 letters, or the plain user name when there is no nickname). It is whoever made the request; for `!np` and `!pos` the viewer who typed it, for a vote skip the viewer whose vote passed, for a gift the sender | `test1` |
+| `{title}` | Song title | `freedom DiVE` |
+| `{artist}` | Artist | `xi` |
+| `{mapper}` | Mapper | `Nakagawa-Kanon` |
+| `{diff}` | Difficulty name | `four dimensions` |
+| `{mods}` | Mods, spaced so the voice spells them | `HD HR` |
+| `{stars}` | Star rating, always two decimals; empty when osureq does not know it | `7.25` |
+| `{pos}` | Place in the queue (1 = next) | `2` |
+| `{setid}` | Beatmap set ID | `39804` |
+| `{setid_digits}` | The same ID read digit by digit | `3 9 8 0 4` |
+| `{requester}` | Only for `!np`: the user name of who requested the map that is playing (empty when it was not a request) | `fan` |
+| `{reason}` | Only for rejections: why, in a short phrase (see below) | `it is too hard` |
+| `{max}` | The limit that was exceeded: stars (`6.00`), song length (`1:40`) or queue size / requests per viewer (`30`) | `6.00` |
+| `{min}` | Too easy: the minimum stars (`3.00`). Played recently: how many minutes ago it was played (`0` when under a minute) | `3.00` |
+| `{length}` | Too long: the song's length with the requested mods (minutes:seconds) | `3:20` |
+| `{wait}` | Cooldown: seconds left, rounded up | `600` |
+| `{n}` | Queue full or too many requests: how many are waiting now | `1` |
+| `{mode}` | Mode not accepted: `osu!`, `taiko`, `catch` or `mania` | `osu!` |
+| `{acc}` | Result: accuracy with two decimals, no percent sign | `98.52` |
+| `{rank}` | Result: the rank letter from osu! | `S` |
+| `{combo}` | Result: max combo | `812` |
+| `{misses}` | Result: number of misses | `2` |
+| `{pp}` | Result: pp, rounded to a whole number | `301` |
+| `{coins}` | Gift: the gift's coin value | `5` |
+| `{gift}` | Gift: the gift's name | `Rose` |
+
+**Which line says what, and when.** A placeholder that an event does not have is simply left out of the sentence. "Map details" means
+`{title} {artist} {mapper} {diff} {mods} {stars} {setid} {setid_digits}`.
+
+| Line in Settings (English / Thai) | When it is said | Placeholders it has | Default (English set) |
+|---|---|---|---|
+| Request added (ขอเพลงสำเร็จ) | A request is added to the queue | `{user}`, map details (`{mods}` = the mods asked for), `{pos}` | `{user} requested {title} by {artist}, mapped by {mapper}, {diff} {mods}` |
+| Rejected (any other reason) (ถูกปฏิเสธ (เหตุผลอื่น)) | A request is rejected for a reason that has no line of its own below | `{user}`, `{reason}`, `{mods}`; once the map is found also `{title} {artist} {mapper} {setid} {setid_digits}`; `{diff}` with a too-easy, too-hard, too-long or mode rejection; `{n}`, `{max}` or `{mode}` where the table above says so | `{user}, that request did not work: {reason}` |
+| Rejected: too hard (ถูกปฏิเสธ: ยากเกินไป) | Over the maximum stars | `{user}`, `{title} {artist} {mapper} {diff} {mods} {setid} {setid_digits}`, `{stars}`, `{max}`, `{reason}` | `{title} is too hard, {stars} stars` |
+| Rejected: too easy (ถูกปฏิเสธ: ง่ายเกินไป) | Under the minimum stars | the same, with `{min}` instead of `{max}` | `{title} is too easy, {stars} stars` |
+| Rejected: too hard with DT/HR (ถูกปฏิเสธ: ยากเกินไปเมื่อใส่ DT/HR) | Over the star limit for DT, NC or HR requests | like too hard (`{max}` is that limit) | `{title} is too hard with {mods}` |
+| Rejected: too long (ถูกปฏิเสธ: ยาวเกินไป) | Longer than the maximum length | `{user}`, `{title} {artist} {mapper} {diff} {mods} {setid} {setid_digits}`, `{length}`, `{max}`, `{reason}` | `{title} is too long` |
+| Rejected: already in the queue (ถูกปฏิเสธ: อยู่ในคิวแล้ว) | The map is already waiting | `{user}`, `{title} {artist} {mapper} {mods} {setid} {setid_digits}`, `{reason}` | `{title} is already in the queue` |
+| Rejected: played recently (ถูกปฏิเสธ: เพิ่งเล่นไป) | The map was played within the no-repeat time | the same, plus `{min}` (minutes ago) | `{title} was played recently` |
+| Rejected: cooldown (ถูกปฏิเสธ: ติดคูลดาวน์) | The viewer asked again too soon | `{user}`, `{wait}`, `{mods}`, `{reason}` (no map details) | `-` (silent) |
+| Rejected: too many requests (ถูกปฏิเสธ: ขอเกินจำนวน) | The viewer already has the most requests allowed waiting | `{user}`, `{n}`, `{max}`, `{mods}`, `{reason}` (no map details) | `-` (silent) |
+| Rejected: no map with that name (ถูกปฏิเสธ: ไม่พบแมพชื่อนี้) | A song-name request found nothing | `{user}`, `{mods}`, `{reason}` (no map details) | `No map found for {user}` |
+| Next map opens (เปิดเพลงถัดไป) | A request is opened as now playing (Next, Play, auto mode, or going back to the previous map) | `{user}` (the requester), map details | `Next up, {title}, requested by {user}` |
+| !np (what is playing) (!np (เพลงที่กำลังเล่น)) | A viewer types `!np` while a map is open | `{user}` (who asked), map details, `{requester}` | `Now playing {artist} - {title}, set {setid}` |
+| !np with nothing playing (!np ตอนยังไม่มีเพลง) | `!np` with no map open | `{user}` (who asked) | `Nothing is playing yet` |
+| !pos (queue position) (!pos (ลำดับคิว)) | A viewer with a waiting request types `!pos` (a viewer with none gets no answer) | `{user}`, the details of their first waiting request, `{pos}` | `-` (silent) |
+| Result: cleared (ผลการเล่น: ผ่าน) | The play reaches the results screen (needs tosu) | `{user}` (the requester), `{title} {artist} {mapper} {diff}`, `{mods}` (the mods played), `{acc} {rank} {combo} {misses} {pp}` | `Cleared {title} with {acc} percent` |
+| Result: failed (ผลการเล่น: ไม่ผ่าน) | The player failed the map (needs tosu) | the same as cleared | `-` (silent) |
+| Gift (ของขวัญ) | Every gift a viewer sends, whether or not it gives priority | `{user}` (the sender), `{coins}`, `{gift}` | `Thank you {user} for the gift` |
+| Vote skip passed (โหวตข้ามเพลงสำเร็จ) | Enough viewers voted to skip the song that is playing (votes before that are not announced) | `{user}` (the viewer whose vote made it pass), `{title} {artist} {diff}` | `Chat voted to skip {title}` |
+| Requests closed (queue full or time) (ปิดรับคำขอ (คิวเต็มหรือถึงเวลา)) | Requests close by themselves because the queue is full, or at the closing time | none | `The queue is full, requests are paused` |
+| Requests open again (เปิดรับคำขออีกครั้ง) | Requests open again by themselves | none | `Requests are open again` |
+
+The default lines above are the English set; the Thai set is in [`docs/README.th.md`](docs/README.th.md) and in the **Thai examples** button. A player who quits a map
+is never announced, and neither are other things the activity feed shows, such as a gift that moved a request up.
+
+**`{reason}` by group.** It is a short phrase for the rejection that happened, for example "the queue is full" or "it is too hard". The groups:
+viewer-level (you cannot request right now, the queue is full, you already have requests waiting, please wait a little, follow the stream to request,
+requests are closed, send a gift to request); blocked (the map, mapper, song or artist is blocked); map rules (too easy, too hard, too hard with those mods,
+too long, that map status or mode is not accepted, the mode cannot be converted, it was played recently, it is already in the queue, it is playing right now);
+problems finding the map (the map was not found, no map has that name, the search did not work, the map could not be checked, that is not a map);
+and mods (those mods do not work, mods are not allowed, that mod is not allowed). The full list with the Thai wording is in
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#announcement-lines-and-placeholders).
+
+**Tips**
+
+* **Say nothing:** leave a line empty or write `-` (the box then shows "(say nothing)"). A line that ends up empty after the placeholders are filled is not said either.
+  A box of its own that is silent stays silent: it does not fall back to "Rejected (any other reason)", which is used only for rejections that have no box of their own.
+* **A missing value just disappears,** together with the extra spaces, so one line can serve several events. The line `{user}, {title} was not added: {reason}`
+  says "test2, was not added: the queue is full" when there is no map to name, and "test1, Mid Song was not added: that mode is not accepted" when there is.
+* **Spell placeholders exactly,** in lowercase: `{User}` or `{user2}` is not recognised and is read out with its braces, while a misspelled lowercase one such as `{usr}` quietly says nothing.
+* **Reading an ID:** `{setid_digits}` says the ID one digit at a time ("3 9 8 0 4") instead of as a big number.
+* **`{reason}` follows the language of the line:** Thai when your line contains Thai letters, otherwise English.
+* **Capital letters:** an ALL-CAPS word of three letters or more is lowercased so the voice reads it as a word (FREEDOM becomes freedom; two-letter words such as HD or GG stay).
+  This applies to the values filled in (title, artist, mapper, difficulty, viewer name, gift name; not `{requester}`), not to the text you type. A name written entirely in capitals is lowercased as a whole, so `GG ROSE` is read as "gg rose".
+* **`@`** is removed from the sentence (a voice would say "at").
+* **Which voice speaks:** the finished sentence goes to the same voice as chat. With **Language** on auto in **Settings → TTS**, a sentence with Thai letters in it (your text or a viewer's name) is read in Thai, any other in English; a fixed language wins.
+  The voice, gender, speed and volume settings apply. Announcements do not get "name says" in front, ignore the "who is read" groups and the blocked words, and are read only in a dashboard page where TTS is on (🔊).
+* **Several maps in one message:** each kind of outcome is said once, and at most two lines are said for the whole message.
+* **Trying a line:** after saving, use **Simulate chat** in the Test panel (for example `!req 129891`, or `!np`), which makes the same announcement a real viewer would.
+  The **Test the voice** box reads exactly what you type, without filling in placeholders, so use it to check the voice, not the line.
+* A line longer than 300 letters (counting the placeholders) is refused when you press Save, with the message "Announcement … is longer than 300 letters".
+
+**Ready-to-copy lines.** Each was filled in by osureq's own code with a sample map (FREEDOM DiVE by xi, 7.25 stars, set 39804) and the values in the table above; your values will differ.
+
+| Line | English line, said as | Thai line, said as |
+|---|---|---|
+| Request added | `Got it, {user}! {title} by {artist} is number {pos} in the queue.`<br>Got it, test1! freedom DiVE by xi is number 1 in the queue. | `{user} ขอเพลง {title} ของ {artist} อยู่คิวที่ {pos} {mods}`<br>test1 ขอเพลง freedom DiVE ของ xi อยู่คิวที่ 1 HD HR |
+| Rejected: too hard | `Sorry {user}, {title} is {stars} stars and I only take up to {max}.`<br>Sorry test1, freedom DiVE is 7.25 stars and I only take up to 6.00. | `{user} เพลง {title} ยากไป {stars} ดาว เรารับไม่เกิน {max} ดาวนะ`<br>test1 เพลง freedom DiVE ยากไป 7.25 ดาว เรารับไม่เกิน 6.00 ดาวนะ |
+| Rejected: too easy | `{title} is only {stars} stars, the minimum is {min}`<br>Easy One is only 1.50 stars, the minimum is 3.00 | `เพลง {title} ง่ายไป {stars} ดาว ต้องอย่างน้อย {min} ดาว`<br>เพลง Easy One ง่ายไป 1.50 ดาว ต้องอย่างน้อย 3.00 ดาว |
+| Rejected (any other reason) | `{user}, that request did not work: {reason}`<br>test1, that request did not work: please wait a little | `{user} ขอเพลงไม่ได้ {reason}`<br>test1 ขอเพลงไม่ได้ รอสักครู่ก่อนนะ |
+| Result: cleared | `{user} cleared {title}: {acc} percent, rank {rank}, {combo} combo, {misses} misses, {pp} pp`<br>Kiki cleared freedom DiVE: 98.52 percent, rank S, 812 combo, 2 misses, 301 pp | `ยินดีด้วย {user} ผ่านเพลง {title} ความแม่นยำ {acc} เปอร์เซ็นต์ แรงก์ {rank} คอมโบ {combo} พลาด {misses} ครั้ง {pp} พีพี`<br>ยินดีด้วย Kiki ผ่านเพลง freedom DiVE ความแม่นยำ 98.52 เปอร์เซ็นต์ แรงก์ S คอมโบ 812 พลาด 2 ครั้ง 301 พีพี |
+| Gift | `Thank you {user} for the {gift}! {coins} coins`<br>Thank you Kid for the Rose! 5 coins | `ขอบคุณ {user} สำหรับ {gift} {coins} เหรียญ`<br>ขอบคุณ Kid สำหรับ Rose 5 เหรียญ |
+| !np with the set ID read out | `{title} set {setid_digits} for {requester}`<br>freedom DiVE set 3 9 8 0 4 for fan | `กำลังเล่น {artist} - {title} ขอโดย {requester}`<br>กำลังเล่น xi - freedom DiVE ขอโดย fan |
 
 ### What viewers type
 
