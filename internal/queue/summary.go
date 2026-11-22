@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -42,7 +43,7 @@ func (q *Queue) maybeNewSession(now time.Time) {
 		last = q.d.Now.StartedAt
 	}
 	if q.d.SessionStart.IsZero() || now.Sub(last) > sessionGap {
-		q.d.SessionStart, q.d.SessionRejected = now, 0
+		q.d.SessionStart, q.d.SessionRejected, q.d.SessionOverflow = now, 0, nil
 	}
 }
 
@@ -50,8 +51,39 @@ func (q *Queue) maybeNewSession(now time.Time) {
 func (q *Queue) NewSession(now time.Time) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.d.SessionStart, q.d.SessionRejected = now, 0
+	q.d.SessionStart, q.d.SessionRejected, q.d.SessionOverflow = now, 0, nil
 	q.changed()
+}
+
+// sessionTotals also stores the contribution of plays that age out of History.
+type sessionTotals struct {
+	Played  int                  `json:"played"`
+	Skipped int                  `json:"skipped"`
+	Passed  int                  `json:"passed"`
+	Best    *Played              `json:"best,omitempty"`
+	Users   map[string]UserCount `json:"users,omitempty"`
+}
+
+func (t *sessionTotals) count(h Played) {
+	if t.Users == nil {
+		t.Users = make(map[string]UserCount)
+	}
+	key := strings.ToLower(h.User)
+	user := t.Users[key]
+	user.User = h.User
+	user.Count++
+	t.Users[key] = user
+	if h.Result == "skipped" {
+		t.Skipped++
+		return
+	}
+	t.Played++
+	if h.Play != nil && h.Play.Outcome == "passed" {
+		t.Passed++
+		if t.Best == nil || better(h, *t.Best) {
+			t.Best = &h
+		}
+	}
 }
 
 // Summary covers the real (not test) requests finished since the session
@@ -59,34 +91,22 @@ func (q *Queue) NewSession(now time.Time) {
 func (q *Queue) Summary() Summary {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	s := Summary{Start: q.d.SessionStart, Rejected: q.d.SessionRejected}
-	counts := map[string]*UserCount{}
-	for i := range q.d.History {
+	var totals sessionTotals
+	if archived := q.d.SessionOverflow; archived != nil {
+		totals = *archived
+		totals.Users = maps.Clone(archived.Users)
+	}
+	// Oldest first so the latest spelling of each viewer's name is displayed.
+	for i := len(q.d.History) - 1; i >= 0; i-- {
 		h := q.d.History[i]
-		if h.Test || h.At.Before(s.Start) {
-			continue
-		}
-		key := strings.ToLower(h.User)
-		if counts[key] == nil {
-			counts[key] = &UserCount{User: h.User}
-		}
-		counts[key].Count++
-		if h.Result == "skipped" {
-			s.Skipped++
-			continue
-		}
-		s.Played++
-		if h.Play != nil && h.Play.Outcome == "passed" {
-			s.Passed++
-			if s.Best == nil || better(h.Play, s.Best.Play) {
-				best := h
-				s.Best = &best
-			}
+		if !h.Test && !h.At.Before(q.d.SessionStart) {
+			totals.count(h)
 		}
 	}
-	s.Viewers = len(counts)
-	for _, c := range counts {
-		s.Top = append(s.Top, *c)
+	s := Summary{Start: q.d.SessionStart, Rejected: q.d.SessionRejected, Played: totals.Played,
+		Skipped: totals.Skipped, Passed: totals.Passed, Best: totals.Best, Viewers: len(totals.Users)}
+	for _, c := range totals.Users {
+		s.Top = append(s.Top, c)
 	}
 	sort.Slice(s.Top, func(i, j int) bool {
 		if s.Top[i].Count != s.Top[j].Count {
@@ -101,9 +121,12 @@ func (q *Queue) Summary() Summary {
 }
 
 // better ranks passed plays by pp, then accuracy (pp is 0 when tosu has none).
-func better(a, b *Result) bool {
-	if a.PP != b.PP {
-		return a.PP > b.PP
+func better(a, b Played) bool {
+	if a.Play.PP != b.Play.PP {
+		return a.Play.PP > b.Play.PP
 	}
-	return a.Accuracy > b.Accuracy
+	if a.Play.Accuracy != b.Play.Accuracy {
+		return a.Play.Accuracy > b.Play.Accuracy
+	}
+	return a.At.After(b.At)
 }

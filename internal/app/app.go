@@ -435,7 +435,7 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin, rol
 		a.mu.Unlock()
 		a.Changed()
 	}()
-	it, rej := a.resolve(user, nick, input, req, o, roles, b)
+	it, rej := a.resolveAndQueue(user, nick, req, o, roles, b)
 	if rej != nil {
 		if b != nil && viewerCodes[rej.Code] {
 			input = b.rest // it stands for this map and the ones after it
@@ -443,15 +443,14 @@ func (a *App) submit(user, nick, input string, req parser.Request, o origin, rol
 		a.rejected(user, nick, input, req.Mods, rej, o, b)
 		return nil, rej
 	}
-	if a.Cfg.Get().Queue.Fair {
-		a.Queue.AddFair(it)
-	} else {
-		a.Queue.Add(it)
-	}
 	a.applyCredit(user, nick, o != fromChat)
 	a.emit(FeedEvent{Kind: "added", User: user, Nick: nick, Title: it.Title, Artist: it.Artist, Version: it.Version,
 		Mapper: it.Creator, SetID: it.SetID, Stars: it.Stars, Mods: it.Mods, Pos: a.Queue.Position(it.ID), Test: o != fromChat, quiet: b.quiet("added")})
 	log.Printf("queued @%s: %s - %s [%s] +%s (%d)", user, it.Artist, it.Title, it.Version, it.Mods, it.SetID)
+	// A stored gift credit may already have changed the newly added item's priority.
+	if current, ok := a.Queue.Get(it.ID); ok {
+		return &current, nil
+	}
 	return it, nil
 }
 
@@ -466,7 +465,7 @@ func (a *App) rejected(user, nick, input, mods string, rej *validator.Rejection,
 	log.Printf("rejected @%s %q: %s", user, input, rej.Detail)
 }
 
-func (a *App) resolve(user, nick, input string, req parser.Request, o origin, roles validator.Roles, b *batch) (_ *queue.Item, rej *validator.Rejection) {
+func (a *App) resolveAndQueue(user, nick string, req parser.Request, o origin, roles validator.Roles, b *batch) (_ *queue.Item, rej *validator.Rejection) {
 	cfg := a.Cfg.Get()
 	now := time.Now()
 	st := a.Queue.ValidationState(user)
@@ -478,8 +477,8 @@ func (a *App) resolve(user, nick, input string, req parser.Request, o origin, ro
 		if r := validator.CheckUser(user, st, cfg.Rules, cfg.Queue, now); r != nil {
 			return nil, r
 		}
-	} else if cfg.Queue.MaxSize > 0 && st.QueueLen >= cfg.Queue.MaxSize {
-		return nil, &validator.Rejection{Code: "queue_full", Detail: fmt.Sprintf("queue is full (%d)", cfg.Queue.MaxSize)}
+	} else if r := validator.CheckCapacity(st.QueueLen, cfg.Queue.MaxSize); r != nil {
+		return nil, r
 	}
 	// Gift-only requests: a paid request is taken now and given back if the
 	// map is then rejected, so two quick requests cannot share one payment.
@@ -543,6 +542,10 @@ func (a *App) resolve(user, nick, input string, req parser.Request, o origin, ro
 	}
 	if set.Partial {
 		it.Warning = "osu! page unavailable; star rating, length and status were not checked"
+	}
+	limits := a.Cfg.Get().Queue
+	if r := a.Queue.AddIfRoom(it, limits.Fair, limits.MaxSize); r != nil {
+		return nil, r
 	}
 	return it, nil
 }
@@ -1069,7 +1072,7 @@ func (a *App) play(id, result string) error {
 			return uerr("not_found", "request was removed", nil)
 		}
 	}
-	if it.State != queue.Ready {
+	if it.State != queue.Ready || (it.File != "" && !cfg.Test.DryRun && !a.DL.Trusted(it.File)) {
 		a.mu.Lock()
 		cancel := a.inflight[id]
 		a.mu.Unlock()
@@ -1144,7 +1147,7 @@ func (a *App) Previous() error {
 	switch {
 	case cfg.Test.DryRun:
 		a.Say("info", "dryOpen", map[string]string{"title": it.Artist + " - " + it.Title + " [" + it.Version + "]"}, "dry run: would open %s - %s [%s] (%s)", it.Artist, it.Title, it.Version, cfg.Import.Mode)
-	case it.File != "" && statErr == nil:
+	case it.File != "" && statErr == nil && a.DL.Trusted(it.File):
 		// it was imported when it played, so opening the .osz again only jumps to it
 		err = a.Import.Import(it.File, importer.Open, cfg.Osu.Game, cfg.Osu.Folder, target(it))
 	case !osuLinks(cfg.Osu):

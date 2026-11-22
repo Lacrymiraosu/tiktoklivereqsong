@@ -79,14 +79,22 @@ type State struct {
 // Exempt reports whether user is on the no-limit list.
 func Exempt(rules config.Rules, user string) bool { return listed(rules.ExemptUsers, user) }
 
+// CheckCapacity reports whether another request fits in the waiting queue.
+func CheckCapacity(length, limit int) *Rejection {
+	if limit > 0 && length >= limit {
+		return reject("queue_full", "queue is full (%d)", limit).with("%d/%d", length, limit).set("n", strconv.Itoa(length), "max", strconv.Itoa(limit))
+	}
+	return nil
+}
+
 // CheckUser runs the checks that need no beatmap metadata, so a spammer
 // costs no osu! requests.
 func CheckUser(user string, st State, rules config.Rules, q config.Queue, now time.Time) *Rejection {
 	if listed(rules.BlacklistUsers, user) {
 		return reject("user_blacklisted", "@%s is blacklisted", user)
 	}
-	if q.MaxSize > 0 && st.QueueLen >= q.MaxSize {
-		return reject("queue_full", "queue is full (%d)", q.MaxSize).with("%d/%d", st.QueueLen, q.MaxSize).set("n", strconv.Itoa(st.QueueLen), "max", strconv.Itoa(q.MaxSize))
+	if r := CheckCapacity(st.QueueLen, q.MaxSize); r != nil {
+		return r
 	}
 	if listed(rules.ExemptUsers, user) {
 		return nil
