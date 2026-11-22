@@ -78,3 +78,32 @@ func TestSessionSurvivesRestartButNotADayOff(t *testing.T) {
 		t.Errorf("starting the next day begins a new session: %+v", s)
 	}
 }
+
+func TestSessionTotalsAfterHistoryRollsOver(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "queue.json")
+	q, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q.Add(&Item{ID: "best", User: "early"})
+	q.Promote("best", "played")
+	q.Update("best", func(it *Item) { it.Result = &Result{Outcome: "passed", PP: 123} })
+	q.Finish("played")
+	for range maxHistory {
+		q.Add(&Item{ID: "skip", User: "late"})
+		q.Drop("skip", "skipped")
+	}
+	q.Flush()
+	q, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := q.Summary()
+	if len(q.d.History) != maxHistory || s.Played != 1 || s.Skipped != maxHistory || s.Passed != 1 || s.Viewers != 2 || s.Best == nil || s.Best.User != "early" || len(s.Top) != 2 || s.Top[0].Count != maxHistory {
+		t.Fatalf("summary after restart: %+v", s)
+	}
+	q.NewSession(time.Now())
+	if s := q.Summary(); s.Played != 0 || s.Skipped != 0 || s.Viewers != 0 || s.Best != nil {
+		t.Fatalf("new session: %+v", s)
+	}
+}

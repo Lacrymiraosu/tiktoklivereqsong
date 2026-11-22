@@ -119,12 +119,14 @@ type data struct {
 	History  []Played             `json:"history"`
 	LastReq  map[string]time.Time `json:"lastRequest"`
 	Rejected []Rejected           `json:"rejected"`
-	// users whose cooldown was set by a simulated chat, reset by ClearTest
-	TestUsers map[string]bool    `json:"testUsers,omitempty"`
-	Credits   map[string]*Credit `json:"credits,omitempty"` // gift coins and priority tokens per user
+	// TestUsers is read only to migrate queues saved before simulated cooldowns were separate.
+	TestUsers     map[string]bool      `json:"testUsers,omitempty"`
+	SimulatedLast map[string]time.Time `json:"simulatedLast,omitempty"`
+	Credits       map[string]*Credit   `json:"credits,omitempty"` // gift coins and priority tokens per user
 	// The stream session the summary covers (see summary.go).
-	SessionStart    time.Time `json:"sessionStart"`
-	SessionRejected int       `json:"sessionRejected"`
+	SessionStart    time.Time      `json:"sessionStart"`
+	SessionRejected int            `json:"sessionRejected"`
+	SessionOverflow *sessionTotals `json:"sessionOverflow,omitempty"`
 }
 
 // Snapshot is a deep enough copy for rendering.
@@ -160,6 +162,7 @@ func Open(path string) (*Queue, error) {
 		if q.d.LastReq == nil {
 			q.d.LastReq = map[string]time.Time{}
 		}
+		q.migrateTestCooldowns()
 		// Downloads did not survive the restart, and only files verified in
 		// this session may be opened: send everything back through the cache check.
 		for _, it := range q.d.Items {
@@ -172,6 +175,36 @@ func Open(path string) (*Queue, error) {
 	}
 	q.maybeNewSession(time.Now())
 	return q, nil
+}
+
+// Older queues mixed real and simulated request times. Recover the latest real
+// timestamp still present in the saved queue before clearing a simulated one.
+func (q *Queue) migrateTestCooldowns() {
+	if len(q.d.TestUsers) == 0 {
+		return
+	}
+	q.d.SimulatedLast = map[string]time.Time{}
+	for u := range q.d.TestUsers {
+		q.d.SimulatedLast[u] = q.d.LastReq[u]
+		delete(q.d.LastReq, u)
+	}
+	restore := func(it *Item) {
+		if it == nil || it.Test {
+			return
+		}
+		u := strings.ToLower(it.User)
+		if q.d.TestUsers[u] && it.AddedAt.After(q.d.LastReq[u]) {
+			q.d.LastReq[u] = it.AddedAt
+		}
+	}
+	for _, it := range q.d.Items {
+		restore(it)
+	}
+	for _, it := range q.d.Recent {
+		restore(it)
+	}
+	restore(q.d.Now)
+	q.d.TestUsers = nil
 }
 
 func (q *Queue) OnChange(f func()) { q.onChange = f }
@@ -217,6 +250,9 @@ func (q *Queue) ValidationState(user string) validator.State {
 		QueuedSets:  map[int]bool{},
 		PlayedAt:    map[int]time.Time{},
 	}
+	if simulated := q.d.SimulatedLast[strings.ToLower(user)]; simulated.After(st.LastRequest) {
+		st.LastRequest = simulated
+	}
 	// The map being played no longer counts toward the user's limit, so a
 	// viewer can queue their next request while their current one plays.
 	if q.d.Now != nil {
@@ -237,34 +273,41 @@ func (q *Queue) ValidationState(user string) validator.State {
 	return st
 }
 
-func (q *Queue) Add(it *Item) { q.add(it, false) }
+func (q *Queue) Add(it *Item) { q.AddIfRoom(it, false, 0) }
 
 // AddFair adds it at the end of its owner's round instead of the end of the
 // queue: a viewer's first waiting request is in round 1, the second in round
 // 2, and so on, so one viewer's requests take turns with everyone else's.
 // Priority requests stay on top.
-func (q *Queue) AddFair(it *Item) { q.add(it, true) }
+func (q *Queue) AddFair(it *Item) { q.AddIfRoom(it, true, 0) }
 
-func (q *Queue) add(it *Item, fair bool) {
+// AddIfRoom checks the limit and inserts the request under the same lock.
+func (q *Queue) AddIfRoom(it *Item, fair bool, limit int) *validator.Rejection {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if r := validator.CheckCapacity(len(q.d.Items), limit); r != nil {
+		return r
+	}
 	it.State = Queued
+	stored := copyItem(it)
 	at := len(q.d.Items)
 	if fair {
 		at = q.fairIndex(it.User)
 	}
-	q.d.Items = append(q.d.Items[:at], append([]*Item{it}, q.d.Items[at:]...)...)
-	if !it.Test || it.Simulated {
-		u := strings.ToLower(it.User)
-		q.d.LastReq[u] = it.AddedAt
-		if it.Simulated {
-			if q.d.TestUsers == nil {
-				q.d.TestUsers = map[string]bool{}
-			}
-			q.d.TestUsers[u] = true
+	q.d.Items = append(q.d.Items[:at], append([]*Item{&stored}, q.d.Items[at:]...)...)
+	u := strings.ToLower(it.User)
+	switch {
+	case it.Simulated:
+		if q.d.SimulatedLast == nil {
+			q.d.SimulatedLast = map[string]time.Time{}
 		}
+		q.d.SimulatedLast[u] = it.AddedAt
+	case !it.Test:
+		q.d.LastReq[u] = it.AddedAt
+		delete(q.d.SimulatedLast, u)
 	}
 	q.changed()
+	return nil
 }
 
 // fairIndex is where a new request of user goes in a fair queue; q.mu must be held.
@@ -327,10 +370,7 @@ func (q *Queue) ClearTest() []string {
 		}
 	}
 	q.d.Rejected = rej
-	for u := range q.d.TestUsers {
-		delete(q.d.LastReq, u)
-	}
-	q.d.TestUsers = nil
+	q.d.SimulatedLast = nil
 	for u, c := range q.d.Credits {
 		if c.Test {
 			delete(q.d.Credits, u)
@@ -549,6 +589,14 @@ func (q *Queue) Back(id string) (Item, bool) {
 func (q *Queue) record(it *Item, result string) {
 	q.d.History = append([]Played{{SetID: it.SetID, BeatmapID: it.BeatmapID, Title: it.Artist + " - " + it.Title, User: it.User, At: time.Now(), Result: result, Test: it.Test, Play: it.Result, Mods: it.Mods, Mode: it.Mode}}, q.d.History...)
 	if len(q.d.History) > maxHistory {
+		for _, h := range q.d.History[maxHistory:] {
+			if !h.Test && !h.At.Before(q.d.SessionStart) {
+				if q.d.SessionOverflow == nil {
+					q.d.SessionOverflow = &sessionTotals{}
+				}
+				q.d.SessionOverflow.count(h)
+			}
+		}
 		q.d.History = q.d.History[:maxHistory]
 	}
 }

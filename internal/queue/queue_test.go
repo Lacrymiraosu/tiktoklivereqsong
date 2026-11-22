@@ -1,7 +1,9 @@
 package queue
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -162,5 +164,39 @@ func TestBackToPrevious(t *testing.T) {
 	q.Promote("b", "played")
 	if !q.Files()["a.osz"] {
 		t.Error("the previous map's file is kept for Back")
+	}
+}
+
+func TestLegacyMixedCooldownSurvivesCleanup(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "queue.json")
+	real := time.Now().Add(-time.Minute).UTC()
+	sim := real.Add(30 * time.Second)
+	legacy := data{
+		LastReq: map[string]time.Time{"fan": sim}, TestUsers: map[string]bool{"fan": true},
+		Now:   &Item{ID: "real", User: "FAN", AddedAt: real},
+		Items: []*Item{{ID: "sim", User: "fan", Test: true, Simulated: true, AddedAt: sim}},
+	}
+	b, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	q, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := q.ValidationState("fan").LastRequest; !got.Equal(sim) {
+		t.Fatalf("before cleanup: %v, want %v", got, sim)
+	}
+	q.Flush()
+	q, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q.ClearTest()
+	if got := q.ValidationState("fan").LastRequest; !got.Equal(real) {
+		t.Fatalf("after cleanup: %v, want %v", got, real)
 	}
 }
